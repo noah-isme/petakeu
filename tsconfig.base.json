@@ -11,6 +11,10 @@
     "types": [
       "node"
     ],
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@web/*": ["apps/web/src/*"],
+      "@server/*": ["apps/server/src/*"]
+    }
   }
 }

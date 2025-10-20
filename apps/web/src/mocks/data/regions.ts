@@ -1,5 +1,4 @@
 import type { Feature, Polygon } from "geojson";
-
 import type { Region } from "../../types/region";
 
 export interface RegionGeoFeature extends Feature<Polygon> {

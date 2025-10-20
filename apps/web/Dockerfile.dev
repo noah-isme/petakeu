@@ -1,0 +1,20 @@
+FROM node:20-bullseye
+
+WORKDIR /app
+
+RUN corepack enable pnpm
+
+COPY pnpm-workspace.yaml ./
+COPY package.json ./
+COPY pnpm-lock.yaml ./
+COPY turbo.json ./
+COPY apps/server/package.json ./apps/server/
+COPY apps/web/package.json ./apps/web/
+
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+EXPOSE 5173
+
+CMD ["pnpm", "dev:web"]

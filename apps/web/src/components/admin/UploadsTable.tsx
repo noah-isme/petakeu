@@ -18,7 +18,9 @@ export function UploadsTable({ uploads }: UploadsTableProps) {
           <th>Status</th>
           <th>Error</th>
           <th>Dibuat</th>
+          <th>Ringkasan</th>
           <th>File</th>
+          <th>Hash</th>
           <th>Detail Error</th>
         </tr>
       </thead>
@@ -33,6 +35,18 @@ export function UploadsTable({ uploads }: UploadsTableProps) {
             <td>{upload.errorCount}</td>
             <td>{new Date(upload.createdAt).toLocaleString("id-ID")}</td>
             <td>
+              {upload.summary ? (
+                <div>
+                  <div>{upload.summary.validRows} valid / {upload.summary.totalRows} baris</div>
+                  <div>
+                    Total: {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(upload.summary.totalAmount)}
+                  </div>
+                </div>
+              ) : (
+                "—"
+              )}
+            </td>
+            <td>
               {upload.fileUrl ? (
                 <a href={upload.fileUrl} target="_blank" rel="noreferrer">
                   Unduh
@@ -41,6 +55,7 @@ export function UploadsTable({ uploads }: UploadsTableProps) {
                 "—"
               )}
             </td>
+            <td>{upload.hash ? <code>{upload.hash.slice(0, 8)}…</code> : "—"}</td>
             <td>
               {upload.errors && upload.errors.length > 0 ? (
                 <details>
@@ -52,6 +67,13 @@ export function UploadsTable({ uploads }: UploadsTableProps) {
                       </li>
                     ))}
                   </ul>
+                  {upload.errorFilePath && (
+                    <div style={{ marginTop: "0.5rem" }}>
+                      <a href={upload.errorFilePath} target="_blank" rel="noreferrer">
+                        Unduh error.csv
+                      </a>
+                    </div>
+                  )}
                 </details>
               ) : (
                 "—"

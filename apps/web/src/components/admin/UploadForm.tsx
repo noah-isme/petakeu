@@ -44,6 +44,8 @@ export function UploadForm({ onUploaded }: UploadFormProps) {
     });
   };
 
+  const isPending = mutation.isPending;
+
   const handleFiles = useCallback(
     (files: FileList | null) => {
       if (!files?.length) {
@@ -101,7 +103,7 @@ export function UploadForm({ onUploaded }: UploadFormProps) {
         <p>
           Tarik & lepaskan file Excel (<code>.xlsx</code>)
         </p>
-        <button type="button" className="link-button" onClick={handleBrowseClick} disabled={mutation.isLoading}>
+          <button type="button" className="link-button" onClick={handleBrowseClick} disabled={isPending}>
           atau pilih dari komputer
         </button>
         <input
@@ -118,7 +120,7 @@ export function UploadForm({ onUploaded }: UploadFormProps) {
           </div>
         )}
       </div>
-      {mutation.isLoading && <p aria-live="polite">Mengunggah...</p>}
+        {isPending && <p aria-live="polite">Mengunggah...</p>}
       {error && (
         <p className="upload-error" role="alert">
           {error}

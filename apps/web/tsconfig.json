@@ -5,7 +5,8 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Node",
-    "noEmit": true
+    "noEmit": true,
+    "types": ["vite/client", "vitest", "node"]
   },
   "include": [
     "src",

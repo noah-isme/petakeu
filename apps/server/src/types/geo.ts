@@ -1,17 +1,39 @@
 export interface ChoroplethFeatureProperties {
   regionId: string;
   name: string;
-  totalAmount: number;
-  cut15Amount: number;
-  trendSparkline: number[];
   centroid: [number, number];
-  quantileIndex: number;
+  classIndex: number;
+  classLabel: string;
+  value?: number;
+  normalizedValue?: number;
+  sparkline?: number[];
 }
 
 export interface ChoroplethFeature {
   type: "Feature";
+  id: string;
   geometry: GeoJSON.MultiPolygon | GeoJSON.Polygon;
   properties: ChoroplethFeatureProperties;
+}
+
+export interface QuantileBin {
+  index: number;
+  min: number;
+  max: number;
+  label: string;
+}
+
+export interface LegendRange {
+  min: number;
+  max: number;
+  label: string;
+}
+
+export interface LegendDefinition {
+  method: "quantile";
+  bins: number[];
+  labels: string[];
+  ranges: LegendRange[];
 }
 
 export interface ChoroplethResponse {
@@ -19,7 +41,9 @@ export interface ChoroplethResponse {
   features: ChoroplethFeature[];
   metadata: {
     period: string;
-    legend: number[];
-    classification: "quantile";
+    legend: LegendDefinition;
+    public: boolean;
+    warnings?: string[];
+    scenario?: string;
   };
 }

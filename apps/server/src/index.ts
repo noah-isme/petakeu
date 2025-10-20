@@ -1,5 +1,6 @@
-import dotenv from "dotenv";
 import http from "node:http";
+
+import dotenv from "dotenv";
 
 import { loadEnv } from "./config/env";
 import { createApp } from "./server";

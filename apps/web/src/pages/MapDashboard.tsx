@@ -168,24 +168,28 @@ export function MapDashboard() {
     }
   };
 
-  const legendStops = useMemo(() => (choropleth as ChoroplethResponse)?.metadata?.legend ?? [], [choropleth]);
+  const legendDefinition = useMemo(() => (choropleth as ChoroplethResponse)?.metadata?.legend, [choropleth]);
   const selectedFeature = (choropleth as ChoroplethResponse)?.features?.find((feature) => feature.properties.regionId === selectedRegionId);
   const warnings = (choropleth as ChoroplethResponse)?.metadata?.warnings ?? [];
   const classificationLabel = selectedFeature
-    ? `Kelas ${selectedFeature.properties.quantileIndex + 1} · ${classificationLabels[selectedFeature.properties.quantileIndex] ?? ""}`
+    ? [
+        selectedFeature.properties.classLabel,
+        classificationLabels[selectedFeature.properties.classIndex]
+      ]
+        .filter(Boolean)
+        .join(" · ")
     : undefined;
 
   const handleDownloadReport = async () => {
     if (!regionSummary || publicMode) return;
     setReportPending(true);
     try {
-      const jobId = await apiClient.createReport({
-        regionId: (regionSummary as RegionSummary).region.id,
-        periodFrom: "2025-01",
-        periodTo: period,
-        type: "pdf"
+      const job = await apiClient.createReport({
+        period,
+        regionIds: [(regionSummary as RegionSummary).region.id],
+        format: "pdf"
       });
-      setStatusMessage(`Laporan dalam antrean. ID job: ${jobId}`);
+      setStatusMessage(`Laporan dalam antrean. ID job: ${job.jobId}`);
       queryClient.invalidateQueries({ queryKey: ["report-jobs"] }).catch(() => undefined);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Gagal membuat laporan");
@@ -200,24 +204,6 @@ export function MapDashboard() {
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(amount);
-  };
-
-  const getTierColor = (tier: string) => {
-    switch (tier) {
-      case "gold": return "bg-yellow-400";
-      case "silver": return "bg-gray-400";
-      case "bronze": return "bg-orange-600";
-      default: return "bg-gray-200";
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case "red": return "bg-red-500";
-      case "orange": return "bg-orange-500";
-      case "green": return "bg-green-500";
-      default: return "bg-gray-500";
-    }
   };
 
   const getCategoryText = (category: string) => {
@@ -287,7 +273,7 @@ export function MapDashboard() {
                       publicMode={publicMode}
                     />
                   </div>
-                  <Legend stops={legendStops} />
+                  <Legend legend={legendDefinition} publicMode={publicMode} />
                 </section>
                 {warnings.length > 0 && (
                   <div className="alert-warning bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6" role="status" aria-live="assertive">
@@ -333,6 +319,7 @@ export function MapDashboard() {
                           <div className="p-3 bg-green-100 rounded-lg">
                             <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                            </svg>
                           </div>
                           <div className="ml-4">
                             <h3 className="text-lg font-semibold text-gray-900">Total Realisasi</h3>
@@ -362,6 +349,7 @@ export function MapDashboard() {
                           <div className="p-3 bg-purple-100 rounded-lg">
                             <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                            </svg>
                           </div>
                           <div className="ml-4">
                             <h3 className="text-lg font-semibold text-gray-900">Surplus/Defisit Total</h3>
@@ -464,6 +452,7 @@ export function MapDashboard() {
                           <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center mr-3">
                             <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
                           </div>
                           <div>
                             <h2 className="text-xl font-bold text-gray-900">Gold League</h2>
@@ -491,6 +480,7 @@ export function MapDashboard() {
                           <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
                             <svg className="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
                           </div>
                           <div>
                             <h2 className="text-xl font-bold text-gray-900">Silver League</h2>
@@ -518,6 +508,7 @@ export function MapDashboard() {
                           <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
                             <svg className="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
                           </div>
                           <div>
                             <h2 className="text-xl font-bold text-gray-900">Bronze League</h2>

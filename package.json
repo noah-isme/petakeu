@@ -3,18 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "description": "Monorepo for Petakeu - Peta Interaktif Pemasukan Daerah",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
-  "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "format": "npm run format --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+  "packageManager": "pnpm@8.15.4",
+  "devDependencies": {
+    "turbo": "^1.13.4"
   },
-  "engines": {
-    "node": ">=18.17"
+  "scripts": {
+    "dev": "turbo run dev --no-cache --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "dev:web": "pnpm --filter @petakeu/web dev",
+    "dev:server": "pnpm --filter @petakeu/server dev"
   }
 }
