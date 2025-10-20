@@ -10,7 +10,15 @@ const listRegions = asyncHandler(async (req: Request, res: Response) => {
     parent
   });
 
-  res.json({ data: regions });
+  res.json({
+    data: regions,
+    meta: {
+      total: regions.length,
+      page: 1,
+      pageSize: regions.length,
+      totalPages: 1
+    }
+  });
 });
 
 const getRegionSummary = asyncHandler(async (req: Request, res: Response) => {

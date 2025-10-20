@@ -13,24 +13,45 @@ Platform internal untuk memantau pemasukan daerah melalui peta interaktif, ungga
 - **Data**: Rencana PostGIS `regions.geom`, materialized view `mv_payments_with_cut`, cache Redis.
 
 ### Setup Awal
-1. Gunakan Node.js 18.17 atau lebih baru.
+1. Gunakan Node.js 18.17 atau lebih baru dan aktifkan pnpm melalui Corepack (`corepack enable`).
 2. Instal dependencies dari root repository:
    ```bash
-   npm install
+   pnpm install
    ```
-3. Jalankan backend API:
+3. Skrip utama tersedia di root monorepo:
    ```bash
-   npm run dev --workspace @petakeu/server
+   pnpm dev         # Menjalankan dev server web + API secara paralel (turbo)
+   pnpm dev:web     # Menjalankan hanya frontend
+   pnpm dev:server  # Menjalankan hanya backend
+   pnpm lint        # ESLint untuk semua workspace
+   pnpm typecheck   # Pengecekan tipe TypeScript
+   pnpm test        # Vitest untuk server & web
+   pnpm build       # Build production untuk seluruh monorepo
+   ```
+4. Jalankan backend API secara terpisah bila perlu:
+   ```bash
+   pnpm dev:server
    ```
    Konfigurasi environment:
    - `PORT` (default `4000`)
    - `DATABASE_URL` (PostgreSQL/PostGIS)
    - `REDIS_URL`
-4. Jalankan frontend:
+ - `STORAGE_BUCKET` dan `STORAGE_ENDPOINT` (untuk objek MinIO/S3)
+5. Jalankan frontend:
    ```bash
-   npm run dev --workspace @petakeu/web
+   pnpm dev:web
    ```
    Vite akan berjalan di `http://localhost:5173` dan melakukan proxy ke API (`/api` → `http://localhost:4000`).
+
+### Docker Compose (Pengembangan)
+
+Gunakan `docker-compose.dev.yml` untuk menjalankan PostGIS, Redis, MinIO, API, dan frontend secara bersamaan:
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+API akan tersedia di `http://localhost:4000`, sementara frontend tetap di `http://localhost:5173`.
 
 > Catatan: Data yang digunakan masih mock/sintetis. Integrasi nyata memerlukan koneksi ke database, Redis, dan storage objek (S3/MinIO).
 

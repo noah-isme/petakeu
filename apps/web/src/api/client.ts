@@ -1,4 +1,5 @@
 import { buildUrl } from "../config/api";
+
 import type { ChoroplethResponse } from "../types/geo";
 import type { Region, RegionSummary } from "../types/region";
 import type { ReportJob, ReportRequest } from "../types/report";
@@ -38,21 +39,18 @@ export const apiClient = {
       const text = await response.text();
       throw new Error(text || "Upload failed");
     }
-    const payload = (await response.json()) as { upload_id: string };
-    return {
-      uploadId: payload.upload_id,
-      status: "queued"
-    } satisfies UploadCreated;
+    const payload = (await response.json()) as UploadCreated;
+    return payload;
   },
   createReport(payload: ReportRequest) {
-    const url = buildUrl("/reports");
-    return fetchJson<{ job_id: string }>(url, {
+    const url = buildUrl("/reports/export");
+    return fetchJson<{ data: ReportJob }>(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
-    }).then((res) => res.job_id);
+    }).then((res) => res.data);
   },
   listUploads() {
     const url = buildUrl("/uploads");

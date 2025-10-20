@@ -13,12 +13,34 @@ const handleUpload = asyncHandler(async (req: Request, res: Response) => {
   const result = await uploadService.enqueueUpload({
     filename: file.originalname,
     mimetype: file.mimetype,
-    buffer: file.buffer
+    buffer: file.buffer,
+    size: file.size
   });
 
-  res.status(202).json(result);
+  res.status(202).json({
+    uploadId: result.uploadId,
+    status: result.status,
+    hash: result.hash
+  });
+});
+
+const listUploads = asyncHandler(async (_req: Request, res: Response) => {
+  const uploads = uploadService.listUploads();
+  res.json({ data: uploads });
+});
+
+const getUpload = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const record = uploadService.getUpload(id);
+  if (!record) {
+    throw new AppError("Upload not found", 404);
+  }
+
+  res.json({ data: record });
 });
 
 export const uploadController = {
-  handleUpload
+  handleUpload,
+  listUploads,
+  getUpload
 };

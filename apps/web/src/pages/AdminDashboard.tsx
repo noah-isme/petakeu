@@ -1,19 +1,19 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { apiClient } from "../api/client";
 import { UploadForm } from "../components/admin/UploadForm";
 import { UploadsTable } from "../components/admin/UploadsTable";
 import { ReportJobsList } from "../components/admin/ReportJobsList";
-import type { ReportRequest } from "../types/report";
-import { useUploads } from "../hooks/useUploads";
 import { useReportJobs } from "../hooks/useReportJobs";
+import { useUploads } from "../hooks/useUploads";
+import { apiClient } from "../api/client";
+
+import type { ReportRequest } from "../types/report";
 
 const defaultReportPayload: ReportRequest = {
-  regionId: "prov-33",
-  periodFrom: "2025-01",
-  periodTo: "2025-08",
-  type: "pdf"
+  period: "2025-08",
+  regionIds: ["prov-33"],
+  format: "pdf"
 };
 
 export function AdminDashboard() {
@@ -29,9 +29,17 @@ export function AdminDashboard() {
 
   const handleReportSubmit = async () => {
     setMessage(null);
+    if (!reportPayload.regionIds.length) {
+      setMessage("Masukkan minimal satu wilayah untuk laporan.");
+      return;
+    }
+    if (!reportPayload.period) {
+      setMessage("Pilih periode laporan.");
+      return;
+    }
     try {
-      const jobId = await apiClient.createReport(reportPayload);
-      setMessage(`Laporan dalam antrean. ID job: ${jobId}`);
+      const job = await apiClient.createReport(reportPayload);
+      setMessage(`Laporan dalam antrean. ID job: ${job.jobId}`);
       queryClient.invalidateQueries({ queryKey: ["report-jobs"] }).catch(() => undefined);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Gagal mengirim permintaan laporan");
@@ -40,8 +48,8 @@ export function AdminDashboard() {
 
   const handleRegenerate = async (request: ReportRequest) => {
     try {
-      const jobId = await apiClient.createReport(request);
-      setMessage(`Permintaan regenerasi dikirim. ID job: ${jobId}`);
+      const job = await apiClient.createReport(request);
+      setMessage(`Permintaan regenerasi dikirim. ID job: ${job.jobId}`);
       queryClient.invalidateQueries({ queryKey: ["report-jobs"] }).catch(() => undefined);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Gagal mengirim permintaan regenerasi");
@@ -60,34 +68,36 @@ export function AdminDashboard() {
         <h2>Laporan Otomatis</h2>
         <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end" }}>
           <label>
-            ID Wilayah
+            ID Wilayah (pisahkan dengan koma)
             <input
               type="text"
-              value={reportPayload.regionId}
-              onChange={(event) => setReportPayload((prev) => ({ ...prev, regionId: event.target.value }))}
+              value={reportPayload.regionIds.join(", ")}
+              onChange={(event) =>
+                setReportPayload((prev) => ({
+                  ...prev,
+                  regionIds: event.target.value
+                    .split(",")
+                    .map((value) => value.trim())
+                    .filter(Boolean),
+                }))
+              }
             />
           </label>
           <label>
-            Dari
+            Periode
             <input
               type="month"
-              value={reportPayload.periodFrom}
-              onChange={(event) => setReportPayload((prev) => ({ ...prev, periodFrom: event.target.value }))}
+              value={reportPayload.period}
+              onChange={(event) => setReportPayload((prev) => ({ ...prev, period: event.target.value }))}
             />
           </label>
           <label>
-            Sampai
-            <input
-              type="month"
-              value={reportPayload.periodTo}
-              onChange={(event) => setReportPayload((prev) => ({ ...prev, periodTo: event.target.value }))}
-            />
-          </label>
-          <label>
-            Tipe
+            Format
             <select
-              value={reportPayload.type}
-              onChange={(event) => setReportPayload((prev) => ({ ...prev, type: event.target.value as ReportRequest["type"] }))}
+              value={reportPayload.format}
+              onChange={(event) =>
+                setReportPayload((prev) => ({ ...prev, format: event.target.value as ReportRequest["format"] }))
+              }
             >
               <option value="pdf">PDF</option>
               <option value="excel">Excel</option>

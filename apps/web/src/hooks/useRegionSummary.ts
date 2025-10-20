@@ -18,6 +18,6 @@ export function useRegionSummary({ regionId, ...range }: UseRegionSummaryParams,
       return apiClient.getRegionSummary(regionId, range);
     },
     enabled: (options?.enabled ?? true) && Boolean(regionId),
-    keepPreviousData: true
+    placeholderData: (previousData) => previousData
   });
 }

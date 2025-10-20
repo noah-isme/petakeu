@@ -7,6 +7,6 @@ export function useChoropleth(period: string) {
     queryKey: ["choropleth", period],
     queryFn: () => apiClient.getChoropleth(period),
     staleTime: 2 * 60 * 1000,
-    keepPreviousData: true
+    placeholderData: (previousData) => previousData
   });
 }

@@ -4,4 +4,6 @@ import { reportController } from "../../controllers/report-controller";
 
 export const reportRouter = Router();
 
-reportRouter.post("/", reportController.enqueueReport);
+reportRouter.post("/export", reportController.enqueueReport);
+reportRouter.get("/", reportController.listReports);
+reportRouter.get("/:id", reportController.getReportById);

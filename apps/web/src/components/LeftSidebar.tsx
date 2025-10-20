@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ChevronLeft,
   Map as MapIcon,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "../lib/utils";
+
 import { Button } from "./ui/button";
 
 interface SidebarItem {
