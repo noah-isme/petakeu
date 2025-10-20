@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
+    "allowJs": true,
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Node",
