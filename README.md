@@ -12,6 +12,13 @@ Platform internal untuk memantau pemasukan daerah melalui peta interaktif, ungga
 - **Backend**: Express, TypeScript, Multer, Zod, pg (PostgreSQL/PostGIS), Redis SDK.
 - **Data**: Rencana PostGIS `regions.geom`, materialized view `mv_payments_with_cut`, cache Redis.
 
+### UI/UX Overview
+- **AppLayout** menempatkan sidebar gelap (navigasi Peta, Unggah, Laporan, Tentang) di sisi kiri, topbar kaca dengan pemilih periode di atas konten, serta panel informasi di kanan.
+- **Halaman Peta** menghadirkan choropleth Leaflet penuh dengan tooltip kaya, state loading/empty/error, dan interaksi legenda-kuantil.
+- **Halaman Unggah** menyediakan dropzone drag-and-drop, simulasi progres, dan ringkasan validasi dengan aksi unduhan error.
+- **Halaman Laporan** menyajikan kartu metrik responsif beserta sparkline mini Recharts untuk tren cepat.
+- **Sistem toast** non-blocking memberi umpan balik untuk unggah dan kegagalan muat.
+
 ### Setup Awal
 1. Gunakan Node.js 18.17 atau lebih baru dan aktifkan pnpm melalui Corepack (`corepack enable`).
 2. Instal dependencies dari root repository:
