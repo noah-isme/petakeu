@@ -1,5 +1,6 @@
+import { rest } from "msw";
+import type { RestRequest } from "msw";
 import { addMonths, isAfter, isBefore } from "date-fns";
-import { rest, type RestRequest } from "msw";
 
 import { getRegionGeometry } from "./data/regions";
 import {
@@ -7,6 +8,7 @@ import {
   getScenarioDataset,
   getPaymentsByPeriod,
   getPaymentsByRegion,
+  getPeriods,
   type PaymentRecord
 } from "./data/scenarios";
 import { buildQuantileLegend, classifyQuantile } from "./utils/math";
@@ -19,7 +21,6 @@ import {
   getWatchlist,
   getRegionDetail
 } from "./data/fiscal";
-
 import type { RegionLevel } from "../types/region";
 
 interface UploadErrorDetail {
@@ -31,59 +32,26 @@ interface UploadErrorDetail {
 interface UploadItem {
   id: string;
   filename: string;
-  mimetype: string;
-  size: number;
   status: "queued" | "processing" | "parsed" | "failed";
   errorCount: number;
   createdAt: string;
-  updatedAt: string;
   objectUrl: string | null;
   shaKey: string;
-  summary?: {
-    totalRows: number;
-    validRows: number;
-    totalAmount: number;
-    periodRange: { from?: string; to?: string };
-  };
   errors?: UploadErrorDetail[];
-  errorFileUrl?: string | null;
-}
-
-interface ReportSummaryRegionItem {
-  regionId: string;
-  regionName: string;
-  total: number;
-  changePercentage: number;
-}
-
-interface ReportTrendItem {
-  regionId: string;
-  regionName: string;
-  changePercentage: number;
-}
-
-interface ReportMonthlySummaryItem {
-  period: string;
-  total: number;
 }
 
 interface ReportJobItem {
   id: string;
-  period: string;
-  regionIds: string[];
-  format: "pdf" | "excel";
+  regionId: string;
+  periodFrom: string;
+  periodTo: string;
+  type: "pdf" | "excel";
   status: "queued" | "processing" | "completed" | "failed";
   downloadUrl: string | null;
   requestedAt: string;
   updatedAt: string;
   expiresAt?: string;
-  errorMessage?: string;
-  summary: {
-    totalsByRegion: ReportSummaryRegionItem[];
-    topGainers: ReportTrendItem[];
-    topDecliners: ReportTrendItem[];
-    lastTwelveMonths: ReportMonthlySummaryItem[];
-  };
+  expired?: boolean;
 }
 
 const uploadsStore: UploadItem[] = [];
@@ -123,65 +91,6 @@ function computeCentroid(coordinates: number[][][]) {
   return [total.lng / count, total.lat / count] as [number, number];
 }
 
-function buildUploadSummary(errorCount: number): UploadItem["summary"] {
-  const totalRows = 120;
-  const validRows = Math.max(totalRows - errorCount, totalRows - 2);
-  const totalAmount = 45_000_000 + errorCount * -1_500_000 + Math.round((totalRows - errorCount) * 250_000);
-  return {
-    totalRows,
-    validRows,
-    totalAmount,
-    periodRange: {
-      from: "2025-01",
-      to: "2025-08"
-    }
-  };
-}
-
-function pickRegionName(regionId: string, fallbackIndex: number): string {
-  return allRegions.find((region) => region.id === regionId)?.name ?? `Wilayah ${fallbackIndex + 1}`;
-}
-
-function buildReportSummary(regionIds: string[], period: string): ReportJobItem["summary"] {
-  const totalsByRegion = regionIds.map((regionId, index) => ({
-    regionId,
-    regionName: pickRegionName(regionId, index),
-    total: 48_000_000 + index * 7_500_000,
-    changePercentage: Number((Math.sin(index + 1) * 9).toFixed(2))
-  }));
-
-  const toTrendItems = (order: "asc" | "desc") =>
-    [...totalsByRegion]
-      .sort((a, b) => (order === "asc" ? a.changePercentage - b.changePercentage : b.changePercentage - a.changePercentage))
-      .slice(0, Math.min(10, totalsByRegion.length))
-      .map((item) => ({
-        regionId: item.regionId,
-        regionName: item.regionName,
-        changePercentage: item.changePercentage
-      }));
-
-  const [yearStr, monthStr] = period.split("-");
-  const year = Number(yearStr);
-  const month = Number(monthStr);
-  const lastTwelveMonths = Array.from({ length: 12 }, (_, index) => {
-    const cursor = new Date(Date.UTC(year, month - 1));
-    cursor.setUTCMonth(cursor.getUTCMonth() - (11 - index));
-    const isoYear = cursor.getUTCFullYear();
-    const isoMonth = `${cursor.getUTCMonth() + 1}`.padStart(2, "0");
-    return {
-      period: `${isoYear}-${isoMonth}`,
-      total: 36_000_000 + index * 2_250_000
-    };
-  });
-
-  return {
-    totalsByRegion,
-    topGainers: toTrendItems("desc"),
-    topDecliners: toTrendItems("asc"),
-    lastTwelveMonths
-  };
-}
-
 function updateUploadStatuses() {
   const now = Date.now();
   uploadsStore.forEach((upload) => {
@@ -189,19 +98,11 @@ function updateUploadStatuses() {
     const age = now - created;
     if (upload.status === "queued" && age > 1500) {
       upload.status = "processing";
-      upload.updatedAt = nowIso();
     }
     if (upload.status === "processing" && age > 3500) {
       upload.status = upload.errorCount > 0 ? "failed" : "parsed";
-      upload.updatedAt = nowIso();
-      if (!upload.objectUrl) {
+      if (upload.status === "parsed" && !upload.objectUrl) {
         upload.objectUrl = `https://storage.petakeu.local/uploads/${upload.id}.xlsx`;
-      }
-      if (!upload.summary) {
-        upload.summary = buildUploadSummary(upload.errorCount);
-      }
-      if (upload.errorCount > 0 && !upload.errorFileUrl) {
-        upload.errorFileUrl = `https://storage.petakeu.local/uploads/${upload.id}-errors.csv`;
       }
     }
   });
@@ -218,12 +119,13 @@ function updateReportStatuses() {
     }
     if (job.status === "processing" && age > 5000) {
       job.status = "completed";
-      job.downloadUrl = `https://storage.petakeu.local/reports/${job.id}.${job.format === "pdf" ? "pdf" : "xlsx"}`;
+      job.downloadUrl = `https://storage.petakeu.local/reports/${job.id}.${job.type === "pdf" ? "pdf" : "xlsx"}`;
       job.updatedAt = nowIso();
       job.expiresAt = new Date(Date.now() + 30_000).toISOString();
     }
     if (job.status === "completed" && job.expiresAt && new Date(job.expiresAt).getTime() < now) {
       job.downloadUrl = null;
+      job.expired = true;
     }
   });
 }
@@ -335,21 +237,6 @@ export const handlers = [
 
     const legendSource = records.map((item) => item.amount);
     const legendEdges = legendSource.length ? buildQuantileLegend(legendSource) : [];
-    const sortedLegendValues = [...legendSource].sort((a, b) => a - b);
-    const minLegendValue = sortedLegendValues[0] ?? 0;
-    const legendBins = legendEdges.length
-      ? legendEdges.map((edge, index) => ({
-          index,
-          min: index === 0 ? minLegendValue : legendEdges[index - 1] ?? minLegendValue,
-          max: edge,
-          label: toClassLabel(index)
-        }))
-      : Array.from({ length: 5 }, (_value, index) => ({
-          index,
-          min: 0,
-          max: 0,
-          label: toClassLabel(index)
-        }));
 
     const features = records
       .map((record) => {
@@ -372,14 +259,13 @@ export const handlers = [
           regionId: record.regionId,
           name: region.name,
           centroid,
-          classIndex: quantileIndex,
-          classLabel: legendBins[quantileIndex]?.label ?? toClassLabel(quantileIndex)
+          quantileIndex,
+          classLabel: toClassLabel(quantileIndex)
         };
 
         if (isPublic) {
           return {
             type: "Feature" as const,
-            id: record.regionId,
             geometry: geometry.geometry,
             properties: baseProperties
           };
@@ -391,28 +277,18 @@ export const handlers = [
 
         return {
           type: "Feature" as const,
-          id: record.regionId,
           geometry: geometry.geometry,
           properties: {
             ...baseProperties,
-            value: record.amount,
-            normalizedValue: record.amount * 0.15,
-            sparkline: sparkRecords.map((item) => item.amount)
+            totalAmount: record.amount,
+            cut15Amount: record.amount * 0.15,
+            trendSparkline: sparkRecords.map((item) => item.amount)
           }
         };
       })
       .filter(Boolean);
 
-    const legendResponse = {
-      method: "quantile" as const,
-      bins: legendEdges,
-      labels: legendBins.map((bin) => bin.label),
-      ranges: legendBins.map((bin) => ({
-        label: bin.label,
-        min: bin.min,
-        max: bin.max
-      }))
-    };
+    const legendResponse = isPublic ? ["Kelas 1", "Kelas 2", "Kelas 3", "Kelas 4", "Kelas 5"] : legendEdges;
 
     return res(
       ctx.status(200),
@@ -422,6 +298,7 @@ export const handlers = [
         metadata: {
           period,
           legend: legendResponse,
+          classification: "quantile" as const,
           warnings,
           scenario: scenarioKey,
           public: isPublic
@@ -480,194 +357,99 @@ export const handlers = [
       })
     );
   }),
-    rest.post("/api/uploads", async (req, res, ctx) => {
-      const requestWithFormData = req as typeof req & { formData?: () => Promise<FormData> };
-      const formData = requestWithFormData.formData ? await requestWithFormData.formData() : undefined;
-      const file = formData?.get("file");
-      if (!(file instanceof File)) {
-        return res(ctx.status(400), ctx.json({ error: "No file uploaded" }));
-      }
+  rest.post("/api/uploads", async (req, res, ctx) => {
+    const formData = await req.body as FormData;
+    const file = formData?.get?.("file");
+    if (!(file instanceof File)) {
+      return res(ctx.status(400), ctx.json({ error: "No file uploaded" }));
+    }
 
     const shaKey = await computeFileHash(file);
     if (uploadHashes.has(shaKey)) {
-      const existingId = uploadHashes.get(shaKey)!;
-      const existingUpload = uploadsStore.find((item) => item.id === existingId);
-      if (existingUpload) {
-        return res(
-          ctx.status(202),
-          ctx.json({ uploadId: existingUpload.id, status: existingUpload.status, hash: existingUpload.shaKey })
-        );
-      }
+      return res(ctx.status(409), ctx.json({ error: "Duplicate upload" }));
     }
 
     const uploadId = crypto.randomUUID();
     const hasErrors = file.name.toLowerCase().includes("error");
     const errors: UploadErrorDetail[] | undefined = hasErrors
       ? [
-          { row: 12, column: "nominal", message: "Nilai negatif tidak diperbolehkan" },
+          { row: 12, column: "setoran", message: "Nilai negatif tidak diperbolehkan" },
           { row: 25, column: "periode", message: "Format periode tidak valid" }
         ]
       : undefined;
 
-    const createdAt = nowIso();
     uploadsStore.unshift({
       id: uploadId,
       filename: file.name,
-      mimetype: file.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      size: file.size,
       status: "queued",
       errorCount: errors?.length ?? 0,
-      createdAt,
-      updatedAt: createdAt,
+      createdAt: nowIso(),
       objectUrl: null,
       shaKey,
-      summary: undefined,
-      errors,
-      errorFileUrl: undefined
+      errors
     });
     uploadHashes.set(shaKey, uploadId);
 
-    return res(ctx.status(202), ctx.json({ uploadId, status: "queued", hash: shaKey }));
+    return res(ctx.status(202), ctx.json({ upload_id: uploadId }));
   }),
   rest.get("/api/uploads", (_req, res, ctx) => {
     updateUploadStatuses();
     const enriched = uploadsStore.map((upload) => ({
       uploadId: upload.id,
       filename: upload.filename,
-      mimetype: upload.mimetype,
-      size: upload.size,
       status: upload.status,
       errorCount: upload.errorCount,
       createdAt: upload.createdAt,
-      updatedAt: upload.updatedAt,
       fileUrl: upload.objectUrl,
-      hash: upload.shaKey,
-      summary: upload.summary,
-      errors: upload.errors,
-      errorFilePath: upload.errorFileUrl ?? undefined
+      errors: upload.errors
     }));
     return res(ctx.status(200), ctx.json({ data: enriched }));
   }),
-  rest.get("/api/uploads/:id", (req, res, ctx) => {
-    updateUploadStatuses();
-    const { id } = req.params as { id: string };
-    const upload = uploadsStore.find((item) => item.id === id);
-    if (!upload) {
-      return res(ctx.status(404), ctx.json({ error: "Upload not found" }));
-    }
-
-    return res(
-      ctx.status(200),
-      ctx.json({
-        data: {
-          uploadId: upload.id,
-          filename: upload.filename,
-          mimetype: upload.mimetype,
-          size: upload.size,
-          status: upload.status,
-          errorCount: upload.errorCount,
-          createdAt: upload.createdAt,
-          updatedAt: upload.updatedAt,
-          fileUrl: upload.objectUrl,
-          hash: upload.shaKey,
-          summary: upload.summary,
-          errors: upload.errors,
-          errorFilePath: upload.errorFileUrl ?? undefined
-        }
-      })
-    );
-  }),
-  rest.post("/api/reports/export", async (req, res, ctx) => {
+  rest.post("/api/reports", async (req, res, ctx) => {
     const body = await req.json();
-    const { regionIds, period, format } = body as {
-      regionIds?: string[];
-      period?: string;
-      format?: "pdf" | "excel";
+    const { regionId, periodFrom, periodTo, type } = body as {
+      regionId?: string;
+      periodFrom?: string;
+      periodTo?: string;
+      type?: "pdf" | "excel";
     };
 
-    if (!period || !regionIds?.length || !format) {
+    if (!regionId || !periodFrom || !periodTo || !type) {
       return res(ctx.status(400), ctx.json({ error: "Invalid payload" }));
     }
 
     const jobId = crypto.randomUUID();
-    const now = nowIso();
-    const downloadUrl = `https://storage.petakeu.local/reports/${jobId}.${format === "excel" ? "xlsx" : "pdf"}`;
-    const summary = buildReportSummary(regionIds, period);
     const job: ReportJobItem = {
       id: jobId,
-      period,
-      regionIds,
-      format,
-      status: "completed",
-      downloadUrl,
-      requestedAt: now,
-      updatedAt: now,
-      expiresAt: new Date(Date.now() + 60_000).toISOString(),
-      summary
+      regionId,
+      periodFrom,
+      periodTo,
+      type,
+      status: "queued",
+      downloadUrl: null,
+      requestedAt: nowIso(),
+      updatedAt: nowIso()
     };
     reportsStore.unshift(job);
 
-    return res(
-      ctx.status(201),
-      ctx.json({
-        data: {
-          jobId,
-          period,
-          regionIds,
-          format,
-          status: job.status,
-          downloadUrl: job.downloadUrl,
-          requestedAt: job.requestedAt,
-          updatedAt: job.updatedAt,
-          expiresAt: job.expiresAt,
-          summary: job.summary
-        }
-      })
-    );
+    return res(ctx.status(202), ctx.json({ job_id: jobId }));
   }),
   rest.get("/api/reports", (_req, res, ctx) => {
     updateReportStatuses();
     const data = reportsStore.map((job) => ({
       jobId: job.id,
-      period: job.period,
-      regionIds: job.regionIds,
-      format: job.format,
       status: job.status,
       downloadUrl: job.downloadUrl,
+      regionId: job.regionId,
+      periodFrom: job.periodFrom,
+      periodTo: job.periodTo,
+      type: job.type,
       requestedAt: job.requestedAt,
       updatedAt: job.updatedAt,
       expiresAt: job.expiresAt,
-      errorMessage: job.errorMessage,
-      summary: job.summary
+      expired: job.expired ?? false
     }));
     return res(ctx.status(200), ctx.json({ data }));
-  }),
-  rest.get("/api/reports/:id", (req, res, ctx) => {
-    updateReportStatuses();
-    const { id } = req.params as { id: string };
-    const job = reportsStore.find((item) => item.id === id);
-    if (!job) {
-      return res(ctx.status(404), ctx.json({ error: "Report job not found" }));
-    }
-
-    return res(
-      ctx.status(200),
-      ctx.json({
-        data: {
-          jobId: job.id,
-          period: job.period,
-          regionIds: job.regionIds,
-          format: job.format,
-          status: job.status,
-          downloadUrl: job.downloadUrl,
-          requestedAt: job.requestedAt,
-          updatedAt: job.updatedAt,
-          expiresAt: job.expiresAt,
-          errorMessage: job.errorMessage,
-          summary: job.summary
-        }
-      })
-    );
   }),
   // FiscalView handlers
   rest.get("/api/rank", (req, res, ctx) => {

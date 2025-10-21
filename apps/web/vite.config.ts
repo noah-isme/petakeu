@@ -4,9 +4,10 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   server: {
     port: 5175,
-    proxy: {
-      "/api": "http://localhost:4000"
-    }
+    // Proxy disabled - using MSW for development
+    // proxy: {
+    //   "/api": "http://localhost:4000"
+    // }
   },
   plugins: [react()],
   test: {

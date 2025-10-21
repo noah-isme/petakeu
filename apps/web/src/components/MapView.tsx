@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { CircleMarker, GeoJSON, MapContainer, TileLayer, Tooltip } from "react-leaflet";
-
 import type { LeafletMouseEvent } from "leaflet";
 import type { GeoJsonObject } from "geojson";
+
 import type { ChoroplethFeature, ChoroplethResponse } from "../types/geo";
 
 interface MapViewProps {
@@ -18,14 +18,6 @@ const colors = ["#bfdbfe", "#93c5fd", "#60a5fa", "#3b82f6", "#1d4ed8"];
 function getFillColor(index: number) {
   return colors[index] ?? colors[colors.length - 1];
 }
-
-type LeafletFeatureTarget = {
-  feature?: {
-    properties?: {
-      regionId?: string;
-    };
-  };
-};
 
 export function MapView({ choropleth, onRegionSelect, selectedRegionId, mode, publicMode }: MapViewProps) {
   const geoJsonData = useMemo(() => choropleth ?? null, [choropleth]);
@@ -51,10 +43,10 @@ export function MapView({ choropleth, onRegionSelect, selectedRegionId, mode, pu
           style={(feature) => {
             const properties = feature?.properties as ChoroplethResponse["features"][number]["properties"] | undefined;
             const regionId = properties?.regionId;
-            const classIndex = properties?.classIndex ?? 0;
+            const quantileIndex = properties?.quantileIndex ?? 0;
             const isSelected = regionId && regionId === selectedRegionId;
             return {
-              fillColor: getFillColor(classIndex),
+              fillColor: getFillColor(quantileIndex),
               weight: isSelected ? 2.5 : 0.8,
               opacity: mode === "heat" ? 0.6 : 1,
               color: isSelected ? "#0f172a" : "#475569",
@@ -62,30 +54,29 @@ export function MapView({ choropleth, onRegionSelect, selectedRegionId, mode, pu
               fillOpacity: mode === "heat" ? 0.25 : isSelected ? 0.7 : 0.5
             };
           }}
-            eventHandlers={{
-              click: (event: LeafletMouseEvent) => {
-                const propagated = event.propagatedFrom as LeafletFeatureTarget | undefined;
-                const source = event.sourceTarget as LeafletFeatureTarget | undefined;
-                const feature = propagated?.feature ?? source?.feature;
-                const regionId = feature?.properties?.regionId;
-                if (regionId && onRegionSelect) {
-                  onRegionSelect(regionId);
-                }
+          eventHandlers={{
+            click: (event: LeafletMouseEvent) => {
+              // @ts-ignore - leaflet typing does not include feature
+              const feature = event.propagatedFrom?.feature ?? event.sourceTarget.feature;
+              const regionId = feature?.properties?.regionId;
+              if (regionId && onRegionSelect) {
+                onRegionSelect(regionId);
               }
-            }}
+            }
+          }}
         />
       )}
       {mode === "heat" &&
         features.map((feature) => {
           const [lng, lat] = feature.properties.centroid;
-          const intensity = feature.properties.classIndex + 1;
+          const intensity = feature.properties.quantileIndex + 1;
           return (
             <CircleMarker
               key={`heat-${feature.properties.regionId}`}
               center={[lat, lng]}
               radius={10 + intensity * 3}
               pathOptions={{
-                fillColor: getFillColor(feature.properties.classIndex),
+                fillColor: getFillColor(feature.properties.quantileIndex),
                 fillOpacity: 0.45,
                 color: "#1d4ed8",
                 weight: 0.5
@@ -101,9 +92,9 @@ export function MapView({ choropleth, onRegionSelect, selectedRegionId, mode, pu
                     <br />Kelas: {feature.properties.classLabel}
                   </span>
                 )}
-                {!publicMode && feature.properties.value !== undefined && (
+                {!publicMode && feature.properties.totalAmount !== undefined && (
                   <span>
-                    <br />Rp {feature.properties.value.toLocaleString("id-ID")}
+                    <br />Rp {feature.properties.totalAmount.toLocaleString("id-ID")}
                   </span>
                 )}
               </Tooltip>

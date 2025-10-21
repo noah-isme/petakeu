@@ -168,28 +168,24 @@ export function MapDashboard() {
     }
   };
 
-  const legendDefinition = useMemo(() => (choropleth as ChoroplethResponse)?.metadata?.legend, [choropleth]);
+  const legendStops = useMemo(() => (choropleth as ChoroplethResponse)?.metadata?.legend ?? [], [choropleth]);
   const selectedFeature = (choropleth as ChoroplethResponse)?.features?.find((feature) => feature.properties.regionId === selectedRegionId);
   const warnings = (choropleth as ChoroplethResponse)?.metadata?.warnings ?? [];
   const classificationLabel = selectedFeature
-    ? [
-        selectedFeature.properties.classLabel,
-        classificationLabels[selectedFeature.properties.classIndex]
-      ]
-        .filter(Boolean)
-        .join(" · ")
+    ? `Kelas ${selectedFeature.properties.quantileIndex + 1} · ${classificationLabels[selectedFeature.properties.quantileIndex] ?? ""}`
     : undefined;
 
   const handleDownloadReport = async () => {
     if (!regionSummary || publicMode) return;
     setReportPending(true);
     try {
-      const job = await apiClient.createReport({
-        period,
-        regionIds: [(regionSummary as RegionSummary).region.id],
-        format: "pdf"
+      const jobId = await apiClient.createReport({
+        regionId: (regionSummary as RegionSummary).region.id,
+        periodFrom: "2025-01",
+        periodTo: period,
+        type: "pdf"
       });
-      setStatusMessage(`Laporan dalam antrean. ID job: ${job.jobId}`);
+      setStatusMessage(`Laporan dalam antrean. ID job: ${jobId}`);
       queryClient.invalidateQueries({ queryKey: ["report-jobs"] }).catch(() => undefined);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Gagal membuat laporan");
@@ -204,6 +200,24 @@ export function MapDashboard() {
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(amount);
+  };
+
+  const getTierColor = (tier: string) => {
+    switch (tier) {
+      case "gold": return "bg-yellow-400";
+      case "silver": return "bg-gray-400";
+      case "bronze": return "bg-orange-600";
+      default: return "bg-gray-200";
+    }
+  };
+
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case "red": return "bg-red-500";
+      case "orange": return "bg-orange-500";
+      case "green": return "bg-green-500";
+      default: return "bg-gray-500";
+    }
   };
 
   const getCategoryText = (category: string) => {
@@ -273,7 +287,7 @@ export function MapDashboard() {
                       publicMode={publicMode}
                     />
                   </div>
-                  <Legend legend={legendDefinition} publicMode={publicMode} />
+                  <Legend stops={legendStops} />
                 </section>
                 {warnings.length > 0 && (
                   <div className="alert-warning bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6" role="status" aria-live="assertive">
@@ -319,7 +333,7 @@ export function MapDashboard() {
                           <div className="p-3 bg-green-100 rounded-lg">
                             <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                            </svg>
+                          </svg>
                           </div>
                           <div className="ml-4">
                             <h3 className="text-lg font-semibold text-gray-900">Total Realisasi</h3>
@@ -334,7 +348,7 @@ export function MapDashboard() {
                           <div className="p-3 bg-blue-100 rounded-lg">
                             <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>
+                          </svg>
                           </div>
                           <div className="ml-4">
                             <h3 className="text-lg font-semibold text-gray-900">Rata-rata Capai</h3>
@@ -349,7 +363,7 @@ export function MapDashboard() {
                           <div className="p-3 bg-purple-100 rounded-lg">
                             <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                            </svg>
+                          </svg>
                           </div>
                           <div className="ml-4">
                             <h3 className="text-lg font-semibold text-gray-900">Surplus/Defisit Total</h3>
