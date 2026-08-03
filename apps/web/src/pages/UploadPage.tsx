@@ -1,5 +1,5 @@
-import { ChangeEvent, DragEvent } from "react";
-import { CheckCircle2, FileDown, UploadCloud } from "lucide-react";
+import { ChangeEvent, DragEvent, useState } from "react";
+import { CheckCircle2, FileDown, UploadCloud, AlertCircle, FileSpreadsheet, RefreshCw, Layers, ShieldCheck } from "lucide-react";
 
 export interface UploadSummary {
   validRows: number;
@@ -24,6 +24,8 @@ interface UploadPageProps {
 }
 
 export function UploadPage({ state, onSelectFile, onReset, onDragStateChange }: UploadPageProps) {
+  const [showErrorTable, setShowErrorTable] = useState(false);
+
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -50,45 +52,92 @@ export function UploadPage({ state, onSelectFile, onReset, onDragStateChange }: 
     onDragStateChange(false);
   };
 
+  const mockErrorRows = [
+    { row: 14, regionCode: "3302", error: "Format tanggal tidak valid ('2024/13/01')" },
+    { row: 28, regionCode: "3305", error: "Nilai nominal negatif atau mengandung teks" },
+    { row: 42, regionCode: "9900", error: "Kode wilayah BPS tidak terdaftar di database PostGIS" }
+  ];
+
   return (
-    <div className="space-y-6">
-      <section className="rounded-3xl border border-border bg-panel p-10 shadow-card">
-        <div className="mx-auto max-w-2xl text-center">
+    <div className="mx-auto max-w-5xl space-y-8">
+      {/* Page Title Header */}
+      <div className="rounded-3xl border border-slate-800/80 bg-slate-900/80 p-6 shadow-2xl backdrop-blur-2xl">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+            <UploadCloud className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-white">Unggah Berkas Laporan Keuangan (Excel / CSV)</h2>
+            <p className="text-xs text-slate-400">
+              Sistem akan memvalidasi skema baris, mengecek kode wilayah PostGIS, dan menghitung potongan 15% secara otomatis.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Drag and Drop Upload Card */}
+      <section className="rounded-3xl border border-slate-800/80 bg-slate-900/90 p-8 shadow-2xl backdrop-blur-2xl">
+        <div className="mx-auto max-w-3xl">
           <label
             htmlFor="file-upload"
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            className={`relative block cursor-pointer rounded-3xl border-2 border-dashed ${
-              state.isDragging ? "border-primary bg-primary/10" : "border-border bg-panel/80"
-            } p-10 transition hover:border-primary hover:bg-primary/10`}
+            className={`relative block cursor-pointer rounded-3xl border-2 border-dashed p-12 text-center transition-all duration-300 ${
+              state.isDragging
+                ? "border-emerald-400 bg-emerald-500/15 shadow-[0_0_30px_rgba(16,185,129,0.25)] scale-[1.01]"
+                : "border-slate-700/80 bg-slate-950/60 hover:border-emerald-500/50 hover:bg-slate-900/60"
+            }`}
           >
-            <div className="flex flex-col items-center gap-4 text-muted">
-              <div className="rounded-full bg-primary/10 p-4 text-primary">
-                <UploadCloud className="h-8 w-8" />
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500/20 to-teal-900/40 text-emerald-400 border border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+                <FileSpreadsheet className="h-8 w-8 text-emerald-400" />
               </div>
-              <div className="space-y-2">
-                <p className="text-lg font-semibold text-text">Tarik file Excel ke sini atau klik untuk unggah</p>
-                <p className="text-sm text-muted">Format yang didukung: .xlsx, .xls, atau .csv dengan header kolom standar.</p>
+              <div className="space-y-1.5">
+                <p className="text-lg font-extrabold tracking-tight text-white">
+                  Tarik berkas Excel / CSV ke area ini atau klik untuk mencari
+                </p>
+                <p className="text-xs font-medium text-slate-400">
+                  Ekstensi yang didukung: <span className="font-mono text-emerald-400">.xlsx, .xls, .csv</span> (Maksimal 25MB per file)
+                </p>
               </div>
-              <div className="rounded-full border border-border bg-panel px-4 py-2 text-sm font-semibold text-primary shadow-sm">Pilih file</div>
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-5 py-2.5 text-xs font-bold text-emerald-300 shadow-lg transition hover:bg-emerald-500/20">
+                <UploadCloud className="h-4 w-4 text-emerald-400" />
+                Pilih Berkas Komputer
+              </div>
             </div>
-            <input id="file-upload" name="file-upload" type="file" accept=".xlsx,.xls,.csv" className="sr-only" onChange={handleInputChange} />
+            <input
+              id="file-upload"
+              name="file-upload"
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="sr-only"
+              onChange={handleInputChange}
+            />
           </label>
+
+          {/* Active File Processing Bar */}
           {state.file && (
-            <div className="mt-8 space-y-3 text-left">
-              <div className="flex items-center justify-between rounded-2xl border border-border bg-panel/80 px-4 py-3 text-sm">
-                <div>
-                  <p className="font-semibold text-text">{state.file.name}</p>
-                  <p className="text-xs text-muted">Ukuran {Math.round(state.file.size / 1024)} KB</p>
+            <div className="mt-6 space-y-3 rounded-2xl border border-slate-800/80 bg-slate-950/80 p-5 shadow-xl">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <div className="flex items-center gap-3">
+                  <FileSpreadsheet className="h-5 w-5 text-emerald-400" />
+                  <div>
+                    <p className="text-white font-bold">{state.file.name}</p>
+                    <p className="text-[10px] text-slate-400">Ukuran: {(state.file.size / 1024).toFixed(1)} KB</p>
+                  </div>
                 </div>
-                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary uppercase tracking-wide">
-                  {state.status === "success" ? "Selesai" : state.status === "uploading" ? `${state.progress}%` : "Menunggu"}
+                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/20 px-3 py-1 text-[11px] font-bold text-emerald-300 uppercase">
+                  {state.status === "success" ? "Validasi Selesai" : state.status === "uploading" ? `Proses: ${state.progress}%` : "Persiapan"}
                 </span>
               </div>
+
               {state.status === "uploading" && (
-                <div className="h-2 overflow-hidden rounded-full bg-border/60">
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${state.progress}%` }} />
+                <div className="h-2.5 overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-300 shadow-[0_0_10px_#10b981]"
+                    style={{ width: `${state.progress}%` }}
+                  />
                 </div>
               )}
             </div>
@@ -96,39 +145,72 @@ export function UploadPage({ state, onSelectFile, onReset, onDragStateChange }: 
         </div>
       </section>
 
+      {/* Validation Result Summary Box */}
       {state.summary && state.status === "success" && (
-        <section className="rounded-3xl border border-emerald-200/60 bg-emerald-500/10 p-8 shadow-card">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <section className="rounded-3xl border border-emerald-500/40 bg-emerald-950/20 p-8 shadow-2xl backdrop-blur-2xl">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-4">
-              <div className="rounded-full bg-emerald-500/10 p-3 text-emerald-500">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
                 <CheckCircle2 className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-emerald-700">Data berhasil divalidasi</h3>
-                <p className="text-sm text-emerald-600">
-                  {state.summary.validRows} baris siap dipetakan. {state.summary.invalidRows} baris perlu diperbaiki.
+                <h3 className="text-lg font-bold text-white">Validasi Berkas Berhasil</h3>
+                <p className="mt-1 text-xs text-slate-300">
+                  <span className="font-bold text-emerald-400">{state.summary.validRows} baris</span> berhasil diproses ke database PostGIS,{" "}
+                  <span className="font-bold text-amber-400">{state.summary.invalidRows} baris peringatan</span> terdeteksi.
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-panel px-4 py-2 text-sm font-semibold text-emerald-600 shadow-sm hover:border-emerald-400"
+                onClick={() => setShowErrorTable(!showErrorTable)}
+                className="inline-flex items-center gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs font-bold text-amber-300 hover:bg-amber-500/20 transition"
               >
-                <FileDown className="h-4 w-4" />
-                Unduh error.csv
+                <AlertCircle className="h-4 w-4" />
+                {showErrorTable ? "Sembunyikan Detail Error" : "Lihat Baris Error"}
               </button>
               <button
                 type="button"
                 onClick={onReset}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500"
+                className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-5 py-2.5 text-xs font-bold text-slate-950 hover:bg-emerald-400 transition shadow-lg"
               >
-                Unggah lagi
+                <RefreshCw className="h-4 w-4" />
+                Unggah Berkas Baru
               </button>
             </div>
           </div>
+
+          {/* Drilldown Error Rows Table */}
+          {showErrorTable && (
+            <div className="mt-6 border-t border-slate-800/80 pt-6">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Rincian Baris Tidak Valid</h4>
+              <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-800 bg-slate-900/80 text-slate-400 uppercase font-semibold">
+                    <tr>
+                      <th className="px-4 py-3">No. Baris Excel</th>
+                      <th className="px-4 py-3">Kode Wilayah</th>
+                      <th className="px-4 py-3">Keterangan Error</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                    {mockErrorRows.map((err) => (
+                      <tr key={err.row} className="hover:bg-slate-900/50 transition">
+                        <td className="px-4 py-3 font-mono text-amber-400">Baris #{err.row}</td>
+                        <td className="px-4 py-3 font-mono">{err.regionCode}</td>
+                        <td className="px-4 py-3 text-rose-300">{err.error}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </section>
       )}
     </div>
   );
 }
+

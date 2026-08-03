@@ -20,6 +20,7 @@
     "test": "turbo run test"
   },
   "devDependencies": {
+    "@types/node": "^20.12.7",
     "turbo": "^1.13.4"
   },
   "engines": {

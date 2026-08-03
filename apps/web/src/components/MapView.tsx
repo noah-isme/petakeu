@@ -43,10 +43,10 @@ export function MapView({ choropleth, onRegionSelect, selectedRegionId, mode, pu
           style={(feature) => {
             const properties = feature?.properties as ChoroplethResponse["features"][number]["properties"] | undefined;
             const regionId = properties?.regionId;
-            const quantileIndex = properties?.quantileIndex ?? 0;
+            const classIndex = properties?.classIndex ?? 0;
             const isSelected = regionId && regionId === selectedRegionId;
             return {
-              fillColor: getFillColor(quantileIndex),
+              fillColor: getFillColor(classIndex),
               weight: isSelected ? 2.5 : 0.8,
               opacity: mode === "heat" ? 0.6 : 1,
               color: isSelected ? "#0f172a" : "#475569",
@@ -69,14 +69,14 @@ export function MapView({ choropleth, onRegionSelect, selectedRegionId, mode, pu
       {mode === "heat" &&
         features.map((feature) => {
           const [lng, lat] = feature.properties.centroid;
-          const intensity = feature.properties.quantileIndex + 1;
+          const intensity = feature.properties.classIndex + 1;
           return (
             <CircleMarker
               key={`heat-${feature.properties.regionId}`}
               center={[lat, lng]}
               radius={10 + intensity * 3}
               pathOptions={{
-                fillColor: getFillColor(feature.properties.quantileIndex),
+                fillColor: getFillColor(feature.properties.classIndex),
                 fillOpacity: 0.45,
                 color: "#1d4ed8",
                 weight: 0.5
@@ -92,9 +92,9 @@ export function MapView({ choropleth, onRegionSelect, selectedRegionId, mode, pu
                     <br />Kelas: {feature.properties.classLabel}
                   </span>
                 )}
-                {!publicMode && feature.properties.totalAmount !== undefined && (
+                {!publicMode && feature.properties.value !== undefined && (
                   <span>
-                    <br />Rp {feature.properties.totalAmount.toLocaleString("id-ID")}
+                    <br />Rp {feature.properties.value.toLocaleString("id-ID")}
                   </span>
                 )}
               </Tooltip>
@@ -104,3 +104,4 @@ export function MapView({ choropleth, onRegionSelect, selectedRegionId, mode, pu
     </MapContainer>
   );
 }
+

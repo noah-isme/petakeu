@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import L, { type LeafletMouseEvent } from "leaflet";
-import { RefreshCcw } from "lucide-react";
+import { Compass, Info, RefreshCcw, Layers, MapPin } from "lucide-react";
 import { GeoJSON, MapContainer, TileLayer } from "react-leaflet";
 
 import { LegendItem } from "../components/dashboard/LegendCard";
@@ -57,12 +57,12 @@ export function MapPage({
         const [min, max] = item.range;
         if (value >= min && value <= max) {
           return item.color;
+        }
+        if (value >= min && item === legend[legend.length - 1]) {
+          return item.color;
+        }
       }
-      if (value >= min && item === legend[legend.length - 1]) {
-        return item.color;
-      }
-    }
-      return legend[0]?.color ?? "#bfdbfe";
+      return legend[0]?.color ?? "#0f4c5c";
     },
     [legend]
   );
@@ -79,10 +79,10 @@ export function MapPage({
         : true;
       pathLayer.setStyle({
         fillColor: getColor(value),
-        color: inRange ? "#0b4a6f" : "#1e3a5f",
-        weight: inRange ? 1.5 : 1,
-        fillOpacity: legendHighlight ? (inRange ? 0.85 : 0.2) : 0.75,
-        opacity: 0.9
+        color: inRange ? "#34d399" : "#0f172a",
+        weight: inRange ? 2 : 1,
+        fillOpacity: legendHighlight ? (inRange ? 0.9 : 0.25) : 0.8,
+        opacity: 0.95
       });
     });
   }, [legendHighlight, legend, getColor]);
@@ -100,15 +100,13 @@ export function MapPage({
 
   if (status === "loading") {
     return (
-      <div className="relative h-full min-h-[520px] rounded-3xl border border-border bg-panel p-6 shadow-card">
-        <div className="flex h-full animate-pulse flex-col gap-4">
-          <div className="h-7 w-1/3 rounded-full bg-border" />
-          <div className="h-10 w-1/2 rounded-2xl bg-border/70" />
-          <div className="flex flex-1 flex-col gap-3">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <div key={index} className="h-12 rounded-2xl bg-border/60" />
-            ))}
+      <div className="relative h-[calc(100vh-180px)] min-h-[550px] w-full rounded-3xl border border-slate-800/80 bg-slate-950 p-8 shadow-2xl backdrop-blur-2xl">
+        <div className="flex h-full animate-pulse flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div className="h-8 w-1/4 rounded-2xl bg-slate-800/80" />
+            <div className="h-8 w-1/6 rounded-2xl bg-slate-800/80" />
           </div>
+          <div className="flex-1 rounded-3xl bg-slate-900/60" />
         </div>
       </div>
     );
@@ -116,9 +114,11 @@ export function MapPage({
 
   if (status === "empty") {
     return (
-      <div className="relative flex h-full min-h-[520px] items-center justify-center rounded-3xl border border-dashed border-border bg-panel p-10 text-center shadow-card">
-        <p className="max-w-lg text-base font-medium text-muted">
-          Belum ada data untuk periode ini. Silakan unggah data baru untuk melihat visualisasi di peta.
+      <div className="relative flex h-[calc(100vh-180px)] min-h-[550px] w-full flex-col items-center justify-center rounded-3xl border border-dashed border-slate-800 bg-slate-950/80 p-10 text-center shadow-2xl">
+        <MapPin className="h-12 w-12 text-slate-500 mb-4" />
+        <h3 className="text-xl font-bold text-white mb-2">Belum Ada Data Peta</h3>
+        <p className="max-w-md text-sm font-medium text-slate-400">
+          Tidak ditemukan catatan realisasi pendapatan untuk periode ini. Silakan unggah data Excel atau pilih periode lain.
         </p>
       </div>
     );
@@ -126,18 +126,21 @@ export function MapPage({
 
   if (status === "error") {
     return (
-      <div className="flex h-full min-h-[520px] flex-col items-center justify-center gap-4 rounded-3xl border border-rose-200/60 bg-rose-500/10 p-10 text-center shadow-card">
-        <p className="text-lg font-semibold text-rose-600">Terjadi kendala saat memuat data</p>
-        <p className="max-w-md text-sm text-rose-500">
-          Kami tidak dapat memuat peta untuk periode ini. Coba lagi untuk melakukan pemanggilan ulang sumber data.
+      <div className="flex h-[calc(100vh-180px)] min-h-[550px] w-full flex-col items-center justify-center gap-4 rounded-3xl border border-rose-500/30 bg-rose-950/20 p-10 text-center shadow-2xl">
+        <div className="h-12 w-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+          <RefreshCcw className="h-6 w-6" />
+        </div>
+        <p className="text-xl font-extrabold text-rose-400">Terjadi Kendala Memuat Layer Map</p>
+        <p className="max-w-md text-sm text-slate-400">
+          Gagal mengambil koordinat spasial dan data agregasi dari server. Silakan hubungkan kembali koneksi data.
         </p>
         <button
           type="button"
           onClick={onRetry}
-          className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-rose-500"
+          className="inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-6 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-rose-500"
         >
           <RefreshCcw className="h-4 w-4" />
-          <span>Coba Lagi</span>
+          <span>Muat Ulang Data Peta</span>
         </button>
       </div>
     );
@@ -154,15 +157,26 @@ export function MapPage({
 
     pathLayer.on({
       mouseover: (event: LeafletMouseEvent) => {
-        pathLayer.setStyle({ weight: 2.5, color: "#0b4a6f", fillOpacity: 0.95 });
+        pathLayer.setStyle({
+          weight: 3,
+          color: "#06b6d4",
+          fillOpacity: 0.95
+        });
         pathLayer
-          .bindTooltip(`<strong>${name}</strong><br />${formatCurrency(value)}`, {
-            direction: "top",
-            offset: L.point(0, -10),
-            opacity: 1,
-            sticky: true,
-            className: "rounded-xl border border-border bg-panel px-3 py-2 text-xs font-semibold text-text shadow-card"
-          })
+          .bindTooltip(
+            `<div class="p-1">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">${name}</div>
+              <div class="text-sm font-extrabold text-white">${formatCurrency(value)}</div>
+              <div class="text-[10px] text-slate-300 mt-1 border-t border-slate-700/60 pt-1">Sorot untuk detail komprehensif</div>
+            </div>`,
+            {
+              direction: "top",
+              offset: L.point(0, -12),
+              opacity: 1,
+              sticky: true,
+              className: "leaflet-popup-content-wrapper"
+            }
+          )
           .openTooltip(event.latlng);
         onRegionFocus({ name, value });
       },
@@ -172,16 +186,16 @@ export function MapPage({
         const baseValue = (feature.properties?.value as number) ?? 0;
         pathLayer.setStyle({
           weight: 1.5,
-          color: "#0b4a6f",
+          color: "#34d399",
           fillColor: getColor(baseValue),
-          fillOpacity: legendHighlight ? 0.75 : 0.85
+          fillOpacity: legendHighlight ? 0.8 : 0.85
         });
       }
     });
   };
 
   return (
-    <div className="relative h-full min-h-[520px] overflow-hidden rounded-3xl border border-border bg-panel shadow-card">
+    <div className="relative h-[calc(100vh-180px)] min-h-[550px] w-full overflow-hidden rounded-3xl border border-slate-800/80 bg-slate-950 shadow-2xl">
       <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="h-full w-full" zoomControl={false}>
         <TileLayer
           attribution="&copy; <a href='https://carto.com/attributions'>CartoDB</a> &amp; <a href='https://www.openstreetmap.org/copyright'>OSM</a>"
@@ -193,9 +207,9 @@ export function MapPage({
           style={(feature) => ({
             fillColor: getColor((feature?.properties?.value as number) ?? 0),
             weight: 1.5,
-            color: "#0b4a6f",
-            fillOpacity: legendHighlight ? 0.75 : 0.85,
-            opacity: 0.9
+            color: "#34d399",
+            fillOpacity: legendHighlight ? 0.8 : 0.85,
+            opacity: 0.95
           })}
           onEachFeature={handleEachFeature}
           ref={(layer) => {
@@ -205,9 +219,13 @@ export function MapPage({
           }}
         />
       </MapContainer>
-      <div className="pointer-events-none absolute inset-x-6 top-6 hidden rounded-2xl border border-border bg-panel/80 px-4 py-3 text-sm font-medium text-muted shadow-card backdrop-blur md:block">
-        Sorot wilayah untuk melihat detail anggaran.
+
+      {/* Floating Glass Guidance Bar */}
+      <div className="pointer-events-none absolute left-6 top-6 z-[1000] hidden items-center gap-2.5 rounded-2xl border border-slate-700/80 bg-slate-900/85 px-4 py-3 text-xs font-semibold text-slate-200 shadow-2xl backdrop-blur-xl md:flex">
+        <Compass className="h-4 w-4 text-emerald-400 animate-spin-slow" />
+        <span>Gunakan mouse untuk hover / zoom wilayah & melihat pembagian setoran daerah</span>
       </div>
     </div>
   );
 }
+

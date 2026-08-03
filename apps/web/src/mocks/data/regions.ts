@@ -1,12 +1,18 @@
-import type { Feature, Polygon } from "geojson";
 import type { Region } from "../../types/region";
 
-export interface RegionGeoFeature extends Feature<Polygon> {
+export interface RegionGeoFeature {
+  type: "Feature";
   properties: {
     id: string;
     name: string;
   };
+  geometry: {
+    type: "Polygon";
+    coordinates: number[][][];
+  };
 }
+
+
 
 const provinceRegions: Region[] = [
   { id: "prov-31", code: "31", name: "DKI Jakarta", level: "province" },

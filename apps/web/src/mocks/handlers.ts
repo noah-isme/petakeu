@@ -253,14 +253,14 @@ export const handlers = [
           return null;
         }
         const centroid = computeCentroid(geometry.geometry.coordinates as number[][][]);
-        const quantileIndex = classifyQuantile(record.amount, legendEdges);
+        const classIndex = classifyQuantile(record.amount, legendEdges);
 
         const baseProperties = {
           regionId: record.regionId,
           name: region.name,
           centroid,
-          quantileIndex,
-          classLabel: toClassLabel(quantileIndex)
+          classIndex,
+          classLabel: toClassLabel(classIndex)
         };
 
         if (isPublic) {
@@ -280,11 +280,12 @@ export const handlers = [
           geometry: geometry.geometry,
           properties: {
             ...baseProperties,
-            totalAmount: record.amount,
+            value: record.amount,
             cut15Amount: record.amount * 0.15,
-            trendSparkline: sparkRecords.map((item) => item.amount)
+            sparkline: sparkRecords.map((item) => item.amount)
           }
         };
+
       })
       .filter(Boolean);
 

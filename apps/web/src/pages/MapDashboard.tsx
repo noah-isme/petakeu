@@ -172,7 +172,7 @@ export function MapDashboard() {
   const selectedFeature = (choropleth as ChoroplethResponse)?.features?.find((feature) => feature.properties.regionId === selectedRegionId);
   const warnings = (choropleth as ChoroplethResponse)?.metadata?.warnings ?? [];
   const classificationLabel = selectedFeature
-    ? `Kelas ${selectedFeature.properties.quantileIndex + 1} · ${classificationLabels[selectedFeature.properties.quantileIndex] ?? ""}`
+    ? `Kelas ${selectedFeature.properties.classIndex + 1} · ${classificationLabels[selectedFeature.properties.classIndex] ?? ""}`
     : undefined;
 
   const handleDownloadReport = async () => {
@@ -180,14 +180,15 @@ export function MapDashboard() {
     setReportPending(true);
     try {
       const jobId = await apiClient.createReport({
-        regionId: (regionSummary as RegionSummary).region.id,
-        periodFrom: "2025-01",
-        periodTo: period,
-        type: "pdf"
+        period,
+        regionIds: [(regionSummary as RegionSummary).region.id],
+        format: "pdf"
       });
+
       setStatusMessage(`Laporan dalam antrean. ID job: ${jobId}`);
       queryClient.invalidateQueries({ queryKey: ["report-jobs"] }).catch(() => undefined);
     } catch (error) {
+
       setStatusMessage(error instanceof Error ? error.message : "Gagal membuat laporan");
     } finally {
       setReportPending(false);

@@ -30,7 +30,7 @@ const PAGE_TITLE: Record<string, string> = {
   about: "Tentang Petakeu"
 };
 
-const MAP_PALETTE = ["#bfdbfe", "#93c5fd", "#60a5fa", "#3b82f6", "#2563eb", "#1d4ed8"] as const;
+const MAP_PALETTE = ["#0f4c5c", "#10b981", "#06b6d4", "#f59e0b"] as const;
 
 const PERIOD_DATA: Record<
   string,
@@ -128,10 +128,11 @@ function buildLegend(featureCollection: FeatureCollection): LegendItem[] {
 
   return ranges.map((range, index) => ({
     label: `${formatCurrency(range[0])} - ${formatCurrency(range[1])}`,
-    color: MAP_PALETTE[index + 1] ?? MAP_PALETTE[MAP_PALETTE.length - 1],
+    color: MAP_PALETTE[index] ?? MAP_PALETTE[MAP_PALETTE.length - 1],
     range
   }));
 }
+
 
 const initialUploadState: UploadState = {
   file: null,
@@ -356,6 +357,7 @@ export default function App() {
         <InfoCard
           regionName={activeRegion?.name ?? "-"}
           value={activeRegion ? formatCurrency(activeRegion.value) : "-"}
+          rawAmount={activeRegion?.value}
           trend={mapStatus === "success" ? "+3.8% dibanding kuartal lalu" : null}
           description="Nilai mencerminkan total realisasi anggaran pada periode terpilih."
         />
@@ -368,6 +370,7 @@ export default function App() {
       </div>
     );
   }, [activePage, activeRegion, mapStatus, legendItems, legendHighlight]);
+
 
   const renderPage = () => {
     switch (activePage) {
