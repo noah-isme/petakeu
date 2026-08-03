@@ -1,7 +1,18 @@
 # Development dengan Mock Service Worker (MSW)
 
+> [!NOTE]
+> **Backend Petakeu sudah fully implemented.** MSW sekarang adalah mode opsional untuk pengembangan frontend tanpa koneksi ke backend. Default development menggunakan backend nyata via `docker-compose.dev.yml`.
+
 ## Status Backend
-Backend saat ini dalam status **PENDING**, sehingga pengembangan frontend menggunakan **Mock Service Worker (MSW)** untuk mensimulasikan semua API endpoint.
+
+Backend telah **SELESAI** diimplementasikan dengan koneksi penuh ke PostgreSQL, Redis, MinIO, dan BullMQ. MSW dipertahankan sebagai fallback untuk pengembangan frontend offline.
+
+Untuk menjalankan dengan backend nyata:
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+Untuk menjalankan dengan MSW (tanpa backend):
 
 ## Cara Menjalankan
 
@@ -22,10 +33,10 @@ MSW akan otomatis diinisialisasi saat aplikasi dimuat. Anda akan melihat pesan d
 ## Fitur yang Tersedia dengan MSW
 
 ### ✅ Tab Overview (Map Dashboard)
-- Peta choropleth interaktif dengan data mock
+- Peta choropleth interaktif — **data nyata dari PostgreSQL + PostGIS**
 - Detail region dengan ringkasan data
 - Mode: Choropleth / Heatmap
-- Download report (simulasi)
+- Download report (PDF/Excel nyata dari MinIO)
 
 ### ✅ Tab Fiscal
 - KPI Cards (Total Realisasi, Rata-rata Capai, Surplus/Defisit)

@@ -344,13 +344,19 @@ ORDER BY month;
 - Materialized view with quantile classification
 - Refresh function created
 
+### Version 2 (`002_uploads_reports.sql`) ✅ Applied
+- `uploads` table with status tracking, storage path, file URL, and JSONB error details
+- `report_jobs` table with format, download_url, expiry, and JSONB summary
+- `_migrations` tracking table auto-created by `src/db/migrate.ts`
+- Migrations now run automatically at server startup — no manual `psql` required
+
 ### Future Migrations
 | Version | Description | Status |
 |---------|-------------|--------|
-| 002 | Add `users` and `roles` tables for auth | Planned |
-| 003 | Add `audit_log` table | Planned |
-| 004 | Add `region_boundaries` history table | Planned |
-| 005 | Partition `payments` by period | Future |
+| 003 | Add `users` and `roles` tables for RBAC | Planned |
+| 004 | Add `audit_log` table | Planned |
+| 005 | Add `region_boundaries` history table | Planned |
+| 006 | Partition `payments` by period | Future |
 
 ---
 

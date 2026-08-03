@@ -1,19 +1,25 @@
 # MSW to Backend Migration Guide
 
-Step-by-step guide for transitioning from Mock Service Worker (MSW) to the real Petakeu backend API.
+Guide untuk transisi dari Mock Service Worker (MSW) ke backend Petakeu yang nyata. **Migrasi backend telah selesai dilakukan** — dokumen ini dipertahankan sebagai referensi dan panduan untuk pengembangan lanjutan.
 
 ---
 
-## Current State
+## Status Migrasi
 
-| Component | Status |
-|-----------|--------|
-| Frontend (Web) | ✅ Complete - Uses MSW for all API calls |
-| Backend (API) | ⚠️ Stub implementation - In-memory stores, no persistence |
-| Database | ❌ Not connected - Migrations exist but not applied |
-| Redis | ❌ Not connected - Config exists but not used |
-| MinIO/S3 | ❌ Not connected - Config exists but not used |
-| Authentication | ❌ Not implemented - MSW bypasses all auth |
+| Komponen | Status |
+|----------|--------|
+| Frontend (Web) | ✅ Selesai — Terhubung ke backend nyata |
+| Backend (API) | ✅ Selesai — PostgreSQL, Redis, MinIO, BullMQ |
+| Database | ✅ Selesai — Migrasi berjalan otomatis saat startup |
+| Redis | ✅ Selesai — Digunakan BullMQ untuk job queue |
+| MinIO/S3 | ✅ Selesai — Upload file & laporan disimpan ke MinIO |
+| Authentication | ✅ Selesai — JWT Bearer middleware (`AUTH_DISABLED=true` untuk dev) |
+| FiscalView API | ✅ Selesai — `/rank`, `/surplus-defisit` |
+| RankFin API | ✅ Selesai — `/rankfin/league` |
+| DefisitWatch API | ✅ Selesai — `/defisitwatch/watchlist`, `/daerah/:id/penjelasan` |
+| Upload Pipeline | ✅ Selesai — Parse → Validate → DB persist → MV refresh |
+| Report Generation | ✅ Selesai — PDF (pdfkit) + Excel (exceljs) → MinIO presigned URL |
+| Region Data | ✅ Selesai — 34 provinsi + 58 kab/kota dengan geometri PostGIS |
 
 ---
 

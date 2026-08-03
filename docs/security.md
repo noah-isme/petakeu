@@ -26,24 +26,36 @@ Comprehensive security guide for Petakeu covering authentication, authorization,
 
 ## Authentication
 
-### JWT Implementation (Planned)
+### JWT Implementation ✅ Implemented
 
-**Current State:** Not yet implemented - MSW mocks all endpoints without auth.
+**Status:** Implemented — `src/middleware/auth.ts` menggunakan library `jsonwebtoken` untuk memverifikasi token Bearer.
 
-**Planned Implementation:**
+**Development mode:** Set `AUTH_DISABLED=true` untuk bypass auth (default di dev). Semua request diberikan user `dev-user` dengan role `admin`.
+
+**Production mode:** Set `AUTH_SECRET` ke secret JWT yang kuat (min 32 karakter). `AUTH_DISABLED` harus `false` atau tidak di-set.
 
 ```typescript
 // Token Structure
 interface JWTPayload {
   sub: string;           // User ID
-  email: string;         // User email
-  roles: string[];       // ['admin', 'operator', 'viewer']
-  regionIds?: string[];  // Region scope (for operator/viewer)
-  iat: number;           // Issued at
-  exp: number;           // Expires at
-  iss: string;           // Issuer: "petakeu"
-  aud: string;           // Audience: "petakeu-api"
+  email?: string;        // User email
+  role?: string;         // 'admin' | 'operator' | 'viewer'
+  iat?: number;          // Issued at
+  exp?: number;          // Expires at
 }
+```
+
+**Generate token untuk testing:**
+```bash
+node -e "
+const jwt = require('jsonwebtoken');
+const token = jwt.sign(
+  { sub: 'user-001', email: 'admin@petakeu.go.id', role: 'admin' },
+  process.env.AUTH_SECRET,
+  { expiresIn: '8h' }
+);
+console.log(token);
+"
 ```
 
 **Token Flow:**
@@ -53,8 +65,8 @@ interface JWTPayload {
 3. Backend → Issues JWT (15 min access, 7 day refresh)
 4. Client → Stores tokens (HttpOnly cookie + memory)
 5. Requests → Authorization: Bearer <access_token>
-6. Middleware → Validates JWT, extracts claims
-7. RBAC Middleware → Checks permissions per endpoint
+6. Middleware (src/middleware/auth.ts) → Validates JWT, extracts claims
+7. requireRole() → Checks role claim per endpoint
 ```
 
 ### SSO Integration (Pemprov)

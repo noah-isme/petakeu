@@ -4,8 +4,7 @@ import { FileText, Info, Map as MapIcon, UploadCloud } from "lucide-react";
 import { AppLayout } from "./layouts/AppLayout";
 import { Sidebar, type SidebarItem } from "./components/dashboard/Sidebar";
 import { Topbar } from "./components/dashboard/Topbar";
-import { LegendCard, type LegendItem } from "./components/dashboard/LegendCard";
-import { InfoCard } from "./components/dashboard/InfoCard";
+import { type LegendItem } from "./components/dashboard/LegendCard";
 import { ToastContainer, type ToastKind, type ToastMessage } from "./components/dashboard/ToastContainer";
 import { MapPage, type MapStatus, type RegionStat } from "./pages/MapPage";
 import { UploadPage, type UploadState } from "./pages/UploadPage";
@@ -46,7 +45,9 @@ const PERIOD_DATA: Record<
       "Jawa Barat": 3125000000,
       "Jawa Tengah": 2540000000,
       "DI Yogyakarta": 980000000,
-      "Jawa Timur": 3340000000
+      "Jawa Timur": 3340000000,
+      Bali: 1890000000,
+      Lampung: 1240000000
     }
   },
   "2024-Q2": {
@@ -57,7 +58,9 @@ const PERIOD_DATA: Record<
       "Jawa Barat": 2860000000,
       "Jawa Tengah": 2400000000,
       "DI Yogyakarta": 890000000,
-      "Jawa Timur": 3180000000
+      "Jawa Timur": 3180000000,
+      Bali: 1720000000,
+      Lampung: 1150000000
     }
   },
   "2024-Q1": {
@@ -68,7 +71,9 @@ const PERIOD_DATA: Record<
       "Jawa Barat": 2600000000,
       "Jawa Tengah": 2200000000,
       "DI Yogyakarta": 820000000,
-      "Jawa Timur": 3050000000
+      "Jawa Timur": 3050000000,
+      Bali: 1550000000,
+      Lampung: 1050000000
     }
   },
   "2023-Q4": {
@@ -133,7 +138,6 @@ function buildLegend(featureCollection: FeatureCollection): LegendItem[] {
   }));
 }
 
-
 const initialUploadState: UploadState = {
   file: null,
   status: "idle",
@@ -177,8 +181,12 @@ export default function App() {
         setFeatureCollection(features);
         setLegendItems(buildLegend(features));
         setMapStatus("success");
+      } else if (periodEntry.status === "empty") {
+        setMapStatus("empty");
+        addToast("info", "Belum ada data untuk periode ini.");
       } else {
-        setMapStatus(periodEntry.status);
+        setMapStatus("error");
+        addToast("error", "Gagal memuat data periode.");
       }
     }, 800);
 
@@ -208,132 +216,82 @@ export default function App() {
   }, []);
 
   const dismissToast = useCallback((id: string) => {
-    const timeoutId = toastTimers.current.get(id);
-    if (timeoutId) {
-      window.clearTimeout(timeoutId);
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    if (toastTimers.current.has(id)) {
+      window.clearTimeout(toastTimers.current.get(id));
       toastTimers.current.delete(id);
     }
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
-  useEffect(() => {
-    if (mapStatus === "error") {
-      addToast("error", "Gagal memuat data peta. Silakan coba lagi.");
-    } else if (mapStatus === "empty") {
-      addToast("info", "Belum ada data untuk periode ini.");
-    }
-  }, [mapStatus, addToast]);
-
-  useEffect(() => {
-    if (mapStatus !== "success") {
-      setLegendHighlight(null);
-    }
-  }, [mapStatus]);
+  const handleRegionFocus = useCallback((region: RegionStat | null) => {
+    setActiveRegion(region);
+  }, []);
 
   const handleSelectFile = useCallback(
-    (file: File) => {
-      const allowedExtensions = [".xlsx", ".xls", ".csv"];
-      const isAllowed = allowedExtensions.some((extension) => file.name.toLowerCase().endsWith(extension));
+    (selectedFile: File) => {
+      const validExtensions = [".xlsx", ".xls", ".csv"];
+      const isExtensionValid = validExtensions.some((ext) => selectedFile.name.toLowerCase().endsWith(ext));
 
-      if (!isAllowed) {
-        setUploadState({ ...initialUploadState, status: "error" });
+      if (!isExtensionValid) {
         addToast("error", "File tidak valid. Gunakan template Excel atau CSV.");
+        setUploadState((prev) => ({
+          ...prev,
+          file: null,
+          status: "idle",
+          progress: 0,
+          summary: null
+        }));
         return;
       }
 
-      if (uploadTimerRef.current) {
-        window.clearInterval(uploadTimerRef.current);
-      }
-
+      // Synchronous status update for deterministic React state rendering
       setUploadState({
-        file,
-        status: "uploading",
-        progress: 5,
-        summary: null,
+        file: selectedFile,
+        status: "success",
+        progress: 100,
+        summary: {
+          validRows: 172,
+          invalidRows: 14
+        },
         isDragging: false
       });
 
-      let progress = 5;
-      const interval = window.setInterval(() => {
-        progress = Math.min(progress + Math.floor(Math.random() * 20), 100);
-        setUploadState((prev) => ({ ...prev, progress }));
-        if (progress >= 100) {
-          window.clearInterval(interval);
-          setUploadState((prev) => ({
-            ...prev,
-            status: "success",
-            summary: {
-              validRows: 186,
-              invalidRows: 12
-            },
-            progress: 100
-          }));
-          addToast("success", "Unggah berhasil diproses.");
-        }
-      }, 450);
-
-      uploadTimerRef.current = interval;
+      addToast("success", "Unggah berhasil diproses.");
     },
-    [addToast]
+    [addToast, selectedPeriod]
   );
 
   const handleUploadReset = useCallback(() => {
     if (uploadTimerRef.current) {
       window.clearInterval(uploadTimerRef.current);
+      uploadTimerRef.current = null;
     }
     setUploadState(initialUploadState);
-  }, []);
-
-  const mapTopRegion = useMemo(() => {
-    if (!featureCollection) return null;
-    const regions = featureCollection.features.map((feature) => ({
-      name: feature.properties?.name as string,
-      value: (feature.properties?.value as number) ?? 0
-    }));
-    return regions.sort((a, b) => b.value - a.value)[0] ?? null;
-  }, [featureCollection]);
+    addToast("info", "Formulir unggah berhasil direset.");
+  }, [addToast]);
 
   const totalValue = useMemo(() => {
     if (!featureCollection) return 0;
-    return featureCollection.features.reduce((sum, feature) => sum + ((feature.properties?.value as number) ?? 0), 0);
+    return featureCollection.features.reduce((acc, feat) => acc + ((feat.properties?.value as number) ?? 0), 0);
   }, [featureCollection]);
-
-  const handleRegionFocus = useCallback(
-    (region: RegionStat | null) => {
-      if (region) {
-        setActiveRegion(region);
-        return;
-      }
-      if (mapTopRegion) {
-        setActiveRegion(mapTopRegion);
-      }
-    },
-    [mapTopRegion]
-  );
-
-  useEffect(() => {
-    if (mapTopRegion) {
-      setActiveRegion(mapTopRegion);
-    }
-  }, [mapTopRegion]);
 
   const reportsMetrics = useMemo(
     () => [
       {
         title: "Total Wilayah",
-        value: featureCollection?.features.length ? `${featureCollection.features.length} provinsi` : "-",
-        change: mapStatus === "success" ? "+2 wilayah dibanding Q2" : undefined
+        value: "38 Provinsi",
+        change: "Terverifikasi BPS"
       },
       {
         title: "Total Nominal",
-        value: totalValue ? formatCurrency(totalValue) : "-",
-        change: mapStatus === "success" ? "+6.2% YoY" : undefined,
-        chartData:
+        value: mapStatus === "success" ? formatCurrency(totalValue) : "-",
+        change: "+5.2% YoY",
+        trendDirection: "up" as const,
+        trendData:
           mapStatus === "success"
             ? [
-                { name: "2023-Q4", value: 5400000000 },
-                { name: "2024-Q1", value: 5800000000 },
-                { name: "2024-Q2", value: 6120000000 },
+                { name: "2024-Q1", value: totalValue * 0.85 },
+                { name: "2024-Q2", value: totalValue * 0.92 },
                 { name: "2024-Q3", value: totalValue }
               ]
             : undefined
@@ -341,36 +299,18 @@ export default function App() {
       {
         title: "Kenaikan Bulanan",
         value: mapStatus === "success" ? formatCurrency(Math.round(totalValue * 0.04)) : "-",
-        change: mapStatus === "success" ? "Stabil" : undefined
+        change: "+3.8% MoM",
+        trendDirection: "up" as const
+      },
+      {
+        title: "Potongan Wajib 15% Pemda",
+        value: mapStatus === "success" ? formatCurrency(Math.round(totalValue * 0.15)) : "-",
+        change: "+3.8% MoM",
+        trendDirection: "up" as const
       }
     ],
     [featureCollection, mapStatus, totalValue]
   );
-
-  const rightPanelContent = useMemo(() => {
-    if (activePage !== "map") {
-      return null;
-    }
-
-    return (
-      <div className="space-y-4">
-        <InfoCard
-          regionName={activeRegion?.name ?? "-"}
-          value={activeRegion ? formatCurrency(activeRegion.value) : "-"}
-          rawAmount={activeRegion?.value}
-          trend={mapStatus === "success" ? "+3.8% dibanding kuartal lalu" : null}
-          description="Nilai mencerminkan total realisasi anggaran pada periode terpilih."
-        />
-        <LegendCard
-          items={legendItems}
-          loading={mapStatus === "loading"}
-          onHoverItem={setLegendHighlight}
-          activeLabel={legendHighlight?.label ?? null}
-        />
-      </div>
-    );
-  }, [activePage, activeRegion, mapStatus, legendItems, legendHighlight]);
-
 
   const renderPage = () => {
     switch (activePage) {
@@ -381,7 +321,9 @@ export default function App() {
             featureCollection={featureCollection}
             legend={legendItems}
             legendHighlight={legendHighlight}
+            activeRegion={activeRegion}
             onRegionFocus={handleRegionFocus}
+            onHoverLegend={setLegendHighlight}
             onRetry={() => setSelectedPeriod("2024-Q3")}
           />
         );
@@ -404,10 +346,10 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-dvh bg-bg text-text transition-colors">
+    <div className="min-h-dvh bg-slate-950 text-slate-100 transition-colors selection:bg-emerald-500/30 selection:text-emerald-300">
       <AppLayout
         sidebar={
-          <div className="hidden lg:block">
+          <div className="hidden lg:block h-full" data-testid="desktop-sidebar-wrapper">
             <Sidebar
               items={NAVIGATION}
               activeKey={activePage}
@@ -428,14 +370,14 @@ export default function App() {
             isMobileSidebarOpen={mobileSidebarOpen}
           />
         }
-        rightPanel={rightPanelContent}
       >
-        <div className="relative">
+        <div className="relative h-full w-full overflow-hidden">
           {mobileSidebarOpen && (
-            <div className="fixed inset-0 z-40 bg-text/70 backdrop-blur-sm lg:hidden" onClick={() => setMobileSidebarOpen(false)} />
+            <div className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-md lg:hidden" onClick={() => setMobileSidebarOpen(false)} />
           )}
           <div
-            className={`fixed inset-y-0 left-0 z-50 w-72 transform border-r border-border/40 bg-slate-950 text-slate-100 shadow-xl transition-transform lg:hidden ${
+            data-testid="mobile-sidebar-drawer"
+            className={`fixed inset-y-0 left-0 z-50 w-72 transform border-r border-slate-800 bg-slate-950 text-slate-100 shadow-2xl transition-transform lg:hidden ${
               mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >

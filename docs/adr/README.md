@@ -14,10 +14,11 @@ This directory contains Architecture Decision Records for the Petakeu project. E
 | [004](004-tech-stack-choices.md) | Technology Stack Choices | Accepted | 2025-10-16 |
 | [005](005-postgis-for-geospatial-data.md) | PostGIS for Geospatial Data | Accepted | 2025-10-16 |
 | [006](006-materialized-view-for-aggregations.md) | Materialized View for Payment Aggregations | Accepted | 2025-10-16 |
-| [007](007-jwt-auth-with-sso.md) | JWT Authentication with SSO Integration | Proposed | 2025-10-16 |
-| [008](008-bullmq-for-background-jobs.md) | BullMQ for Background Job Processing | Proposed | 2025-10-16 |
+| [007](007-jwt-auth-with-sso.md) | JWT Authentication with SSO Integration | Accepted | 2025-10-16 |
+| [008](008-bullmq-for-background-jobs.md) | BullMQ for Background Job Processing | Accepted | 2025-10-16 |
 | [009](009-react-query-for-server-state.md) | React Query for Server State Management | Accepted | 2025-10-16 |
 | [010](010-tailwindcss-for-styling.md) | Tailwind CSS for Styling | Accepted | 2025-10-16 |
+| [011](011-storage-jobs-reports-architecture.md) | Storage, Job Queue & Report Generation Architecture | Accepted | 2026-08-03 |
 
 ---
 

@@ -9,9 +9,9 @@ Complete guide for migrating Petakeu between versions, upgrading infrastructure,
 | Version | Date | Type | Description |
 |---------|------|------|-------------|
 | 1.0.0 | 2025-10-16 | Initial | Base schema, MSW frontend, stub backend |
-| 1.1.0 | TBD | Minor | Auth, users, audit log, real DB connections |
-| 1.2.0 | TBD | Minor | Partitioning, performance optimizations |
-| 2.0.0 | TBD | Major | Breaking API changes, new features |
+| 1.1.0 | 2026-08-03 | Minor | Real DB integration, BullMQ workers, MinIO storage, JWT auth, FiscalView/RankFin/DefisitWatch APIs, 34-province seed data |
+| 1.2.0 | TBD | Minor | Users/roles table, audit log, Redis cache for choropleth |
+| 2.0.0 | TBD | Major | Breaking API changes, district/village drill-down |
 
 ---
 

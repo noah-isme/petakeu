@@ -10,3 +10,5 @@ uploads
 reports
 .turbo
 *.tsbuildinfo
+playwright-report
+test-results

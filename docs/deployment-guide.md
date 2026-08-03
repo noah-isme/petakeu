@@ -27,6 +27,42 @@ Complete guide for deploying Petakeu to production environments.
 
 ---
 
+## Server Startup Sequence
+
+Pada startup, server melakukan langkah berikut secara berurutan (lihat `src/index.ts`):
+
+1. **DB Migrations** — `src/db/migrate.ts` menjalankan file SQL yang belum diterapkan dari folder `migrations/`. Jika gagal, server berhenti (`process.exit(1)`).
+2. **MinIO Bucket Init** — Membuat bucket `uploads` dan `reports` jika belum ada. Kegagalan non-fatal (server tetap berjalan).
+3. **BullMQ Workers** — Menjalankan `upload-worker` (queue `upload-processing`, concurrency 2) dan `report-worker` (queue `report-generation`, concurrency 1), keduanya terhubung ke `REDIS_URL`.
+4. **MV Refresh Cron** — Menjadwalkan refresh `mv_payments_with_cut` setiap 15 menit via `node-cron`.
+5. **HTTP Server** — Express mendengarkan di port `PORT` (default 4000).
+
+Graceful shutdown menangani `SIGTERM`/`SIGINT`: menutup workers BullMQ, koneksi PostgreSQL, dan Redis sebelum proses berakhir.
+
+> [!IMPORTANT]
+> Pastikan `AUTH_DISABLED=false` tidak di-set di production. Set `AUTH_SECRET` ke string acak minimal 32 karakter: `openssl rand -base64 32`
+
+---
+
+## Inisialisasi Data (Seeding)
+
+Setelah database pertama kali berjalan, seed data wilayah Indonesia:
+
+```bash
+cd apps/server
+pnpm seed:regions
+```
+
+Script ini memasukkan:
+- 34 provinsi dengan kode BPS resmi (level 1)
+- 58+ kabupaten/kota dengan kode BPS resmi (level 2)
+- Seluruh 24 kabupaten/kota Sulawesi Selatan (termasuk Kota Makassar, kode 7371)
+- Geometri `MULTIPOLYGON` PostGIS dari bounding box untuk setiap wilayah
+
+Script bersifat idempoten (`ON CONFLICT DO UPDATE`) — aman dijalankan berulang kali.
+
+---
+
 ## Prerequisites
 
 ### Infrastructure Requirements

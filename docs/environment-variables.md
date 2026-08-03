@@ -14,11 +14,13 @@ Complete reference for all environment variables in the Petakeu monorepo.
 | `PGSSLMODE` | No | — | PostgreSQL SSL mode. Set to `require` for managed DBs (RDS, Cloud SQL) |
 | `REDIS_URL` | **Yes** (prod) | `redis://localhost:6379` | Redis connection string. Format: `redis://host:port` |
 | `STORAGE_BUCKET` | **Yes** (prod) | `uploads` | MinIO/S3 bucket name for file uploads |
+| `STORAGE_REPORTS_BUCKET` | No | `reports` | MinIO/S3 bucket name for generated reports (PDF/Excel) |
 | `STORAGE_ENDPOINT` | **Yes** (prod) | `http://localhost:9000` | MinIO/S3 endpoint URL |
 | `STORAGE_ACCESS_KEY` | **Yes** (prod) | `admin` | MinIO/S3 access key |
 | `STORAGE_SECRET_KEY` | **Yes** (prod) | `password123` | MinIO/S3 secret key |
 | `STORAGE_REGION` | No | `us-east-1` | S3 region (required for AWS S3) |
-| `AUTH_SECRET` | **Yes** (prod) | — | JWT signing secret (min 32 chars) |
+| `AUTH_SECRET` | **Yes** (prod) | — | JWT signing secret (min 32 chars). Generate: `openssl rand -base64 32` |
+| `AUTH_DISABLED` | No | `true` | Set to `true` to bypass JWT auth entirely (dev only). Must be `false` in production. |
 | `AUTH_ISSUER` | No | `petakeu` | JWT issuer claim |
 | `AUTH_AUDIENCE` | No | `petakeu-api` | JWT audience claim |
 | `MAP_TILE_KEY` | No | — | Mapbox/Carto API key for custom map tiles |
@@ -56,7 +58,11 @@ The following are set automatically in the development Docker Compose:
 | `api` | `DATABASE_URL` | `postgresql://petakeu:petakeu@postgres:5432/petakeu` |
 | `api` | `REDIS_URL` | `redis://redis:6379` |
 | `api` | `STORAGE_BUCKET` | `uploads` |
+| `api` | `STORAGE_REPORTS_BUCKET` | `reports` |
 | `api` | `STORAGE_ENDPOINT` | `http://minio:9000` |
+| `api` | `STORAGE_ACCESS_KEY` | `admin` |
+| `api` | `STORAGE_SECRET_KEY` | `password123` |
+| `api` | `AUTH_DISABLED` | `true` |
 | `web` | `VITE_API_BASE_URL` | `http://api:4000/api` |
 
 ---
