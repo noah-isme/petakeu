@@ -1,6 +1,7 @@
 import { Queue, Worker, Job } from 'bullmq';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
+
 import { getPgPool } from '../db/postgres';
 import { uploadReport, getReportDownloadUrl } from '../services/storage-service';
 
@@ -43,9 +44,16 @@ async function fetchReportData(
   return rows;
 }
 
+interface ReportRow {
+  region_name: string;
+  amount: string | number;
+  cut_amount: string | number;
+  net_amount: string | number;
+}
+
 async function generateExcel(
   period: string,
-  rows: any[]
+  rows: ReportRow[]
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(`Laporan ${period}`);
@@ -85,7 +93,7 @@ async function generateExcel(
 
 async function generatePdf(
   period: string,
-  rows: any[]
+  rows: ReportRow[]
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40 });

@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { CircleMarker, GeoJSON, MapContainer, TileLayer, Tooltip } from "react-leaflet";
+
 import type { LeafletMouseEvent } from "leaflet";
 import type { GeoJsonObject } from "geojson";
-
 import type { ChoroplethFeature, ChoroplethResponse } from "../types/geo";
 
 interface MapViewProps {
@@ -56,7 +56,6 @@ export function MapView({ choropleth, onRegionSelect, selectedRegionId, mode, pu
           }}
           eventHandlers={{
             click: (event: LeafletMouseEvent) => {
-              // @ts-ignore - leaflet typing does not include feature
               const feature = event.propagatedFrom?.feature ?? event.sourceTarget.feature;
               const regionId = feature?.properties?.regionId;
               if (regionId && onRegionSelect) {

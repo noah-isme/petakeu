@@ -1,8 +1,11 @@
 import { createHash } from 'node:crypto';
+
 import { getPgPool } from '../db/postgres';
-import { uploadFile } from './storage-service';
 import { uploadQueue } from '../jobs/upload-worker';
 import { AppError } from '../utils/app-error';
+
+import { uploadFile } from './storage-service';
+
 import type {
   UploadRecord,
   UploadRequest,
@@ -24,21 +27,21 @@ function validateUpload(request: UploadRequest) {
   }
 }
 
-function rowToRecord(row: any): UploadRecord {
+function rowToRecord(row: Record<string, unknown>): UploadRecord {
   return {
-    uploadId: row.id,
-    filename: row.filename,
-    mimetype: row.mimetype,
-    size: row.size_bytes,
-    status: row.status,
-    hash: row.hash,
-    storagePath: row.storage_path ?? undefined,
-    fileUrl: row.file_url ?? undefined,
-    errorCount: row.error_count,
-    errors: row.errors ?? [],
-    summary: row.summary ?? undefined,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    uploadId: row.id as string,
+    filename: row.filename as string,
+    mimetype: row.mimetype as string,
+    size: row.size_bytes as number,
+    status: row.status as UploadRecord['status'],
+    hash: row.hash as string,
+    storagePath: (row.storage_path as string) ?? undefined,
+    fileUrl: (row.file_url as string) ?? undefined,
+    errorCount: row.error_count as number,
+    errors: (row.errors as UploadRecord['errors']) ?? [],
+    summary: (row.summary as UploadRecord['summary']) ?? undefined,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
   };
 }
 

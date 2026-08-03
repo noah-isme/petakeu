@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { requireAuth } from "../../middleware/auth";
 
+import { requireAuth } from "../../middleware/auth";
 import { uploadController } from "../../controllers/upload-controller";
 import { memoryUpload } from "../../middleware/upload";
 

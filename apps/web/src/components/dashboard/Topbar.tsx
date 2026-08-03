@@ -1,6 +1,6 @@
 import * as Select from "@radix-ui/react-select";
 import classNames from "clsx";
-import { ChevronDown, Menu, Settings, Sparkles, Activity, CheckCircle2 } from "lucide-react";
+import { ChevronDown, Menu, Settings, Sparkles } from "lucide-react";
 
 interface TopbarProps {
   title: string;

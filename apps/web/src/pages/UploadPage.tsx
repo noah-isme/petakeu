@@ -1,5 +1,5 @@
 import { ChangeEvent, DragEvent, useState } from "react";
-import { CheckCircle2, FileDown, UploadCloud, AlertCircle, FileSpreadsheet, RefreshCw, Layers, ShieldCheck, Sparkles, FileText, Check } from "lucide-react";
+import { CheckCircle2, FileDown, UploadCloud, AlertCircle, FileSpreadsheet, RefreshCw, Sparkles } from "lucide-react";
 
 export interface UploadSummary {
   validRows: number;

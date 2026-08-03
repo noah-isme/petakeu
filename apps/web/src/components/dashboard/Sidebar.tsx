@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { ChevronLeft, ChevronRight, Layers, ShieldCheck, Sparkles, User, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Layers, ShieldCheck, User, type LucideIcon } from "lucide-react";
 import classNames from "clsx";
 
 export interface SidebarItem {

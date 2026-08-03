@@ -1,7 +1,7 @@
 import { Queue, Worker, Job } from 'bullmq';
 import { read, utils } from 'xlsx';
+
 import { getPgPool } from '../db/postgres';
-import { getRedisClient } from '../db/redis';
 
 const QUEUE_NAME = 'upload-processing';
 
@@ -37,7 +37,7 @@ function parseRows(buffer: Buffer) {
 }
 
 async function processUpload(job: Job): Promise<void> {
-  const { uploadId, buffer: bufferB64, filename } = job.data;
+  const { uploadId, buffer: bufferB64 } = job.data;
   const pool = getPgPool();
 
   // Mark as processing

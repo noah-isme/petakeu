@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { requireAuth } from "../../middleware/auth";
 
+import { requireAuth } from "../../middleware/auth";
 import { reportController } from "../../controllers/report-controller";
 
 /**

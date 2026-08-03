@@ -52,19 +52,19 @@ export async function getRanking(
     WHERE period = ($1 || '-01')::date
   `;
   const prevRes = await pool.query(prevSql, [prevPeriod]);
-  const prevMap = new Map(prevRes.rows.map((r: any) => [r.region_id, Number(r.amount)]));
+  const prevMap = new Map(prevRes.rows.map((r: Record<string, unknown>) => [r.region_id as string, Number(r.amount)]));
 
-  return rows.map((row: any, index: number) => {
+  return rows.map((row: Record<string, unknown>, index: number) => {
     const realization = Number(row.amount);
-    const prevAmount = prevMap.get(row.region_id) ?? 0;
+    const prevAmount = prevMap.get(row.region_id as string) ?? 0;
     const yoy = prevAmount > 0 ? ((realization - prevAmount) / prevAmount) * 100 : 0;
     // Target: use 110% of previous year as benchmark
     const target = prevAmount > 0 ? prevAmount * 1.1 : realization * 1.1;
     const percentage = target > 0 ? (realization / target) * 100 : 0;
 
     return {
-      regionId: row.region_id,
-      regionName: row.region_name,
+      regionId: row.region_id as string,
+      regionName: row.region_name as string,
       target: Math.round(target),
       realization: Math.round(realization),
       percentage: Number(percentage.toFixed(2)),
@@ -98,16 +98,15 @@ export async function getSurplusDeficit(period: string): Promise<SurplusDeficitI
   `;
   const { rows } = await pool.query(sql, [yearStart, period]);
 
-  return rows.map((row: any) => {
+  return rows.map((row: Record<string, unknown>) => {
     const ytd = Number(row.ytd ?? 0);
-    const netYtd = Number(row.net_ytd ?? 0);
     // Simulate surplus/deficit relative to annual target (120% of YTD extrapolated)
     const annualTarget = ytd * 12;
     const surplus = Math.max(0, ytd - annualTarget * 0.5);
     const deficit = Math.max(0, annualTarget * 0.5 - ytd);
     return {
-      regionId: row.region_id,
-      regionName: row.region_name,
+      regionId: row.region_id as string,
+      regionName: row.region_name as string,
       surplus: Math.round(surplus),
       deficit: Math.round(deficit),
       ytd: Math.round(ytd),

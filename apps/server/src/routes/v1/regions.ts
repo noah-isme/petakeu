@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { requireAuth } from "../../middleware/auth";
 
+import { requireAuth } from "../../middleware/auth";
 import { regionController } from "../../controllers/region-controller";
 
 /**

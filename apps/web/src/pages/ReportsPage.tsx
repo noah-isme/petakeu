@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, FileText, Download, Calendar, DollarSign, MapPin, ArrowUpRight, BarChart3, Filter } from "lucide-react";
+import { Download, MapPin, ArrowUpRight, BarChart3 } from "lucide-react";
+
 import { formatCurrency } from "../lib/format";
 
 interface MetricCardProps {

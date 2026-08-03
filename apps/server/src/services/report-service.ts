@@ -1,22 +1,23 @@
 import { getPgPool } from '../db/postgres';
 import { reportQueue } from '../jobs/report-worker';
+
 import type {
   ReportJob,
   ReportRequest,
 } from '../types/report';
 
-function rowToJob(row: any): ReportJob {
+function rowToJob(row: Record<string, unknown>): ReportJob {
   return {
-    jobId: row.id,
-    period: row.period,
-    regionIds: row.region_ids,
-    format: row.format,
-    status: row.status,
-    downloadUrl: row.download_url ?? undefined,
-    requestedAt: row.requested_at,
-    updatedAt: row.updated_at,
-    expiresAt: row.expires_at,
-    summary: row.summary ?? undefined,
+    jobId: row.id as string,
+    period: row.period as string,
+    regionIds: row.region_ids as string[],
+    format: row.format as ReportJob['format'],
+    status: row.status as ReportJob['status'],
+    downloadUrl: (row.download_url as string) ?? undefined,
+    requestedAt: row.requested_at as string,
+    updatedAt: row.updated_at as string,
+    expiresAt: row.expires_at as string,
+    summary: (row.summary as ReportJob['summary']) ?? undefined,
   };
 }
 

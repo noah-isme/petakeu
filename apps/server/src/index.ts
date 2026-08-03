@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createApp } from './server';
-import { getPgPool, shutdownPg } from './db/postgres';
-import { getRedisClient, shutdownRedis } from './db/redis';
+import { shutdownPg } from './db/postgres';
+import { shutdownRedis } from './db/redis';
 import { runMigrations } from './db/migrate';
 import { initStorage } from './services/storage-service';
 import { startUploadWorker } from './jobs/upload-worker';

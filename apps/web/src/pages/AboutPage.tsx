@@ -1,4 +1,4 @@
-import { Cpu, Database, Globe2, ShieldCheck, Layers, Sparkles, CheckCircle2, Activity, Zap, Server } from "lucide-react";
+import { Cpu, Database, Globe2, ShieldCheck, Layers, Sparkles, CheckCircle2, Activity } from "lucide-react";
 
 export function AboutPage() {
   const techStack = [

@@ -1,5 +1,6 @@
 import { getPgPool } from '../db/postgres';
 import { AppError } from '../utils/app-error';
+
 import type { Region, RegionListParams, RegionSummary, TrendPoint } from '../types/region';
 
 // Level integer mapping (matches DB schema)
@@ -46,12 +47,12 @@ export async function listRegions(params: RegionListParams): Promise<Region[]> {
   `;
 
   const { rows } = await pool.query(sql, values);
-  return rows.map((row: any) => ({
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    level: LEVEL_REVERSE[row.level] ?? 'province',
-    parentId: row.parentId ?? undefined,
+  return rows.map((row: Record<string, unknown>) => ({
+    id: row.id as string,
+    code: row.code as string,
+    name: row.name as string,
+    level: LEVEL_REVERSE[row.level as number] ?? 'province',
+    parentId: (row.parentId as string) ?? undefined,
   })) as Region[];
 }
 
@@ -108,19 +109,19 @@ export async function getRegionSummary(
 
   const { rows: trendRows } = await pool.query(mvSql, periodValues);
 
-  const trend: TrendPoint[] = trendRows.map((r: any) => ({
-    period: r.period,
+  const trend: TrendPoint[] = trendRows.map((r: Record<string, unknown>) => ({
+    period: r.period as string,
     amount: Number(r.amount),
   }));
 
-  const monthlyBreakdown = trendRows.map((r: any) => ({
-    period: r.period,
+  const monthlyBreakdown = trendRows.map((r: Record<string, unknown>) => ({
+    period: r.period as string,
     amount: Number(r.amount),
     cut15Amount: Number(r.cut15Amount),
     netAmount: Number(r.netAmount),
   }));
 
-  const totalAmount = monthlyBreakdown.reduce((acc: number, e: any) => acc + e.amount, 0);
+  const totalAmount = monthlyBreakdown.reduce((acc: number, e: { amount: number }) => acc + e.amount, 0);
   const cut15Amount = totalAmount * 0.15;
   const netAmount = totalAmount - cut15Amount;
 

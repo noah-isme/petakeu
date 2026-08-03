@@ -6,8 +6,7 @@ import {
   BarChart3 as BarChart3Icon,
   Trophy as TrophyIcon,
   AlertTriangle as AlertTriangleIcon,
-  Circle as CircleIcon,
-  Sparkles
+  Circle as CircleIcon
 } from "lucide-react";
 
 import { cn } from "../lib/utils";

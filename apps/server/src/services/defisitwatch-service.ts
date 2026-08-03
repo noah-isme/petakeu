@@ -81,15 +81,17 @@ export async function getWatchlist(period: string): Promise<WatchlistItem[]> {
     GROUP BY region_id
   `;
   const { rows: avgRows } = await pool.query(avgSql, [fromPeriod, period]);
-  const avgMap = new Map(avgRows.map((r: any) => [r.region_id, { avg: Number(r.avg_amount), count: Number(r.month_count) }]));
+  const avgMap = new Map<string, { avg: number; count: number }>(
+    avgRows.map((r: Record<string, unknown>) => [r.region_id as string, { avg: Number(r.avg_amount), count: Number(r.month_count) }])
+  );
 
-  const results: WatchlistItem[] = currentRows.map((row: any) => {
-    const { avg = 0, count = 0 } = avgMap.get(row.region_id) ?? {};
+  const results: WatchlistItem[] = currentRows.map((row: Record<string, unknown>) => {
+    const { avg = 0, count = 0 } = avgMap.get(row.region_id as string) ?? {};
     const { irf, reasons } = computeIrf(Number(row.amount), avg, count);
     const category = getCategory(irf);
     return {
-      regionId: row.region_id,
-      regionName: row.region_name,
+      regionId: row.region_id as string,
+      regionName: row.region_name as string,
       irf,
       category,
       topReason: reasons[0] ?? 'Normal',
@@ -127,7 +129,7 @@ export async function getRegionDetail(regionId: string, period: string): Promise
   `;
   const { rows: histRows } = await pool.query(historySql, [regionId, fromPeriod, period]);
 
-  const amounts = histRows.map((r: any) => Number(r.amount));
+  const amounts = histRows.map((r: Record<string, unknown>) => Number(r.amount));
   const avgAmount = amounts.length ? amounts.reduce((a, b) => a + b, 0) / amounts.length : 0;
   const currentAmount = amounts[amounts.length - 1] ?? 0;
 
@@ -135,7 +137,7 @@ export async function getRegionDetail(regionId: string, period: string): Promise
   const category = getCategory(irf);
 
   // Projection: target = avg * 1.1, realization = actuals, kas = cumulative
-  const target = amounts.map((a) => Math.round(avgAmount * 1.1));
+  const target = amounts.map(() => Math.round(avgAmount * 1.1));
   const realization = amounts;
   const kas = amounts.reduce((acc: number[], val) => {
     acc.push((acc[acc.length - 1] ?? 0) + val);

@@ -38,7 +38,7 @@ export async function getLeague(period: string): Promise<LeagueItem[]> {
 
   const maxScore = Number(rows[0].total_3m ?? 0);
 
-  return rows.map((row: any, index: number) => {
+  return rows.map((row: Record<string, unknown>, index: number) => {
     const total = Number(row.total_3m ?? 0);
     const score = maxScore > 0 ? Math.round((total / maxScore) * 1000) : 0;
     const monthCount = Number(row.month_count ?? 0);
@@ -54,8 +54,8 @@ export async function getLeague(period: string): Promise<LeagueItem[]> {
     if (score >= 900) badges.push('Top Performer');
 
     return {
-      regionId: row.region_id,
-      regionName: row.region_name,
+      regionId: row.region_id as string,
+      regionName: row.region_name as string,
       score,
       tier,
       rank: index + 1,

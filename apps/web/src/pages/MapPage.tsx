@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L, { type LeafletMouseEvent } from "leaflet";
-import { Compass, RefreshCcw, MapPin, Filter, Layers as LayersIcon } from "lucide-react";
+import { Compass, RefreshCcw, MapPin, Filter } from "lucide-react";
 import { GeoJSON, MapContainer, TileLayer } from "react-leaflet";
 
 import { InfoCard } from "../components/dashboard/InfoCard";

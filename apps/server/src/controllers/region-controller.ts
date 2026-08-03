@@ -7,7 +7,7 @@ const listRegions = asyncHandler(async (req: Request, res: Response) => {
   const { level, parent } = req.query as { level?: string; parent?: string };
   const VALID_LEVELS = ["province", "regency", "district", "village"] as const;
   const regions = await regionService.listRegions({
-    level: VALID_LEVELS.includes(level as any) ? (level as any) : undefined,
+    level: (VALID_LEVELS as readonly string[]).includes(level ?? "") ? (level as (typeof VALID_LEVELS)[number]) : undefined,
     parent
   });
 

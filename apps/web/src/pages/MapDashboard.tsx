@@ -203,24 +203,6 @@ export function MapDashboard() {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(amount);
   };
 
-  const getTierColor = (tier: string) => {
-    switch (tier) {
-      case "gold": return "bg-yellow-400";
-      case "silver": return "bg-gray-400";
-      case "bronze": return "bg-orange-600";
-      default: return "bg-gray-200";
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case "red": return "bg-red-500";
-      case "orange": return "bg-orange-500";
-      case "green": return "bg-green-500";
-      default: return "bg-gray-500";
-    }
-  };
-
   const getCategoryText = (category: string) => {
     switch (category) {
       case "red": return "Merah";

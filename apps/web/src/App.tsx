@@ -163,6 +163,15 @@ export default function App() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const addToast = useCallback((kind: ToastKind, message: string) => {
+    const id = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+    setToasts((prev) => [...prev, { id, kind, message }]);
+    const timeoutId = window.setTimeout(() => {
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+      toastTimers.current.delete(id);
+    }, 4200);
+    toastTimers.current.set(id, timeoutId);
+  }, []);
 
   useEffect(() => {
     setMapStatus("loading");
@@ -193,7 +202,7 @@ export default function App() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [selectedPeriod]);
+  }, [selectedPeriod, addToast]);
 
   useEffect(() => {
     const timers = toastTimers.current;
@@ -203,16 +212,6 @@ export default function App() {
         window.clearInterval(uploadTimerRef.current);
       }
     };
-  }, []);
-
-  const addToast = useCallback((kind: ToastKind, message: string) => {
-    const id = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
-    setToasts((prev) => [...prev, { id, kind, message }]);
-    const timeoutId = window.setTimeout(() => {
-      setToasts((prev) => prev.filter((toast) => toast.id !== id));
-      toastTimers.current.delete(id);
-    }, 4200);
-    toastTimers.current.set(id, timeoutId);
   }, []);
 
   const dismissToast = useCallback((id: string) => {
@@ -258,7 +257,7 @@ export default function App() {
 
       addToast("success", "Unggah berhasil diproses.");
     },
-    [addToast, selectedPeriod]
+    [addToast]
   );
 
   const handleUploadReset = useCallback(() => {
@@ -309,7 +308,7 @@ export default function App() {
         trendDirection: "up" as const
       }
     ],
-    [featureCollection, mapStatus, totalValue]
+    [mapStatus, totalValue]
   );
 
   const renderPage = () => {

@@ -1,5 +1,4 @@
 import { rest } from "msw";
-import type { RestRequest } from "msw";
 import { addMonths, isAfter, isBefore } from "date-fns";
 
 import { getRegionGeometry } from "./data/regions";
@@ -8,7 +7,6 @@ import {
   getScenarioDataset,
   getPaymentsByPeriod,
   getPaymentsByRegion,
-  getPeriods,
   type PaymentRecord
 } from "./data/scenarios";
 import { buildQuantileLegend, classifyQuantile } from "./utils/math";
@@ -21,6 +19,8 @@ import {
   getWatchlist,
   getRegionDetail
 } from "./data/fiscal";
+
+import type { RestRequest } from "msw";
 import type { RegionLevel } from "../types/region";
 
 interface UploadErrorDetail {
