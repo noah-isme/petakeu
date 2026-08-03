@@ -1,4 +1,4 @@
-export type RegionLevel = "province" | "regency";
+export type RegionLevel = "province" | "regency" | "district" | "village";
 
 export interface Region {
   id: string;

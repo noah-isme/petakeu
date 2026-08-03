@@ -1,3 +1,5 @@
+import type { Geometry } from 'geojson';
+
 export interface ChoroplethFeatureProperties {
   regionId: string;
   name: string;
@@ -12,7 +14,7 @@ export interface ChoroplethFeatureProperties {
 export interface ChoroplethFeature {
   type: "Feature";
   id: string;
-  geometry: GeoJSON.MultiPolygon | GeoJSON.Polygon;
+  geometry: Geometry | null;
   properties: ChoroplethFeatureProperties;
 }
 

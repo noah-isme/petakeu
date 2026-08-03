@@ -25,13 +25,13 @@ const handleUpload = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const listUploads = asyncHandler(async (_req: Request, res: Response) => {
-  const uploads = uploadService.listUploads();
+  const uploads = await uploadService.listUploads();
   res.json({ data: uploads });
 });
 
 const getUpload = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const record = uploadService.getUpload(id);
+  const record = await uploadService.getUpload(id);
   if (!record) {
     throw new AppError("Upload not found", 404);
   }

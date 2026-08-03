@@ -26,9 +26,9 @@ export interface ReportMonthlySummaryItem {
 
 export interface ReportSummary {
   totalsByRegion: ReportSummaryRegion[];
-  topGainers: ReportTrendItem[];
-  topDecliners: ReportTrendItem[];
-  lastTwelveMonths: ReportMonthlySummaryItem[];
+  topGainers?: ReportTrendItem[];
+  topDecliners?: ReportTrendItem[];
+  lastTwelveMonths?: ReportMonthlySummaryItem[];
 }
 
 export interface ReportJob {
@@ -37,10 +37,10 @@ export interface ReportJob {
   regionIds: string[];
   format: "pdf" | "excel";
   status: ReportStatus;
-  downloadUrl: string | null;
+  downloadUrl?: string | null;
   requestedAt: string;
   updatedAt: string;
   expiresAt?: string;
   errorMessage?: string;
-  summary: ReportSummary;
+  summary?: ReportSummary | null;
 }

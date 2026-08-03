@@ -1,4 +1,4 @@
-export type UploadStatus = "queued" | "processing" | "parsed" | "failed";
+export type UploadStatus = "queued" | "processing" | "parsed" | "persisted" | "failed";
 
 export interface UploadErrorDetail {
   row: number;
@@ -25,7 +25,7 @@ export interface UploadRecord {
   createdAt: string;
   updatedAt: string;
   hash: string;
-  storagePath: string;
+  storagePath?: string;
   errorCount: number;
   errorFilePath?: string;
   fileUrl?: string | null;

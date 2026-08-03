@@ -5,6 +5,7 @@ import helmet from "helmet";
 
 import { registerRoutes } from "./routes";
 import { errorHandler } from "./utils/error-handler";
+import { setupSwagger } from "./config/swagger";
 
 export async function createApp(): Promise<Express> {
   const app = express();
@@ -14,6 +15,11 @@ export async function createApp(): Promise<Express> {
   app.use(express.json({ limit: "5mb" }));
   app.use(express.urlencoded({ extended: true }));
   app.use(morgan("dev"));
+
+  // Swagger API Documentation (only in non-production)
+  if (process.env.NODE_ENV !== "production") {
+    setupSwagger(app);
+  }
 
   registerRoutes(app);
 

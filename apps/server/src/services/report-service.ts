@@ -1,102 +1,65 @@
-import { randomUUID } from "node:crypto";
-
-import {
+import { getPgPool } from '../db/postgres';
+import { reportQueue } from '../jobs/report-worker';
+import type {
   ReportJob,
   ReportRequest,
-  ReportSummary,
-  ReportSummaryRegion,
-  ReportTrendItem,
-} from "../types/report";
+} from '../types/report';
 
-const reportStore = new Map<string, ReportJob>();
-
-function buildDownloadUrl(jobId: string, format: ReportRequest["format"]): string {
-  const extension = format === "excel" ? "xlsx" : "pdf";
-  return `https://storage.petakeu.local/reports/${jobId}.${extension}`;
-}
-
-function buildTotalsByRegion(request: ReportRequest): ReportSummaryRegion[] {
-  return request.regionIds.map((regionId, index) => ({
-    regionId,
-    regionName: `Wilayah ${index + 1}`,
-    total: 50_000_000 + index * 7_500_000,
-    changePercentage: Number((Math.sin(index + 1) * 12).toFixed(2)),
-  }));
-}
-
-function buildTrendItems(
-  totals: ReportSummaryRegion[],
-  order: "desc" | "asc",
-): ReportTrendItem[] {
-  const sorted = [...totals].sort((a, b) =>
-    order === "desc" ? b.changePercentage - a.changePercentage : a.changePercentage - b.changePercentage,
-  );
-  return sorted.slice(0, Math.min(sorted.length, 10)).map((item) => ({
-    regionId: item.regionId,
-    regionName: item.regionName,
-    changePercentage: item.changePercentage,
-  }));
-}
-
-function buildLastTwelveMonths(period: string): ReportSummary["lastTwelveMonths"] {
-  const [yearStr, monthStr] = period.split("-");
-  const year = Number(yearStr);
-  const month = Number(monthStr);
-
-  return Array.from({ length: 12 }, (_, index) => {
-    const date = new Date(Date.UTC(year, month - 1));
-    date.setUTCMonth(date.getUTCMonth() - (11 - index));
-    const isoYear = date.getUTCFullYear();
-    const isoMonth = `${date.getUTCMonth() + 1}`.padStart(2, "0");
-    return {
-      period: `${isoYear}-${isoMonth}`,
-      total: 40_000_000 + index * 2_500_000,
-    };
-  });
-}
-
-function buildSummary(request: ReportRequest): ReportSummary {
-  const totals = buildTotalsByRegion(request);
+function rowToJob(row: any): ReportJob {
   return {
-    totalsByRegion: totals,
-    topGainers: buildTrendItems(totals, "desc"),
-    topDecliners: buildTrendItems(totals, "asc"),
-    lastTwelveMonths: buildLastTwelveMonths(request.period),
+    jobId: row.id,
+    period: row.period,
+    regionIds: row.region_ids,
+    format: row.format,
+    status: row.status,
+    downloadUrl: row.download_url ?? undefined,
+    requestedAt: row.requested_at,
+    updatedAt: row.updated_at,
+    expiresAt: row.expires_at,
+    summary: row.summary ?? undefined,
   };
 }
 
 export async function enqueueReport(request: ReportRequest): Promise<ReportJob> {
-  const jobId = randomUUID();
-  const now = new Date().toISOString();
-  const summary = buildSummary(request);
+  const pool = getPgPool();
 
-  const job: ReportJob = {
-    jobId,
+  const { rows } = await pool.query(
+    `INSERT INTO report_jobs(period, region_ids, format, status)
+     VALUES($1, $2, $3, 'queued')
+     RETURNING *`,
+    [request.period, request.regionIds, request.format]
+  );
+  const job = rowToJob(rows[0]);
+
+  // Enqueue generation job
+  await reportQueue.add('generate-report', {
+    jobId: job.jobId,
     period: request.period,
     regionIds: request.regionIds,
     format: request.format,
-    status: "completed",
-    downloadUrl: buildDownloadUrl(jobId, request.format),
-    requestedAt: now,
-    updatedAt: now,
-    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(),
-    summary,
-  };
+  }, {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 3000 },
+  });
 
-  reportStore.set(jobId, job);
   return job;
 }
 
-export function listReports(): ReportJob[] {
-  return Array.from(reportStore.values()).sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
+export async function listReports(): Promise<ReportJob[]> {
+  const pool = getPgPool();
+  const { rows } = await pool.query(
+    'SELECT * FROM report_jobs ORDER BY requested_at DESC LIMIT 100'
+  );
+  return rows.map(rowToJob);
 }
 
-export function getReport(jobId: string): ReportJob | undefined {
-  return reportStore.get(jobId);
+export async function getReport(jobId: string): Promise<ReportJob | undefined> {
+  const pool = getPgPool();
+  const { rows } = await pool.query(
+    'SELECT * FROM report_jobs WHERE id = $1',
+    [jobId]
+  );
+  return rows.length ? rowToJob(rows[0]) : undefined;
 }
 
-export const reportService = {
-  enqueueReport,
-  listReports,
-  getReport,
-};
+export const reportService = { enqueueReport, listReports, getReport };
