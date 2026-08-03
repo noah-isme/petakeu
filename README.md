@@ -6,6 +6,19 @@
 
 ---
 
+## 📸 Tampilan Aplikasi (Interface Preview)
+
+### Cyber-GIS Interactive Map Canvas
+![Petakeu Cyber-GIS Map Preview](docs/screenshots/01-map-page-chromium-desktop.png)
+
+### System Architecture & Performance Telemetry
+![Petakeu System Documentation Preview](docs/screenshots/04-about-page-chromium-desktop.png)
+
+### Analytics Reports & Metrics Summary
+![Petakeu Reports Preview](docs/screenshots/03-reports-page-chromium-desktop.png)
+
+---
+
 ## Fitur Utama (Features Overview)
 
 Platform ini memiliki Dashboard utama (MapDashboard) dengan 4 tab analisis dan modul pengolahan data:
