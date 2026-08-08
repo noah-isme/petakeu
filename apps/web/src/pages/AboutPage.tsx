@@ -16,19 +16,19 @@ export function AboutPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 pb-12">
+    <div className="mx-auto max-w-6xl space-y-6 pb-12">
       {/* Hero Presentation Card */}
-      <section className="rounded-3xl border border-slate-800/80 bg-slate-900/90 p-8 shadow-2xl backdrop-blur-2xl transition hover:border-emerald-500/30">
+      <section className="rounded-[24px] border border-slate-100 bg-white p-7 shadow-xs transition hover:shadow-md">
         <div className="flex items-center gap-3.5 mb-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-900/30 text-emerald-400 border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.25)]">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
             <Sparkles className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400 font-['Outfit']">Enterprise Platform</span>
-            <h2 className="text-2xl font-black text-white font-['Outfit']">Petakeu — Regional Revenue Intelligence</h2>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 font-['Outfit']">Enterprise Platform</span>
+            <h2 className="text-2xl font-bold text-slate-900 font-['Outfit']">Petakeu — Regional Revenue Intelligence</h2>
           </div>
         </div>
-        <p className="mt-2 text-sm leading-relaxed text-slate-300">
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">
           Petakeu adalah platform internal tingkat eksekutif untuk memantau, memvisualisasikan, dan menganalisis realisasi
           pendapatan daerah seluruh Indonesia melalui peta interaktif choropleth, validasi berkas Excel otomatis, dan
           perhitungan potongan wajib 15% secara real-time.
@@ -41,14 +41,14 @@ export function AboutPage() {
             return (
               <div
                 key={tech.title}
-                className="flex items-start gap-4 rounded-2xl border border-slate-800/80 bg-slate-950/60 p-5 transition hover:border-emerald-500/40 hover:bg-slate-950/90"
+                className="flex items-start gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5 transition hover:border-emerald-300 hover:bg-slate-50"
               >
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-900/30 text-emerald-400 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800 border border-emerald-200">
                   <Icon className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-['Outfit']">{tech.title}</h3>
-                  <p className="mt-1 text-sm font-semibold text-white">{tech.detail}</p>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800 font-['Outfit']">{tech.title}</h3>
+                  <p className="mt-1 text-sm font-bold text-slate-900">{tech.detail}</p>
                 </div>
               </div>
             );
@@ -57,17 +57,17 @@ export function AboutPage() {
       </section>
 
       {/* System Metrics Grid */}
-      <section className="rounded-3xl border border-slate-800/80 bg-slate-900/90 p-8 shadow-2xl backdrop-blur-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <Activity className="h-5 w-5 text-cyan-400" />
-          <h3 className="text-lg font-black text-white font-['Outfit']">Status Performa & Infrastruktur Telemetri</h3>
+      <section className="rounded-[24px] border border-slate-100 bg-white p-7 shadow-xs">
+        <div className="flex items-center gap-3 mb-5">
+          <Activity className="h-5 w-5 text-cyan-600" />
+          <h3 className="text-lg font-bold text-slate-900 font-['Outfit']">Status Performa & Infrastruktur Telemetri</h3>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {systemMetrics.map((item) => (
-            <div key={item.label} className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 space-y-1">
+            <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{item.label}</span>
-              <div className="text-2xl font-black text-white font-['Outfit']">{item.value}</div>
-              <span className="inline-block text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+              <div className="text-2xl font-extrabold text-slate-900 font-['Outfit']">{item.value}</div>
+              <span className="inline-block text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md">
                 {item.status}
               </span>
             </div>
@@ -76,24 +76,24 @@ export function AboutPage() {
       </section>
 
       {/* Value Pillars */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-3xl border border-slate-800/80 bg-slate-900/90 p-6 shadow-2xl backdrop-blur-2xl transition hover:border-emerald-500/40">
+      <div className="grid gap-5 md:grid-cols-2">
+        <div className="rounded-[24px] border border-slate-100 bg-white p-6 shadow-xs transition hover:shadow-md">
           <div className="flex items-center gap-2.5 mb-3">
-            <ShieldCheck className="h-5 w-5 text-emerald-400" />
-            <h3 className="text-base font-bold text-white font-['Outfit']">Transparansi Basis Data Spasial</h3>
+            <ShieldCheck className="h-5 w-5 text-emerald-600" />
+            <h3 className="text-base font-bold text-slate-900 font-['Outfit']">Transparansi Basis Data Spasial</h3>
           </div>
-          <p className="text-xs text-slate-400 leading-relaxed">
+          <p className="text-xs text-slate-500 leading-relaxed">
             Data spasial PostGIS terintegrasi penuh dengan materialized views untuk memastikan sinkronisasi anggaran 100% akurat
             antara pusat dan daerah.
           </p>
         </div>
 
-        <div className="rounded-3xl border border-slate-800/80 bg-slate-900/90 p-6 shadow-2xl backdrop-blur-2xl transition hover:border-cyan-500/40">
+        <div className="rounded-[24px] border border-slate-100 bg-white p-6 shadow-xs transition hover:shadow-md">
           <div className="flex items-center gap-2.5 mb-3">
-            <CheckCircle2 className="h-5 w-5 text-cyan-400" />
-            <h3 className="text-base font-bold text-white font-['Outfit']">Otomasi Validasi & Potongan 15%</h3>
+            <CheckCircle2 className="h-5 w-5 text-cyan-600" />
+            <h3 className="text-base font-bold text-slate-900 font-['Outfit']">Otomasi Validasi & Potongan 15%</h3>
           </div>
-          <p className="text-xs text-slate-400 leading-relaxed">
+          <p className="text-xs text-slate-500 leading-relaxed">
             Parser Excel secara mandiri mengidentifikasi kesalahan format baris dan menghitung secara presisi porsi setoran bersih
             daerah setelah dipotong 15%.
           </p>
@@ -102,3 +102,4 @@ export function AboutPage() {
     </div>
   );
 }
+

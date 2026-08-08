@@ -2,38 +2,42 @@
 
 ## Design Philosophy
 
-Desain Petakeu mengadopsi best practices dari admin panel terkemuka seperti:
+Desain Petakeu mengadopsi aesthetic **Donezo Executive Dashboard** dengan best practices dari admin panel terkemuka:
 
-1. **Vercel Dashboard** - Clean, minimalist, dengan fokus pada data
-2. **Linear** - Modern, smooth animations, excellent UX
-3. **Stripe Dashboard** - Professional, data-dense tapi tetap readable
-4. **Tailwind UI** - Consistent, accessible, production-ready
+1. **Donezo UI Architecture** - Off-white canvas background (`#f3f4f6`), rounded card containers (`rounded-[24px] bg-white border border-slate-100 shadow-xs`), dan forest green accents (`#044e3a` / `#10b981`).
+2. **Vercel Dashboard** - Clean, minimalist, dengan fokus pada data spasial & finansial.
+3. **Linear** - Modern, smooth transitions, dan micro-animations.
+4. **Stripe Dashboard** - Professional, data-dense tapi tetap readable.
 
 ## Color Palette
 
-### Primary Colors (Blue)
-- `primary-50`: #eff6ff - Background tints
-- `primary-100`: #dbeafe - Hover states
-- `primary-500`: #3b82f6 - Main brand color
-- `primary-600`: #2563eb - Active states
-- `primary-700`: #1d4ed8 - Darker accents
+### Primary Colors (Forest & Emerald Green)
+- `forest-dark`: `#044e3a` - High-priority KPI cards, Time/Telemetry widgets, and active promo banners
+- `emerald-accent`: `#10b981` - Primary highlights, success badges, and interactive focus states
+- `emerald-light`: `#e6f4f1` / `#ecfdf5` - Subtle container backgrounds & active navigation pills
+- `emerald-border`: `#a7f3d0` / `#059669` - Active borders & map choropleth outlines
+
+### Canvas & Surfaces
+- `canvas-bg`: `#f3f4f6` - Soft ambient canvas background
+- `shell-bg`: `#fcfdfe` - Main rounded inner layout shell (`rounded-[32px]`)
+- `card-bg`: `#ffffff` - Crisp white card containers (`rounded-[24px]`)
 
 ### Semantic Colors
 
-**Success (Green)**
-- For positive metrics, growth, success states
-- `success-500`: #22c55e
+**Success (Emerald/Green)**
+- For positive metrics, growth (+5.2% YoY), verified status, and quantile 4 values
+- `success-500`: `#10b981` / `#044e3a`
 
 **Warning (Amber)**
-- For alerts, pending states, cautionary information  
-- `warning-500`: #f59e0b
+- For DefisitWatch IRF warnings, cautionary alerts, and quantile 3 values
+- `warning-500`: `#f59e0b`
 
-**Danger (Red)**
-- For errors, critical alerts, deficit indicators
-- `danger-500`: #ef4444
+**Danger (Rose/Red)**
+- For high-risk IRF deficits (Merah), critical system errors, and decline indicators
+- `danger-500`: `#f43f5e` / `#e11d48`
 
 ### Neutral Palette
-- `gray-50` to `gray-900` for text, backgrounds, borders
+- `slate-50` to `slate-900` for text, subheadings, subtle borders (`border-slate-100`), and dark badges.
 
 ## Typography
 

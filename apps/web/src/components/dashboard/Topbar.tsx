@@ -1,6 +1,6 @@
 import * as Select from "@radix-ui/react-select";
 import classNames from "clsx";
-import { ChevronDown, Menu, Settings, Sparkles } from "lucide-react";
+import { ChevronDown, Menu, Search, Calendar, ShieldCheck } from "lucide-react";
 
 interface TopbarProps {
   title: string;
@@ -22,38 +22,53 @@ export function Topbar({
   isMobileSidebarOpen
 }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-800/80 bg-slate-950/90 px-6 backdrop-blur-2xl transition-colors">
-      <div className="flex items-center gap-4">
+    <header className="sticky top-0 z-30 flex h-20 w-full items-center justify-between border-b border-slate-100 bg-white/90 px-6 backdrop-blur-md transition-colors">
+      {/* Left: Mobile Toggle & Regional Search Bar */}
+      <div className="flex items-center gap-4 flex-1 max-w-md">
         <button
           type="button"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700/60 bg-slate-900/80 text-slate-300 shadow-sm transition hover:border-emerald-500/50 hover:text-white lg:hidden"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 shadow-xs transition hover:bg-slate-100 hover:text-slate-900 lg:hidden"
           onClick={onToggleSidebar}
           aria-label={isMobileSidebarOpen ? "Tutup navigasi" : "Buka navigasi"}
         >
-          <Menu className="h-4 w-4" />
+          <Menu className="h-5 w-5" />
         </button>
 
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-black tracking-tight text-white font-['Outfit']">{title}</h1>
-          <div className="h-4 w-px bg-slate-800 hidden sm:block" />
-          <PeriodSelect value={period} onValueChange={onPeriodChange} options={periods} />
+        {/* Regional Search Bar */}
+        <div className="relative flex-1 hidden sm:flex items-center">
+          <Search className="absolute left-4 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Cari Wilayah / Provinsi / Kab / Kota..."
+            className="w-full rounded-full border border-slate-200/80 bg-slate-50/80 py-2.5 pl-11 pr-12 text-sm text-slate-700 placeholder-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 font-medium"
+          />
+          <kbd className="absolute right-3 inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-400 shadow-xs">
+            ⌘K
+          </kbd>
         </div>
       </div>
 
+      {/* Right: Period Select, PostGIS Telemetry & User Profile */}
       <div className="flex items-center gap-3">
-        <div className="hidden lg:flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+        {/* Period Selector */}
+        <PeriodSelect value={period} onValueChange={onPeriodChange} options={periods} />
+
+        {/* PostGIS Telemetry Status Badge */}
+        <div className="hidden lg:flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/80 px-3 py-1.5 text-xs font-bold text-emerald-800 shadow-xs">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           <span>PostGIS Connected</span>
         </div>
 
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-900/80 px-3.5 text-xs font-bold text-slate-300 shadow-lg transition hover:border-emerald-500/40 hover:bg-slate-800/80 hover:text-emerald-400 active:scale-95"
-        >
-          <Settings className="h-3.5 w-3.5 text-emerald-400" />
-          <span className="hidden sm:inline">Pengaturan</span>
-        </button>
+        {/* User Profile Chip */}
+        <div className="flex items-center gap-3 pl-2 border-l border-slate-100">
+          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-emerald-700 border-2 border-white shadow-xs flex items-center justify-center text-white">
+            <ShieldCheck className="h-5 w-5 text-emerald-200" />
+          </div>
+          <div className="hidden md:flex flex-col text-left">
+            <span className="text-xs font-bold text-slate-900 leading-tight">Analis Eksekutif</span>
+            <span className="text-[11px] text-slate-400 font-medium">BPKAD / Kemendagri</span>
+          </div>
+        </div>
       </div>
     </header>
   );
@@ -69,10 +84,10 @@ function PeriodSelect({ value, options, onValueChange }: PeriodSelectProps) {
   return (
     <Select.Root value={value} onValueChange={onValueChange}>
       <Select.Trigger
-        className="inline-flex items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-900/90 px-3 py-1.5 text-xs font-bold text-slate-200 shadow-md transition hover:border-emerald-500/50 hover:text-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-        aria-label="Pilih periode"
+        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs transition hover:border-emerald-500 hover:text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+        aria-label="Pilih periode anggaran"
       >
-        <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+        <Calendar className="h-3.5 w-3.5 text-emerald-600" />
         <Select.Value />
         <Select.Icon>
           <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
@@ -80,7 +95,7 @@ function PeriodSelect({ value, options, onValueChange }: PeriodSelectProps) {
       </Select.Trigger>
       <Select.Portal>
         <Select.Content
-          className="z-[9999] overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-900/95 shadow-2xl backdrop-blur-2xl"
+          className="z-[9999] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
           position="popper"
           sideOffset={6}
         >
@@ -92,8 +107,8 @@ function PeriodSelect({ value, options, onValueChange }: PeriodSelectProps) {
                 className={classNames(
                   "flex cursor-pointer select-none items-center justify-between gap-3 rounded-xl px-3.5 py-2 text-xs font-bold transition",
                   option === value
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
-                    : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
+                    ? "bg-emerald-50 text-emerald-800 font-bold border border-emerald-200"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 )}
               >
                 <Select.ItemText>{option}</Select.ItemText>
@@ -105,3 +120,5 @@ function PeriodSelect({ value, options, onValueChange }: PeriodSelectProps) {
     </Select.Root>
   );
 }
+
+

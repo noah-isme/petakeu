@@ -4,6 +4,8 @@ import PDFDocument from 'pdfkit';
 
 import { getPgPool } from '../db/postgres';
 import { uploadReport, getReportDownloadUrl } from '../services/storage-service';
+import { logger } from '../utils/logger';
+import { workerJobsTotal, workerJobDuration, reportsTotal } from '../utils/metrics';
 
 const QUEUE_NAME = 'report-generation';
 
@@ -138,6 +140,7 @@ async function generatePdf(
 }
 
 async function generateReport(job: Job): Promise<void> {
+  const startTime = Date.now();
   const { jobId, period, regionIds, format } = job.data;
   const pool = getPgPool();
 
@@ -183,13 +186,22 @@ async function generateReport(job: Job): Promise<void> {
        WHERE id = $1`,
       [jobId, downloadUrl, JSON.stringify(summary)]
     );
+
+    reportsTotal.inc({ format, status: 'completed' });
+    workerJobsTotal.inc({ worker: 'report', status: 'success' });
+    logger.info({ jobId, format, regionCount: regionIds.length }, '[report-worker] Job completed');
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Report generation failed';
     await pool.query(
       `UPDATE report_jobs SET status = 'failed', error = $2, updated_at = NOW() WHERE id = $1`,
       [jobId, errMsg]
     );
+    reportsTotal.inc({ format, status: 'failed' });
+    workerJobsTotal.inc({ worker: 'report', status: 'failed' });
+    logger.error({ jobId, err }, '[report-worker] Job failed');
     throw err;
+  } finally {
+    workerJobDuration.observe({ worker: 'report', job_type: format }, (Date.now() - startTime) / 1000);
   }
 }
 
@@ -202,12 +214,12 @@ export function startReportWorker() {
   });
 
   worker.on('completed', (job) => {
-    console.log(`[report-worker] Job ${job.id} completed`);
+    logger.info({ jobId: job.id }, '[report-worker] Job completed');
   });
   worker.on('failed', (job, err) => {
-    console.error(`[report-worker] Job ${job?.id} failed:`, err.message);
+    logger.error({ jobId: job?.id, err }, '[report-worker] Job failed');
   });
 
-  console.log('[report-worker] Started');
+  logger.info('[report-worker] Started');
   return worker;
 }

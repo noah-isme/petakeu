@@ -2,10 +2,12 @@ import { Queue, Worker, Job } from 'bullmq';
 import { read, utils } from 'xlsx';
 
 import { getPgPool } from '../db/postgres';
+import { invalidateChoroplethCache } from '../services/geo-service';
+import { logger } from '../utils/logger';
+import { workerJobsTotal, workerJobDuration, uploadsTotal } from '../utils/metrics';
 
 const QUEUE_NAME = 'upload-processing';
 
-// Lazily-initialized queue (safe to import before Redis connects)
 let _queue: Queue | undefined;
 export function getUploadQueue(): Queue {
   if (!_queue) {
@@ -37,6 +39,7 @@ function parseRows(buffer: Buffer) {
 }
 
 async function processUpload(job: Job): Promise<void> {
+  const startTime = Date.now();
   const { uploadId, buffer: bufferB64 } = job.data;
   const pool = getPgPool();
 
@@ -140,8 +143,11 @@ async function processUpload(job: Job): Promise<void> {
       try {
         await pool.query('SELECT refresh_mv_payments_with_cut()');
       } catch (mvErr) {
-        console.warn('[upload-worker] MV refresh failed (non-fatal):', mvErr);
+        logger.warn({ err: mvErr }, '[upload-worker] MV refresh failed (non-fatal)');
       }
+
+      // Invalidate choropleth cache after successful data update
+      await invalidateChoroplethCache();
     }
 
     const summary = {
@@ -159,6 +165,9 @@ async function processUpload(job: Job): Promise<void> {
        WHERE id = $1`,
       [uploadId, finalStatus, JSON.stringify(summary), JSON.stringify(errors), errors.length]
     );
+
+    uploadsTotal.inc({ status: finalStatus });
+    workerJobsTotal.inc({ worker: 'upload', status: 'success' });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Gagal memproses file';
     await pool.query(
@@ -167,7 +176,11 @@ async function processUpload(job: Job): Promise<void> {
        WHERE id = $1`,
       [uploadId, JSON.stringify([{ row: 0, column: 'file', message: errMsg }])]
     );
+    uploadsTotal.inc({ status: 'failed' });
+    workerJobsTotal.inc({ worker: 'upload', status: 'failed' });
     throw err; // BullMQ will retry
+  } finally {
+    workerJobDuration.observe({ worker: 'upload', job_type: 'process_upload' }, (Date.now() - startTime) / 1000);
   }
 }
 
@@ -180,12 +193,12 @@ export function startUploadWorker() {
   });
 
   worker.on('completed', (job) => {
-    console.log(`[upload-worker] Job ${job.id} completed`);
+    logger.info({ jobId: job.id }, '[upload-worker] Job completed');
   });
   worker.on('failed', (job, err) => {
-    console.error(`[upload-worker] Job ${job?.id} failed:`, err.message);
+    logger.error({ jobId: job?.id, err }, '[upload-worker] Job failed');
   });
 
-  console.log('[upload-worker] Started');
+  logger.info('[upload-worker] Started');
   return worker;
 }

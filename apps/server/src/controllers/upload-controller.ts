@@ -3,6 +3,8 @@ import { Request, Response } from "express";
 import { uploadService } from "../services/upload-service";
 import { asyncHandler } from "../utils/async-handler";
 import { AppError } from "../utils/app-error";
+import { logger } from "../utils/logger";
+import { uploadsTotal } from "../utils/metrics";
 
 const handleUpload = asyncHandler(async (req: Request, res: Response) => {
   const file = req.file;
@@ -16,6 +18,9 @@ const handleUpload = asyncHandler(async (req: Request, res: Response) => {
     buffer: file.buffer,
     size: file.size
   });
+
+  uploadsTotal.inc({ status: 'queued' });
+  logger.info({ uploadId: result.uploadId, filename: file.originalname, size: file.size }, 'Upload queued');
 
   res.status(202).json({
     uploadId: result.uploadId,

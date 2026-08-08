@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Info, Map as MapIcon, UploadCloud } from "lucide-react";
+import {
+  LayoutDashboard,
+  CheckSquare,
+  Calendar,
+  BarChart3,
+  Users,
+  UploadCloud,
+  Info,
+  Settings,
+  HelpCircle,
+  LogOut,
+  FileText,
+  Map as MapIcon
+} from "lucide-react";
 
 import { AppLayout } from "./layouts/AppLayout";
 import { Sidebar, type SidebarItem } from "./components/dashboard/Sidebar";
@@ -16,17 +29,17 @@ import { formatCurrency } from "./lib/format";
 import type { FeatureCollection } from "geojson";
 
 const NAVIGATION: SidebarItem[] = [
-  { key: "map", label: "Peta", icon: MapIcon },
-  { key: "upload", label: "Unggah", icon: UploadCloud },
-  { key: "reports", label: "Laporan", icon: FileText },
-  { key: "about", label: "Tentang", icon: Info }
+  { key: "map", label: "Peta Heatmap", icon: MapIcon, section: "analysis" },
+  { key: "reports", label: "Ringkasan Laporan", icon: FileText, section: "analysis" },
+  { key: "upload", label: "Unggah Data Excel", icon: UploadCloud, section: "tools" },
+  { key: "about", label: "Tentang Petakeu", icon: Info, section: "tools" }
 ];
 
 const PAGE_TITLE: Record<string, string> = {
-  map: "Peta Keuangan",
-  upload: "Unggah Data",
-  reports: "Ringkasan Laporan",
-  about: "Tentang Petakeu"
+  map: "Peta Heatmap & Visualisasi Spasial",
+  reports: "Ringkasan Laporan Revenue & Ekspor",
+  upload: "Unggah Data Excel (Validasi & Bulk Upsert)",
+  about: "Tentang Petakeu — Telemetri & PostGIS"
 };
 
 const MAP_PALETTE = ["#0f4c5c", "#10b981", "#06b6d4", "#f59e0b"] as const;
@@ -314,6 +327,7 @@ export default function App() {
   const renderPage = () => {
     switch (activePage) {
       case "map":
+      case "analytics":
         return (
           <MapPage
             status={mapStatus}
@@ -336,11 +350,26 @@ export default function App() {
           />
         );
       case "reports":
+      case "calendar":
+      case "team":
         return <ReportsPage metrics={reportsMetrics} />;
       case "about":
+      case "help":
+      case "settings":
         return <AboutPage />;
       default:
-        return null;
+        return (
+          <MapPage
+            status={mapStatus}
+            featureCollection={featureCollection}
+            legend={legendItems}
+            legendHighlight={legendHighlight}
+            activeRegion={activeRegion}
+            onRegionFocus={handleRegionFocus}
+            onHoverLegend={setLegendHighlight}
+            onRetry={() => setSelectedPeriod("2024-Q3")}
+          />
+        );
     }
   };
 

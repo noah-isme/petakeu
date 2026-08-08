@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-08-09
+### Redesigned & Enhanced
+- **Donezo Light Layout Redesign**: Transformed full web app UI (`AppLayout.tsx`, `Sidebar.tsx`, `Topbar.tsx`, `global.css`) to match the Donezo light design system with off-white canvas (`#f3f4f6`), rounded cards (`rounded-[24px] bg-white border border-slate-100 shadow-xs`), forest green primary accents (`#044e3a`), and emerald highlights (`#10b981`).
+- **Domain Navigation & Header Controls**: Replaced generic task-manager placeholders with authentic Petakeu domain controls:
+  - **Sidebar**: Organized into `MODUL ANALISIS` (`Peta Heatmap`, `Ringkasan Laporan`) & `PENGOLAHAN DATA` (`Unggah Data Excel`, `Tentang Petakeu`), featuring a PostGIS spatial verification badge widget.
+  - **Topbar**: Regional Search (`Cari Wilayah / Provinsi / Kab / Kota...` with `⌘K`), Period selector (`2024-Q3`), `PostGIS Connected` telemetry badge, and `Analis Eksekutif (BPKAD / Kemendagri)` user chip.
+- **Petakeu Executive Dashboard (`MapPage.tsx`)**:
+  - Financial KPI Stat Quartet: `Total Realisasi Nominal` (Rp 16.840 M / +5.2% YoY), `Setoran Bersih (85%)` (Rp 14.314 M), `Potongan Wajib (15%)` (Rp 2.526 M), and `Total Wilayah Spasial` (38 Provinsi / 514 Kab/Kota).
+  - Centerpiece Map: Interactive Leaflet MultiPolygon Choropleth Map with quantile color scale, hover tooltips showing 15% cut details, quick region filter pills, floating InfoCard HUD, and floating LegendCard HUD.
+  - Petakeu Domain Widgets: `Peringkat Realisasi Penerimaan (FiscalView)` ranking table, `Status DefisitWatch (Indeks Risiko Fiskal)` early warning watchlist, `Capaian Realisasi YTD` semi-circular target gauge chart, `RankFin Liga Kinerja Finansial` gamification leaderboard, and `Infrastruktur Telemetri` card (PostGIS 24ms, Redis 99.4% cache hit rate, materialized view refresh button).
+- **Sub-pages Styling**: Re-themed `ReportsPage.tsx`, `UploadPage.tsx`, `AboutPage.tsx`, `InfoCard.tsx`, and `LegendCard.tsx` to match the clean white-card Donezo layout.
+
+### Fixed
+- **Pino Logger Transport (`@petakeu/server`)**: Added `pino-pretty` to `devDependencies` in `apps/server/package.json` and added safe transport resolution fallback in `apps/server/src/utils/logger.ts` to prevent runtime logger crashes.
+- **OpenTelemetry Auto-Instrumentation (`@petakeu/server`)**: Disabled `@opentelemetry/instrumentation-ioredis` in `tracing.ts` and added `ioredis` dependency to eliminate missing internal module errors on server startup.
+
 ## 2026-08-03
 ### Added
 - **Full Cyber-GIS Viewport Canvas**: Restructured main layout (`AppLayout.tsx`) to 100% viewport height and width (`h-dvh w-screen`), eliminating the cramped right column for a command-center GIS experience.

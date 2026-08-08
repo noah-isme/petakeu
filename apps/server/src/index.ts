@@ -8,49 +8,61 @@ import { startUploadWorker } from './jobs/upload-worker';
 import { startReportWorker } from './jobs/report-worker';
 import { startMvRefreshCron } from './jobs/mv-refresh-cron';
 import { loadEnv } from './config/env';
+import { startTracing, shutdownTracing } from './utils/tracing';
+import { logger } from './utils/logger';
 
 const env = loadEnv();
 
 async function main() {
-  console.log('[petakeu] Starting server...');
+  // Start OpenTelemetry tracing
+  if (env.nodeEnv !== 'test') {
+    startTracing();
+  }
+
+  logger.info('[petakeu] Starting server...');
 
   // 1. Run DB migrations
   try {
     await runMigrations();
+    logger.info('[petakeu] Migrations completed');
   } catch (err) {
-    console.error('[petakeu] Migration failed, exiting:', err);
+    logger.error({ err }, '[petakeu] Migration failed, exiting');
     process.exit(1);
   }
 
   // 2. Init object storage (create buckets if needed)
   try {
     await initStorage();
+    logger.info('[petakeu] Storage initialized');
   } catch (err) {
-    console.warn('[petakeu] Storage init failed (non-fatal):', err);
+    logger.warn({ err }, '[petakeu] Storage init failed (non-fatal)');
   }
 
   // 3. Start background workers
   const uploadWorker = startUploadWorker();
   const reportWorker = startReportWorker();
+  logger.info('[petakeu] Background workers started');
 
   // 4. Start materialized view refresh cron
   startMvRefreshCron();
+  logger.info('[petakeu] MV refresh cron started');
 
   // 5. Start HTTP server
   const app = await createApp();
   const server = app.listen(env.port, () => {
-    console.log(`[petakeu] Server running on port ${env.port}`);
+    logger.info(`[petakeu] Server running on port ${env.port}`);
   });
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {
-    console.log(`[petakeu] Received ${signal}, shutting down gracefully...`);
+    logger.info(`[petakeu] Received ${signal}, shutting down gracefully...`);
     server.close(async () => {
       await uploadWorker.close();
       await reportWorker.close();
       await shutdownPg();
       await shutdownRedis();
-      console.log('[petakeu] Shutdown complete');
+      await shutdownTracing();
+      logger.info('[petakeu] Shutdown complete');
       process.exit(0);
     });
   };
@@ -60,6 +72,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('[petakeu] Fatal error:', err);
+  logger.error({ err }, '[petakeu] Fatal error');
   process.exit(1);
 });
