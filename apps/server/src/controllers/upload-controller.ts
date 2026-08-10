@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 
 import { uploadService } from "../services/upload-service";
+import { logAudit } from "../services/audit-service";
 import { asyncHandler } from "../utils/async-handler";
 import { AppError } from "../utils/app-error";
 import { logger } from "../utils/logger";
@@ -21,6 +22,27 @@ const handleUpload = asyncHandler(async (req: Request, res: Response) => {
 
   uploadsTotal.inc({ status: 'queued' });
   logger.info({ uploadId: result.uploadId, filename: file.originalname, size: file.size }, 'Upload queued');
+
+  const rawIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim();
+  const ip = rawIp || req.socket.remoteAddress || req.ip || '';
+
+  logAudit({
+    event: 'upload.created',
+    action: 'upload',
+    endpoint: req.originalUrl || '/api/v1/uploads',
+    method: 'POST',
+    user_id: req.user?.sub,
+    resource: 'upload',
+    resource_id: result.uploadId,
+    status_code: 202,
+    ip_address: ip,
+    user_agent: req.headers['user-agent'] || '',
+    details: {
+      filename: file.originalname,
+      size: file.size,
+      hash: result.hash,
+    },
+  }).catch(() => {});
 
   res.status(202).json({
     uploadId: result.uploadId,

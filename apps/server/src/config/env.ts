@@ -11,6 +11,8 @@ export interface EnvConfig {
   storageRegion: string;
   storageBucket: string;
   storageReportsBucket: string;
+  choroplethCacheTtl: number;
+  regionSummaryCacheTtl: number;
 }
 
 export function loadEnv(): EnvConfig {
@@ -27,5 +29,7 @@ export function loadEnv(): EnvConfig {
     storageRegion: process.env.STORAGE_REGION ?? 'us-east-1',
     storageBucket: process.env.STORAGE_BUCKET ?? 'uploads',
     storageReportsBucket: process.env.STORAGE_REPORTS_BUCKET ?? 'reports',
+    choroplethCacheTtl: Number(process.env.CHOROPLETH_CACHE_TTL ?? 300),
+    regionSummaryCacheTtl: Number(process.env.REGION_SUMMARY_CACHE_TTL ?? 180),
   };
 }

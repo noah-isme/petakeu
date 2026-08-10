@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 
 import { reportService } from "../services/report-service";
+import { logAudit } from "../services/audit-service";
 import { asyncHandler } from "../utils/async-handler";
 import { AppError } from "../utils/app-error";
 import { reportRequestSchema } from "../validators/report";
@@ -16,6 +17,27 @@ const enqueueReport = asyncHandler(async (req: Request, res: Response) => {
   const job = await reportService.enqueueReport(parseResult.data);
   reportsTotal.inc({ format: parseResult.data.format, status: 'queued' });
   logger.info({ jobId: job.jobId, period: parseResult.data.period, format: parseResult.data.format, regionCount: parseResult.data.regionIds?.length }, 'Report queued');
+
+  const rawIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim();
+  const ip = rawIp || req.socket.remoteAddress || req.ip || '';
+
+  logAudit({
+    event: 'report.requested',
+    action: 'export',
+    endpoint: req.originalUrl || '/api/v1/reports/export',
+    method: 'POST',
+    user_id: req.user?.sub,
+    resource: 'report',
+    resource_id: job.jobId,
+    status_code: 201,
+    ip_address: ip,
+    user_agent: req.headers['user-agent'] || '',
+    details: {
+      period: parseResult.data.period,
+      format: parseResult.data.format,
+      regionIds: parseResult.data.regionIds,
+    },
+  }).catch(() => {});
 
   res.status(201).json({ data: job });
 });

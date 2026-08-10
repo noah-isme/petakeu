@@ -1,3 +1,4 @@
+import { loadEnv } from '../config/env';
 import { getPgPool } from '../db/postgres';
 import { getCached, invalidateCacheByPrefix } from '../db/redis';
 import { logger } from '../utils/logger';
@@ -46,9 +47,9 @@ function resolveQuantileIndex(value: number, bins: QuantileBin[]): number {
 
 function buildCacheKey(period: string, options: { publicMode?: boolean; level?: number; parent?: string } = {}): string {
   const parts = ['choropleth', period];
+  if (options.level !== undefined) parts.push(String(options.level));
+  if (options.parent !== undefined) parts.push(String(options.parent));
   if (options.publicMode) parts.push('public');
-  if (options.level) parts.push(`level${options.level}`);
-  if (options.parent) parts.push(`parent${options.parent}`);
   return parts.join(':');
 }
 
@@ -175,7 +176,7 @@ export async function buildChoropleth(
       logger.debug({ cacheKey, durationMs: Date.now() - startTime }, 'Choropleth built from database');
       return response;
     },
-    { ttl: 300, keyPrefix: 'geo' } // 5 minute TTL
+    { ttl: loadEnv().choroplethCacheTtl, keyPrefix: 'petakeu:geo' }
   ).then((result) => {
     // Track cache hit/miss - we can't easily know from getCached, so we'll check in getCached
     return result;

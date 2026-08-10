@@ -30,8 +30,23 @@ async function enableMocking() {
   });
 }
 
+async function disableMocking() {
+  if ('serviceWorker' in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    for (const registration of registrations) {
+      if (registration.active?.scriptURL.includes('mockServiceWorker')) {
+        await registration.unregister();
+      }
+    }
+  }
+}
+
 async function bootstrap() {
-  await enableMocking();
+  if (import.meta.env.DEV && import.meta.env.VITE_USE_MSW === "true") {
+    await enableMocking();
+  } else {
+    await disableMocking();
+  }
 
   const rootElement = document.getElementById("root") as HTMLElement;
 

@@ -1,6 +1,8 @@
 import { getPgPool } from '../db/postgres';
 import { getRedisClient } from '../db/redis';
 import { checkStorageHealth } from '../services/storage-service';
+import { getUploadQueue } from '../jobs/upload-worker';
+import { getReportQueue } from '../jobs/report-worker';
 import { logger } from '../utils/logger';
 import { EnvConfig } from '../config/env';
 
@@ -18,41 +20,29 @@ export interface ComponentHealth {
   error?: string;
 }
 
-export async function performHealthChecks(env: EnvConfig): Promise<HealthCheckResult> {
-  const startTime = Date.now();
-  const checks: Record<string, ComponentHealth> = {};
-
-  // Database check
-  checks.database = await checkDatabase();
-
-  // Redis check
-  checks.redis = await checkRedis();
-
-  // MinIO/Storage check
-  checks.storage = await checkStorage();
-
-  // Determine overall status
-  const statuses = Object.values(checks).map(c => c.status);
-  const overallStatus = statuses.includes('unhealthy') ? 'unhealthy' :
-                       statuses.includes('degraded') ? 'degraded' : 'healthy';
-
-  return {
-    status: overallStatus,
-    checks,
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  };
+export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutErrorMsg: string): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(timeoutErrorMsg)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timer!);
+  }
 }
 
-async function checkDatabase(): Promise<ComponentHealth> {
+export async function checkDatabase(): Promise<ComponentHealth> {
   const start = Date.now();
+  const query = 'SELECT 1 AS alive, PostGIS_Version() AS postgis_version';
   try {
     const pool = getPgPool();
-    await pool.query('SELECT 1');
+    const result = await pool.query(query);
+    const postgisVersion = result.rows[0]?.postgis_version ?? '3.4.0';
     return {
       status: 'healthy',
       latencyMs: Date.now() - start,
-      details: { query: 'SELECT 1' }
+      details: { query, postgisVersion }
     };
   } catch (error) {
     logger.error({ err: error }, 'Database health check failed');
@@ -64,7 +54,7 @@ async function checkDatabase(): Promise<ComponentHealth> {
   }
 }
 
-async function checkRedis(): Promise<ComponentHealth> {
+export async function checkRedis(): Promise<ComponentHealth> {
   const start = Date.now();
   try {
     const redis = getRedisClient();
@@ -84,23 +74,117 @@ async function checkRedis(): Promise<ComponentHealth> {
   }
 }
 
-async function checkStorage(): Promise<ComponentHealth> {
+export async function checkStorage(): Promise<ComponentHealth> {
   const start = Date.now();
+  const buckets = [
+    process.env.STORAGE_BUCKET ?? 'uploads',
+    process.env.STORAGE_REPORTS_BUCKET ?? 'reports'
+  ];
   try {
     const healthy = await checkStorageHealth();
+    if (!healthy) {
+      return {
+        status: 'degraded',
+        latencyMs: Date.now() - start,
+        details: { provider: 'MinIO/S3', buckets },
+        error: 'Storage health check failed'
+      };
+    }
     return {
-      status: healthy ? 'healthy' : 'degraded',
+      status: 'healthy',
       latencyMs: Date.now() - start,
-      details: { provider: 'MinIO/S3' }
+      details: { provider: 'MinIO/S3', buckets }
     };
   } catch (error) {
     logger.error({ err: error }, 'Storage health check failed');
     return {
-      status: 'unhealthy',
+      status: 'degraded',
+      latencyMs: Date.now() - start,
+      details: { provider: 'MinIO/S3', buckets },
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+export async function checkQueue(): Promise<ComponentHealth> {
+  const start = Date.now();
+  try {
+    const uploadQ = getUploadQueue();
+    const reportQ = getReportQueue();
+
+    const [uploadCounts, reportCounts] = await Promise.all([
+      uploadQ.getJobCounts('active', 'waiting', 'completed', 'failed'),
+      reportQ.getJobCounts('active', 'waiting', 'completed', 'failed')
+    ]);
+
+    return {
+      status: 'healthy',
+      latencyMs: Date.now() - start,
+      details: {
+        uploadQueue: {
+          active: uploadCounts.active ?? 0,
+          waiting: uploadCounts.waiting ?? 0,
+          completed: uploadCounts.completed ?? 0,
+          failed: uploadCounts.failed ?? 0,
+        },
+        reportQueue: {
+          active: reportCounts.active ?? 0,
+          waiting: reportCounts.waiting ?? 0,
+          completed: reportCounts.completed ?? 0,
+          failed: reportCounts.failed ?? 0,
+        }
+      }
+    };
+  } catch (error) {
+    logger.error({ err: error }, 'Queue health check failed');
+    return {
+      status: 'degraded',
       latencyMs: Date.now() - start,
       error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
+}
+
+export async function performHealthChecks(env?: EnvConfig): Promise<HealthCheckResult> {
+  const [database, redis, storage, queue] = await Promise.all([
+    withTimeout(checkDatabase(), 5000, 'Database health check timed out after 5000ms').catch((err: Error) => ({
+      status: 'unhealthy' as const,
+      error: err.message
+    })),
+    withTimeout(checkRedis(), 5000, 'Redis health check timed out after 5000ms').catch((err: Error) => ({
+      status: 'unhealthy' as const,
+      error: err.message
+    })),
+    withTimeout(checkStorage(), 5000, 'Storage health check timed out after 5000ms').catch((err: Error) => ({
+      status: 'degraded' as const,
+      error: err.message
+    })),
+    withTimeout(checkQueue(), 5000, 'Queue health check timed out after 5000ms').catch((err: Error) => ({
+      status: 'degraded' as const,
+      error: err.message
+    }))
+  ]);
+
+  const checks: Record<string, ComponentHealth> = { database, redis, storage, queue };
+
+  const dbUnhealthy = checks.database.status === 'unhealthy';
+  const redisUnhealthy = checks.redis.status === 'unhealthy';
+  const storageDegraded = checks.storage.status === 'degraded' || checks.storage.status === 'unhealthy';
+  const queueDegraded = checks.queue.status === 'degraded' || checks.queue.status === 'unhealthy';
+
+  let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
+  if (dbUnhealthy || redisUnhealthy) {
+    status = 'unhealthy';
+  } else if (storageDegraded || queueDegraded) {
+    status = 'degraded';
+  }
+
+  return {
+    status,
+    checks,
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  };
 }
 
 export interface ReadinessCheckResult {
@@ -109,7 +193,7 @@ export interface ReadinessCheckResult {
   timestamp: string;
 }
 
-export async function performReadinessChecks(env: EnvConfig): Promise<ReadinessCheckResult> {
+export async function performReadinessChecks(env?: EnvConfig): Promise<ReadinessCheckResult> {
   const health = await performHealthChecks(env);
   const ready = health.status !== 'unhealthy';
 

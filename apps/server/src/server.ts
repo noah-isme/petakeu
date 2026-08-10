@@ -35,12 +35,13 @@ export async function createApp(): Promise<Express> {
   // Prometheus metrics middleware
   app.use((req: Request, res: Response, next: NextFunction) => {
     const start = process.hrtime.bigint();
-    const route = req.route?.path || req.path;
 
     res.on('finish', () => {
       const durationSec = Number(process.hrtime.bigint() - start) / 1e9;
-      httpRequestsTotal.inc({ method: req.method, route, status_code: res.statusCode });
-      httpRequestDuration.observe({ method: req.method, route, status_code: res.statusCode }, durationSec);
+      const matchedRoute = req.route?.path ? `${req.baseUrl || ''}${req.route.path}` : (req.path || 'unknown');
+      const statusCode = String(res.statusCode);
+      httpRequestsTotal.inc({ method: req.method, route: matchedRoute, status_code: statusCode });
+      httpRequestDuration.observe({ method: req.method, route: matchedRoute, status_code: statusCode }, durationSec);
     });
 
     next();

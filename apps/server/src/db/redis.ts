@@ -1,5 +1,6 @@
 import { createClient, RedisClientType } from 'redis';
 import { loadEnv } from '../config/env';
+import { cacheHits, cacheMisses } from '../utils/metrics';
 
 const env = loadEnv();
 
@@ -46,12 +47,15 @@ export async function getCached<T>(
   try {
     const cached = await client.get(fullKey);
     if (cached !== null) {
-      return JSON.parse(cached) as T;
+      const data = JSON.parse(cached) as T;
+      cacheHits.inc({ cache_type: 'redis' });
+      return data;
     }
   } catch (error) {
     console.warn('[cache] Get failed:', error);
   }
 
+  cacheMisses.inc({ cache_type: 'redis' });
   const data = await fetchFn();
 
   try {

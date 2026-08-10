@@ -3,6 +3,10 @@ import { read, utils } from 'xlsx';
 
 import { getPgPool } from '../db/postgres';
 import { invalidateChoroplethCache } from '../services/geo-service';
+import { invalidateRegionCache } from '../services/region-service';
+import { invalidateFiscalCache } from '../services/fiscal-service';
+import { invalidateDefisitwatchCache } from '../services/defisitwatch-service';
+import { invalidateRankfinCache } from '../services/rankfin-service';
 import { logger } from '../utils/logger';
 import { workerJobsTotal, workerJobDuration, uploadsTotal } from '../utils/metrics';
 
@@ -26,6 +30,22 @@ export const uploadQueue = {
 const EXPECTED_HEADERS = ['kode_bps', 'nama_wilayah', 'periode', 'nominal', 'sumber'];
 const PERIOD_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
 
+export function isFuturePeriod(period: string, referenceDate: Date = new Date()): boolean {
+  if (!period || !PERIOD_REGEX.test(period)) {
+    return false;
+  }
+  const [yearStr, monthStr] = period.split('-');
+  const targetYear = parseInt(yearStr, 10);
+  const targetMonth = parseInt(monthStr, 10);
+
+  const refYear = referenceDate.getFullYear();
+  const refMonth = referenceDate.getMonth() + 1;
+
+  if (targetYear > refYear) return true;
+  if (targetYear < refYear) return false;
+  return targetMonth > refMonth;
+}
+
 function normalizeHeader(v: string) {
   return v.trim().toLowerCase().replace(/\s+/g, '_');
 }
@@ -38,7 +58,7 @@ function parseRows(buffer: Buffer) {
   return utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' }) as string[][];
 }
 
-async function processUpload(job: Job): Promise<void> {
+export async function processUpload(job: Job): Promise<void> {
   const startTime = Date.now();
   const { uploadId, buffer: bufferB64 } = job.data;
   const pool = getPgPool();
@@ -73,7 +93,13 @@ async function processUpload(job: Job): Promise<void> {
     let totalAmount = 0;
     let minPeriod: string | undefined;
     let maxPeriod: string | undefined;
-    const validPayments: Array<{ regionId: string; period: string; amount: number; source: string }> = [];
+    const validPayments: Array<{
+      regionId: string;
+      period: string;
+      amount: number;
+      source: string;
+      meta: Record<string, unknown>;
+    }> = [];
 
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i];
@@ -116,11 +142,15 @@ async function processUpload(job: Job): Promise<void> {
         continue;
       }
 
+      const isFuture = isFuturePeriod(period);
+      const meta = isFuture ? { forecast: false } : {};
+
       validPayments.push({
         regionId: regionRes.rows[0].id,
         period,
         amount: nominal,
         source,
+        meta,
       });
 
       if (!minPeriod || period < minPeriod) minPeriod = period;
@@ -133,10 +163,10 @@ async function processUpload(job: Job): Promise<void> {
     if (validPayments.length > 0) {
       for (const payment of validPayments) {
         await pool.query(
-          `INSERT INTO payments(id, region_id, period, amount, source)
-           VALUES(gen_random_uuid(), $1, ($2 || '-01')::date, $3, $4)
-           ON CONFLICT (region_id, period, source) DO UPDATE SET amount = EXCLUDED.amount, updated_at = NOW()`,
-          [payment.regionId, payment.period, payment.amount, payment.source]
+          `INSERT INTO payments(id, region_id, period, amount, source, meta)
+           VALUES(gen_random_uuid(), $1, ($2 || '-01')::date, $3, $4, $5::jsonb)
+           ON CONFLICT (region_id, period, source) DO UPDATE SET amount = EXCLUDED.amount, meta = EXCLUDED.meta, updated_at = NOW()`,
+          [payment.regionId, payment.period, payment.amount, payment.source, JSON.stringify(payment.meta)]
         );
       }
       // Refresh materialized view
@@ -146,8 +176,12 @@ async function processUpload(job: Job): Promise<void> {
         logger.warn({ err: mvErr }, '[upload-worker] MV refresh failed (non-fatal)');
       }
 
-      // Invalidate choropleth cache after successful data update
+      // Invalidate caches after successful data update
       await invalidateChoroplethCache();
+      await invalidateRegionCache();
+      await invalidateFiscalCache();
+      await invalidateDefisitwatchCache();
+      await invalidateRankfinCache();
     }
 
     const summary = {

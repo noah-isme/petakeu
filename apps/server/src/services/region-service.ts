@@ -1,3 +1,4 @@
+import { loadEnv } from '../config/env';
 import { getPgPool } from '../db/postgres';
 import { getCached, invalidateCacheByPrefix } from '../db/redis';
 import { AppError } from '../utils/app-error';
@@ -29,7 +30,7 @@ function buildRegionListCacheKey(params: RegionListParams): string {
 }
 
 function buildRegionSummaryCacheKey(regionId: string, range?: { from?: string; to?: string }): string {
-  const parts = ['regions', 'summary', regionId];
+  const parts = ['summary', regionId];
   if (range?.from) parts.push(`from:${range.from}`);
   if (range?.to) parts.push(`to:${range.to}`);
   return parts.join(':');
@@ -178,7 +179,7 @@ export async function getRegionSummary(
       logger.debug({ cacheKey, regionId, trendPoints: trend.length }, 'Region summary built from database');
       return result;
     },
-    { ttl: 180, keyPrefix: 'regions' } // 3 minute TTL for summary (data changes more frequently)
+    { ttl: loadEnv().regionSummaryCacheTtl, keyPrefix: 'petakeu:regions' }
   );
 }
 

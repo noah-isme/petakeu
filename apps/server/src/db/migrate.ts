@@ -8,6 +8,8 @@ const MIGRATIONS_DIR = path.resolve(__dirname, '../../migrations');
 const MIGRATION_FILES = [
   '001_init.sql',
   '002_uploads_reports.sql',
+  '003_gamification.sql',
+  '004_audit_logs.sql',
 ];
 
 export async function runMigrations(): Promise<void> {
