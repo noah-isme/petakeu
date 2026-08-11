@@ -1,0 +1,61 @@
+{
+  "title": "Petakeu Operations",
+  "uid": "petakeu-operations",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "API p95 latency by route",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(petakeu_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list" } }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Worker failures",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (worker, status) (rate(petakeu_worker_jobs_total[5m]))",
+          "legendFormat": "{{worker}} / {{status}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list" } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Upload parse errors (15m)",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 8 },
+      "targets": [
+        { "refId": "A", "expr": "increase(petakeu_upload_parse_errors_total[15m])" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 100 }] } }, "overrides": [] }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Cache hit and miss rate",
+      "gridPos": { "h": 6, "w": 16, "x": 8, "y": 8 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (cache_type) (rate(petakeu_cache_hits_total[5m]))", "legendFormat": "hit / {{cache_type}}" },
+        { "refId": "B", "expr": "sum by (cache_type) (rate(petakeu_cache_misses_total[5m]))", "legendFormat": "miss / {{cache_type}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    }
+  ]
+}

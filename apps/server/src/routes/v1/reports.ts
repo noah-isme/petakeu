@@ -1,7 +1,9 @@
 import { Router } from "express";
 
-import { requireAuth } from "../../middleware/auth";
+import { requireAnyRole, requireAuth } from "../../middleware/auth";
 import { reportController } from "../../controllers/report-controller";
+import { assertFiscalPeriodUnlocked } from "../../services/approval-service";
+import { asyncHandler } from "../../utils/async-handler";
 
 /**
  * @swagger
@@ -96,6 +98,22 @@ import { reportController } from "../../controllers/report-controller";
 
 export const reportRouter = Router();
 
-reportRouter.post("/export", requireAuth, reportController.enqueueReport);
-reportRouter.get("/", requireAuth, reportController.listReports);
-reportRouter.get("/:id", requireAuth, reportController.getReportById);
+const canReadReports = requireAnyRole("viewer", "operator", "admin");
+
+const rejectLockedReportPeriod = asyncHandler(async (req, _res, next) => {
+  const period = req.body?.period;
+  if (typeof period === "string") {
+    await assertFiscalPeriodUnlocked(period);
+  }
+  next();
+});
+
+reportRouter.post(
+  "/export",
+  requireAuth,
+  canReadReports,
+  rejectLockedReportPeriod,
+  reportController.enqueueReport
+);
+reportRouter.get("/", requireAuth, canReadReports, reportController.listReports);
+reportRouter.get("/:id", requireAuth, canReadReports, reportController.getReportById);

@@ -923,6 +923,18 @@ volumes:
 
 ---
 
+## Current Petakeu Implementation
+
+The production paths currently used by the application are:
+
+- Structured Pino logs are emitted by `apps/server/src/utils/logger.ts`. `request-context.ts` propagates a bounded `X-Request-Id` and enriches request/worker logs with `request_id`, `user_id`, `region_code`, `period`, and `duration_ms` where available.
+- Prometheus metrics are exposed at `GET /metrics`. HTTP, database, Redis, cache, worker, upload parsing, report, and GeoJSON metrics are defined in `apps/server/src/utils/metrics.ts`.
+- OpenTelemetry auto-instrumentation is configured in `apps/server/src/utils/tracing.ts` for HTTP/Express, `pg`, Redis, and worker-side Node operations. It starts only outside test mode and shuts down during graceful termination.
+- Deployable alert rules live in `monitoring/prometheus-rules.yml`; the importable Grafana dashboard is `monitoring/grafana-dashboard.json`.
+- `/healthz`, `/ready`, and `/live` are registered by `apps/server/src/server.ts`. Readiness checks cover Postgres/PostGIS, Redis, object storage, and BullMQ queues.
+
+Prometheus and Grafana deployment, an OTLP collector/exporter endpoint, and notification receivers remain environment-level configuration responsibilities.
+
 ## References
 
 - [OpenTelemetry Documentation](https://opentelemetry.io/docs/)

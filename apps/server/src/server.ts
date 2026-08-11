@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import morgan from "morgan";
@@ -8,7 +10,8 @@ import { registerRoutes } from "./routes";
 import { errorHandler } from "./utils/error-handler";
 import { setupSwagger } from "./config/swagger";
 import { logger } from "./utils/logger";
-import { register, httpRequestsTotal, httpRequestDuration } from "./utils/metrics";
+import { requestContextMiddleware, getRequestId, getRequestLogContext } from "./middleware/request-context";
+import { register, httpRequestsTotal, httpRequestDuration, geoJsonBytes } from "./utils/metrics";
 import { performHealthChecks, performReadinessChecks, performLivenessCheck } from "./utils/health";
 import { loadEnv } from "./config/env";
 
@@ -17,35 +20,47 @@ const env = loadEnv();
 export async function createApp(): Promise<Express> {
   const app = express();
 
-  app.use(helmet({ crossOriginResourcePolicy: false }));
-  app.use(cors());
-  app.use(express.json({ limit: "5mb" }));
-  app.use(express.urlencoded({ extended: true }));
+  // Establish correlation before any parser or application middleware can fail.
+  app.use(requestContextMiddleware);
 
-  // Structured logging with pino-http
+  // Structured logging with a propagated request id and request-scoped fields.
   app.use(pinoHttp({
     logger,
-    customProps: (req: Request) => ({
-      requestId: req.headers['x-request-id'] || req.id,
-    }),
+    genReqId: (req) => getRequestId(req as Request) ?? randomUUID(),
+    customProps: (req) => getRequestLogContext(req as Request),
+    customAttributeKeys: { responseTime: 'duration_ms' },
     customSuccessMessage: (req: Request, res: Response) => `${req.method} ${req.url} ${res.statusCode}`,
     customErrorMessage: (req: Request, res: Response, err: Error) => `${req.method} ${req.url} ${res.statusCode} - ${err.message}`,
   }));
 
-  // Prometheus metrics middleware
+  // Prometheus request metrics. Route labels intentionally use Express route
+  // templates and fall back to "unknown" to avoid unbounded URL cardinality.
   app.use((req: Request, res: Response, next: NextFunction) => {
     const start = process.hrtime.bigint();
 
     res.on('finish', () => {
       const durationSec = Number(process.hrtime.bigint() - start) / 1e9;
-      const matchedRoute = req.route?.path ? `${req.baseUrl || ''}${req.route.path}` : (req.path || 'unknown');
+      const routePath = req.route?.path ? String(req.route.path) : 'unknown';
+      const matchedRoute = routePath === 'unknown' ? 'unknown' : `${req.baseUrl || ''}${routePath}`;
       const statusCode = String(res.statusCode);
       httpRequestsTotal.inc({ method: req.method, route: matchedRoute, status_code: statusCode });
       httpRequestDuration.observe({ method: req.method, route: matchedRoute, status_code: statusCode }, durationSec);
+
+      if (matchedRoute.endsWith('/geo/choropleth')) {
+        const contentLength = Number(res.getHeader('content-length'));
+        if (Number.isFinite(contentLength) && contentLength >= 0) {
+          geoJsonBytes.observe(contentLength);
+        }
+      }
     });
 
     next();
   });
+
+  app.use(helmet({ crossOriginResourcePolicy: false }));
+  app.use(cors());
+  app.use(express.json({ limit: "5mb" }));
+  app.use(express.urlencoded({ extended: true }));
 
   app.use(morgan("dev"));
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-12
+### Added
+- **Analytics & Insights**: Added the `/api/analytics/overview` and `/api/analytics/targets` APIs plus the React analytics dashboard for KPI, monthly trend, target-versus-actual, YoY, province comparison, and reporting-matrix views.
+- **Governance Workflow**: Added revenue-target persistence, upload approval transitions (`draft` → `under_review` → `approved` → `published`), append-only workflow events, and fiscal-period lock history through migrations 005–006.
+- **Observability Assets**: Added request correlation context, structured telemetry, Prometheus alert rules, and an importable Grafana dashboard.
+
+### Changed
+- **Authorization**: Extended JWT authorization to the `public` → `viewer` → `operator` → `admin` hierarchy and applied role checks to analytics, uploads, reports, approvals, and period-lock operations.
+- **Data Integrity**: Locked fiscal periods now reject payment, report, target, and approval writes at both the service and database-trigger layers.
+- **Documentation**: Synchronized API paths, migration status, data-model references, roadmap status, and observability runbooks with the current implementation.
+
+### Verification
+- `pnpm typecheck`, `pnpm test`, and `pnpm build` pass for the current implementation slice.
+
 ## 2026-08-09
 ### Redesigned & Enhanced
 - **Donezo Light Layout Redesign**: Transformed full web app UI (`AppLayout.tsx`, `Sidebar.tsx`, `Topbar.tsx`, `global.css`) to match the Donezo light design system with off-white canvas (`#f3f4f6`), rounded cards (`rounded-[24px] bg-white border border-slate-100 shadow-xs`), forest green primary accents (`#044e3a`), and emerald highlights (`#10b981`).

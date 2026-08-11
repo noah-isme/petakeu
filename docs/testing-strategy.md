@@ -24,6 +24,22 @@ Comprehensive testing approach for Petakeu covering unit, integration, E2E, and 
                 └─────────────────────┘
 ```
 
+## Current Verification Snapshot (2026-08-12)
+
+The current roadmap implementation slice has been verified with:
+
+| Command | Result | Scope |
+|---------|--------|-------|
+| `pnpm typecheck` | Pass | Server and web TypeScript projects |
+| `pnpm test` | Pass | Server (50 tests) and web (5 tests) |
+| `pnpm build` | Pass | Production server compilation and Vite bundle |
+
+The new analytics coverage includes Zod query/target validation and frontend
+period normalization, target-variance, and analytics utility behavior. Role
+hierarchy, approval transitions, fiscal-period locks, and report ranking paths
+also have focused server tests. Integration, browser, load, and security suites
+remain release-hardening work as tracked in the roadmap.
+
 ---
 
 ## Test Categories
@@ -55,6 +71,8 @@ Comprehensive testing approach for Petakeu covering unit, integration, E2E, and 
 | `region-service` | (planned) | Filtering, hierarchy, summary calculation |
 | `upload-service` | (planned) | Validation, parsing, deduplication, error handling |
 | `report-service` | (planned) | Job creation, summary building, trend calculation |
+| `analytics validators` | `validators/analytics.test.ts` | Period normalization, query bounds, target validation |
+| `approval-service` | (focused server tests) | Role checks, state transitions, lock enforcement |
 | `utils/format` | (planned) | Currency, number, date formatting |
 | `utils/math` | (planned) | Quantile, percentile, classification |
 
@@ -119,6 +137,7 @@ pnpm --filter @petakeu/server test --coverage
 | `hooks/useReportJobs` | (planned) | Polling, expiration |
 | `lib/format` | (planned) | Currency, numbers, dates |
 | `lib/utils` | (planned) | Classnames, helpers |
+| `analytics-utils` | `components/analytics/__tests__/analytics-utils.test.ts` | Period labels, variance, achievement, trend helpers |
 
 **Example: Component Test**
 ```tsx

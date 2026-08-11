@@ -1,0 +1,42 @@
+groups:
+  - name: petakeu-application
+    interval: 30s
+    rules:
+      - alert: PetakeuHighApiLatency
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum by (le, route) (rate(petakeu_http_request_duration_seconds_bucket[5m]))
+          ) > 2
+        for: 10m
+        labels:
+          severity: warning
+          service: petakeu-api
+        annotations:
+          summary: "Petakeu API p95 latency is high"
+          description: "The p95 latency for {{ $labels.route }} has exceeded 2 seconds for 10 minutes."
+
+      - alert: PetakeuWorkerFailureRate
+        expr: >-
+          (
+            sum by (worker) (rate(petakeu_worker_jobs_total{status="failed"}[5m]))
+            /
+            clamp_min(sum by (worker) (rate(petakeu_worker_jobs_total[5m])), 0.001)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+          service: petakeu-worker
+        annotations:
+          summary: "Petakeu worker failure rate is above 5%"
+          description: "The {{ $labels.worker }} worker has exceeded the failure-rate budget."
+
+      - alert: PetakeuUploadParseErrorSpike
+        expr: increase(petakeu_upload_parse_errors_total[15m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: petakeu-worker
+        annotations:
+          summary: "Petakeu upload parsing errors spiked"
+          description: "More than 100 upload parsing errors were recorded in the last 15 minutes."

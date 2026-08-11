@@ -50,6 +50,12 @@ export const workerJobDuration = new Histogram({
   registers: [register]
 });
 
+export const uploadParseErrorsTotal = new Counter({
+  name: 'petakeu_upload_parse_errors_total',
+  help: 'Total number of row or file parsing errors encountered during uploads',
+  registers: [register]
+});
+
 export const cacheHits = new Counter({
   name: 'petakeu_cache_hits_total',
   help: 'Total number of cache hits',
@@ -91,3 +97,51 @@ export const alertsSent = new Counter({
   labelNames: ['channel', 'level'],
   registers: [register]
 });
+
+export const geoJsonBytes = new Histogram({
+  name: 'petakeu_geojson_bytes',
+  help: 'Size in bytes of GeoJSON API responses',
+  buckets: [1024, 10 * 1024, 50 * 1024, 100 * 1024, 500 * 1024, 1024 * 1024, 5 * 1024 * 1024],
+  registers: [register]
+});
+
+export function normalizeReportFormat(value: unknown): 'pdf' | 'excel' | 'other' {
+  return value === 'pdf' || value === 'excel' ? value : 'other';
+}
+
+export function normalizeDbQuery(query: unknown): {
+  query_type: 'select' | 'insert' | 'update' | 'delete' | 'other';
+  table: string;
+} {
+  const text = typeof query === 'string'
+    ? query
+    : typeof query === 'object' && query !== null && 'text' in query
+      ? String((query as { text?: unknown }).text ?? '')
+      : '';
+  const normalized = text.trim().replace(/\s+/g, ' ').toUpperCase();
+  const queryType = normalized.match(/^(SELECT|INSERT|UPDATE|DELETE)\b/)?.[1] ??
+    (normalized.startsWith('WITH ') ? normalized.match(/\b(SELECT|INSERT|UPDATE|DELETE)\b/)?.[1] : undefined);
+  const tableMatch = normalized.match(/\b(?:FROM|INTO|UPDATE|JOIN|TABLE)\s+([A-Z_][A-Z0-9_]*)/);
+  const knownTables = new Set([
+    'REGIONS',
+    'PAYMENTS',
+    'UPLOADS',
+    'REPORT_JOBS',
+    'AUDIT_LOGS',
+    'MV_PAYMENTS_WITH_CUT',
+    'REVENUE_TARGETS',
+    'APPROVAL_WORKFLOWS',
+    'APPROVAL_WORKFLOW_EVENTS',
+    'FISCAL_PERIOD_LOCKS',
+    'FISCAL_PERIOD_LOCK_EVENTS',
+    '_MIGRATIONS',
+  ]);
+  const table = tableMatch && knownTables.has(tableMatch[1]) ? tableMatch[1].toLowerCase() : 'other';
+
+  return {
+    query_type: queryType === 'SELECT' || queryType === 'INSERT' || queryType === 'UPDATE' || queryType === 'DELETE'
+      ? queryType.toLowerCase() as 'select' | 'insert' | 'update' | 'delete'
+      : 'other',
+    table,
+  };
+}

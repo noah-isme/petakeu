@@ -61,8 +61,10 @@ docker-compose -f docker-compose.dev.yml exec server pnpm seed:regions
 | `pnpm dev:server` | Menjalankan aplikasi backend (Express API) saja |
 | `pnpm lint` | Menjalankan linter ESLint pada seluruh proyek |
 | `pnpm typecheck` | Menjalankan verifikasi tipe TypeScript pada seluruh proyek |
+| `pnpm test` | Menjalankan seluruh unit test server dan web melalui Turborepo |
 | `pnpm build` | Membangun (build) seluruh aplikasi untuk lingkungan produksi |
 | `pnpm seed:regions` | Menjalankan script seeder untuk mengisi data referensi wilayah ke database |
+| `pnpm benchmark` | Menjalankan benchmark latency choropleth (cache hit/cold miss) |
 
 ---
 
@@ -96,25 +98,35 @@ petakeu/
 
 ## API Reference
 
-Seluruh endpoint backend berada di bawah `base_url: /api/v1`.
+Seluruh endpoint aplikasi berada di bawah `base_url: /api`. Endpoint operasional
+`/healthz`, `/ready`, `/live`, dan `/metrics` berada di root server.
 
 | Endpoint | Method | Keterangan |
 | --- | --- | --- |
-| `/health` | `GET` | Healthcheck service status |
-| `/api/v1/regions` | `GET` | Daftar wilayah. Mendukung query `level=province\|regency...` dan `parent=UUID` |
-| `/api/v1/regions/:id/summary` | `GET` | Ringkasan data untuk wilayah tertentu berdasar `from` & `to` |
-| `/api/v1/geo/choropleth` | `GET` | Data GeoJSON untuk visualisasi peta choropleth |
-| `/api/v1/uploads` | `POST` | Unggah file excel (`multipart/form-data`, field: `file`) |
-| `/api/v1/uploads` | `GET` | Riwayat dan status unggahan data |
-| `/api/v1/uploads/:id` | `GET` | Detail status unggahan spesifik |
-| `/api/v1/reports/export` | `POST` | Buat laporan baru. Body: `{ period, regionIds[], format: 'pdf'\|'excel' }` |
-| `/api/v1/reports` | `GET` | Daftar antrean dan riwayat laporan |
-| `/api/v1/reports/:id` | `GET` | Cek status laporan dan dapatkan `download_url` |
-| `/api/v1/rank` | `GET` | (FiscalView) Peringkat daerah (mis. top 20 pendapatan) |
-| `/api/v1/surplus-defisit` | `GET` | (FiscalView) Data ringkasan surplus/defisit |
-| `/api/v1/rankfin/league` | `GET` | (RankFin) Data liga kinerja finansial |
-| `/api/v1/defisitwatch/watchlist` | `GET` | (DefisitWatch) Daftar daerah dengan risiko defisit |
-| `/api/v1/defisitwatch/daerah/:id/penjelasan` | `GET` | (DefisitWatch) Penjelasan detail penyebab risiko defisit |
+| `/healthz` | `GET` | Healthcheck service status |
+| `/ready` / `/live` | `GET` | Readiness dan liveness probe |
+| `/metrics` | `GET` | Metrik Prometheus |
+| `/api/regions` | `GET` | Daftar wilayah. Mendukung query `level=province\|regency...` dan `parent=UUID` |
+| `/api/regions/:id/summary` | `GET` | Ringkasan data untuk wilayah tertentu berdasar `from` & `to` |
+| `/api/geo/choropleth` | `GET` | Data GeoJSON untuk visualisasi peta choropleth |
+| `/api/uploads` | `POST` | Unggah file Excel (`multipart/form-data`, field: `file`) |
+| `/api/uploads` | `GET` | Riwayat dan status unggahan data |
+| `/api/uploads/:id` | `GET` | Detail status unggahan spesifik |
+| `/api/reports/export` | `POST` | Buat laporan baru. Body: `{ period, regionIds[], format: 'pdf'\|'excel' }` |
+| `/api/reports` | `GET` | Daftar antrean dan riwayat laporan |
+| `/api/reports/:id` | `GET` | Cek status laporan dan dapatkan `download_url` |
+| `/api/rank` | `GET` | (FiscalView) Peringkat daerah (mis. top 20 pendapatan) |
+| `/api/surplus-defisit` | `GET` | (FiscalView) Data ringkasan surplus/defisit |
+| `/api/rankfin/league` | `GET` | (RankFin) Data liga kinerja finansial |
+| `/api/defisitwatch/watchlist` | `GET` | (DefisitWatch) Daftar daerah dengan risiko defisit |
+| `/api/defisitwatch/daerah/:id/penjelasan` | `GET` | (DefisitWatch) Penjelasan detail penyebab risiko defisit |
+| `/api/analytics/overview` | `GET` | KPI, tren bulanan, target-vs-actual, YoY, perbandingan provinsi, dan reporting matrix (role `viewer+`) |
+| `/api/analytics/targets` | `GET` / `POST` | Baca target pendapatan (`viewer+`) atau daftarkan target (`operator+`) |
+| `/api/approvals/...` | `GET` / `POST` | Submit, review, approve, publish workflow dan lock/unlock periode fiskal |
+
+Endpoint API yang membaca data memerlukan JWT Bearer sesuai role. Hierarki role
+adalah `public` → `viewer` → `operator` → `admin`; `AUTH_DISABLED=true` hanya
+untuk development lokal.
 
 ---
 
@@ -163,4 +175,6 @@ Informasi arsitektur dan spesifikasi proyek lebih lanjut dapat diakses pada doku
 Saat melakukan pengembangan dan memberikan kontribusi pada proyek ini:
 - **Database**: Selalu buat file migrasi SQL di `apps/server/migrations/` jika terdapat perubahan pada skema database.
 - **Type Checking**: Jalankan `pnpm typecheck` sebelum melakukan komit untuk memastikan tidak ada kesalahan tipe TypeScript.
+- **Verification**: Jalankan `pnpm lint` dan `pnpm test`; gunakan `pnpm build` untuk perubahan lintas aplikasi.
+- **Commit**: Gunakan Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, atau `chore:`) dengan subject singkat yang menjelaskan perubahan.
 - **Performa PostGIS**: Pertimbangkan efisiensi rendering spasial dan ukuran payload GeoJSON saat mengolah data peta interaktif.

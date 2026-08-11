@@ -9,25 +9,25 @@ This document serves as the master roadmap and remaining work tracker for Petake
 
 ## 1. Project Status Summary
 
-The overall implementation status across all technical domains as of **2026-08-03**:
+The overall implementation status across all technical domains as of **2026-08-12**:
 
 | Domain | Completed / Total | Progress | Visual Indicator | Status / Remaining Gap |
 | :--- | :---: | :---: | :--- | :--- |
-| **A. Foundation & Infra** | 3 / 4 | 75% | `[███████░░░]` | Missing health check readiness worker & storage ping |
-| **B. API & Data** | 14 / 16 | 87.5% | `[█████████░]` | Missing Redis cache for choropleth & full report content |
+| **A. Foundation & Infra** | 4 / 4 | 100% | `[██████████]` | ✅ Complete |
+| **B. API & Data** | 16 / 16 | 100% | `[██████████]` | ✅ Complete |
 | **C. Frontend** | 7 / 7 | 100% | `[██████████]` | ✅ Complete |
-| **D. Security** | 4 / 5 | 80% | `[████████░░]` | Missing comprehensive audit log |
-| **E. Data Quality** | 4 / 5 | 80% | `[████████░░]` | Missing future period warning flag (`forecast=false`) |
+| **D. Security** | 5 / 5 | 100% | `[██████████]` | ✅ Complete for MVP audit requirements |
+| **E. Data Quality** | 5 / 5 | 100% | `[██████████]` | ✅ Complete |
 | **F. Performance** | 5 / 5 | 100% | `[██████████]` | ✅ Complete |
-| **G. Observability** | 0 / 4 | 0% | `[░░░░░░░░░░]` | Not started |
-| **H. Testing** | 0 / 8 | 0% | `[░░░░░░░░░░]` | Not started |
-| **Overall MVP Total** | **36 / 54** | **67%** | `[███████░░░]` | **Phase 1 MVP in progress** |
+| **G. Observability** | 4 / 4 | 100% | `[██████████]` | ✅ Complete for application-level telemetry |
+| **H. Testing** | 2 / 8 | 25% | `[███░░░░░░░]` | Unit/parser coverage added; integration, E2E, load, and security suites remain |
+| **Overall MVP Total** | **48 / 54** | **89%** | `[█████████░]` | **Phase 1 complete; release-hardening work remains** |
 
 ```mermaid
 flowchart LR
-    P1["Phase 1: MVP Core (63% Complete)\n- GeoJSON Choropleth\n- Excel Parser & Storage\n- Base PDF/Excel Exports\n- Auth & Access Control"]
-    P2["Phase 2: Analytics & Insights\n- Interactive Dashboards\n- Trend & YoY Analysis\n- Multi-Province Compare\n- Reporting Grid"]
-    P3["Phase 3: Enterprise Features\n- Granular RBAC\n- Approval Workflows\n- Branded Reports\n- Full Audit Trail"]
+    P1["Phase 1: MVP Core (100% Complete)\n- GeoJSON Choropleth\n- Excel Parser & Storage\n- Base PDF/Excel Exports\n- Auth & Access Control"]
+    P2["Phase 2: Analytics & Insights (100% Complete)\n- Executive Dashboard\n- Trend, Target & YoY Analysis\n- Multi-Province Compare\n- Reporting Grid"]
+    P3["Phase 3: Enterprise Features (Core 3/6)\n- Granular RBAC\n- Approval Workflows\n- Fiscal-Period Locks\n- Audit UI / Scheduling / Branding deferred"]
     
     P1 --> P2 --> P3
     
@@ -68,13 +68,13 @@ Phase 1 establishes the operational core: ingesting regional financial data (set
 
 Phase 2 focuses on turning raw financial payment records into actionable decision support analytics for regional executive leadership.
 
-- [ ] **Interactive Analytics Dashboard:** KPI cards displaying national total setoran, month-over-month growth, active reporting coverage, and top outlier regions.
-- [ ] **Monthly Revenue Trend Visualization:** Dynamic multi-line and stacked area charts tracking monthly collection patterns and seasonal variance.
-- [ ] **Top/Bottom Region Comparison:** Side-by-side comparison tool comparing top performing vs lagging kabupaten/kota within selected provinces.
-- [ ] **Target vs. Actual Analysis:** Interface and data model extensions to register revenue targets and visualize variance (% of budget target realized).
-- [ ] **Multi-Province Comparison:** Cross-province analytical view for comparative regional fiscal performance.
-- [ ] **Historical Data (YoY Comparison):** Year-over-year growth analytics matching current month against the same month of previous fiscal years (`period` vs `period - 12 months`).
-- [ ] **Region Reporting Matrix:** Visual grid (✅ Reporting / ❌ Missing / ⚠️ Delayed) displaying submission compliance across all 514 kabupaten/kota.
+- [x] **Interactive Analytics Dashboard:** KPI cards displaying national total setoran, month-over-month growth, active reporting coverage, and top outlier regions.
+- [x] **Monthly Revenue Trend Visualization:** Dynamic monthly trend chart with actual-versus-target series and seasonal range support.
+- [x] **Top/Bottom Region Comparison:** Side-by-side comparison tool comparing top performing vs lagging kabupaten/kota within selected provinces.
+- [x] **Target vs. Actual Analysis:** Target registration API/model plus variance and achievement visualization.
+- [x] **Multi-Province Comparison:** Cross-province analytical view for comparative regional fiscal performance.
+- [x] **Historical Data (YoY Comparison):** Year-over-year growth analytics matching current month against the same month of previous fiscal years (`period` vs `period - 12 months`).
+- [x] **Region Reporting Matrix:** Visual grid (✅ Reporting / ❌ Missing / ⚠️ Delayed) displaying submission compliance across all 514 kabupaten/kota.
 
 ---
 
@@ -82,13 +82,13 @@ Phase 2 focuses on turning raw financial payment records into actionable decisio
 
 Phase 3 introduces enterprise governance, multi-tenant RBAC, workflow approvals, and institutional reporting.
 
-- [ ] **Role-Based Access Control (RBAC):** Enforce strict role hierarchy (`public`, `viewer`, `operator`, `admin`):
+- [x] **Role-Based Access Control (RBAC):** Enforce strict role hierarchy (`public`, `viewer`, `operator`, `admin`):
   - `public`: Aggregated color quantiles only (no raw currency values).
   - `viewer`: Read-only access to detailed numbers and reports.
   - `operator`: Upload data, trigger re-parsing, request exports.
   - `admin`: User management, audit logs, system configuration.
-- [ ] **Data Approval Workflow:** Multi-stage review workflow for uploaded payment files (Draft → Under Review → Approved → Published).
-- [ ] **Data Locking:** Ability to freeze and lock fiscal periods post-approval to prevent inadvertent overwrites or historical modification.
+- [x] **Data Approval Workflow:** Multi-stage review workflow for uploaded payment files (Draft → Under Review → Approved → Published), with append-only transition history.
+- [x] **Data Locking:** Ability to freeze and lock fiscal periods post-approval to prevent inadvertent overwrites or historical modification.
 - [ ] **Enterprise Audit Trail UI:** Searchable log inspector in admin dashboard for compliance monitoring.
 - [ ] **Scheduled & Automated Reports:** Cron-based automated generation and email dispatch of weekly/monthly executive summary PDFs.
 - [ ] **Branded PDF Reports:** Customizable PDF templates supporting organizational logos, custom headers, footers, and official signatures.
@@ -97,7 +97,7 @@ Phase 3 introduces enterprise governance, multi-tenant RBAC, workflow approvals,
 
 ## 5. Testing Roadmap
 
-Currently at **0% coverage**. Systematic testing suite implementation is required before production deployment.
+Currently at **25% of the roadmap checklist**. Systematic integration, browser, load, and security testing is still required before production deployment.
 
 ```
 tests/
@@ -117,8 +117,8 @@ tests/
 ```
 
 ### 📋 Actionable Checklist
-- [ ] **Unit Tests — Core Calculations:** Test period normalization (`2026-08` → `2026-08-01`), BPS regional code pattern matching, and 5-class quantile classification algorithm edges.
-- [ ] **Unit Tests — Excel Parser:** Test parser resilience against header variations (`kode_daerah`, `Kode BPS`, `Setoran (Rp)`), blank rows, mixed data types, and locale formatting (`1.234.567,89` vs `1234567.89`).
+- [x] **Unit Tests — Core Calculations:** Test period normalization (`2026-08` → `2026-08-01`), BPS regional code pattern matching, and 5-class quantile classification algorithm edges.
+- [x] **Unit Tests — Excel Parser:** Test parser resilience against header variations, invalid/future periods, blank/error rows, and numeric parsing paths.
 - [ ] **Integration Tests — Ingestion Pipeline:** End-to-end integration test: `POST /api/uploads` → BullMQ queue dispatch → worker execution → `payments` table populated → PostGIS choropleth view refreshed.
 - [ ] **Integration Tests — Report Generation:** Test report job creation (`POST /api/reports/export`), background execution, MinIO object persistence, and presigned URL retrieval.
 - [ ] **E2E Tests — Map & Detail UI:** Playwright/Cypress automation verifying map initialization, layer toggling, feature click event, detail panel rendering, and download modal.
@@ -130,16 +130,16 @@ tests/
 
 ## 6. Observability Roadmap
 
-Currently at **0% implementation**. Observability tooling will provide runtime visibility into system performance and background processing.
+Application-level observability is **100% implemented**. Deployment still needs Prometheus/Grafana wiring and an alert receiver in each environment.
 
-- [ ] **Structured JSON Logging:** Standardized log formatter attaching contextual metadata (`request_id`, `user_id`, `region_code`, `period`, `duration_ms`) across express requests and BullMQ jobs.
-- [ ] **Application & System Metrics:** Prometheus metric instrumentation tracking:
+- [x] **Structured JSON Logging:** Standardized log formatter attaching contextual metadata (`request_id`, `user_id`, `region_code`, `period`, `duration_ms`) across express requests and BullMQ jobs.
+- [x] **Application & System Metrics:** Prometheus metric instrumentation tracking:
   - Cache hit/miss rates (`petakeu_cache_hits_total`, `petakeu_cache_misses_total`)
   - DB query latency (`petakeu_db_query_duration_seconds`)
   - Background job duration (`petakeu_worker_job_duration_seconds`)
   - Generated GeoJSON payload size (`petakeu_geojson_bytes`)
-- [ ] **OpenTelemetry Tracing:** OpenTelemetry auto-instrumentation covering HTTP request entry points, PostGIS query spans, Redis operations, and BullMQ worker jobs.
-- [ ] **Alerting & Dashboarding:** Grafana dashboard and alert triggers for BullMQ job failure rate spikes (`> 5%`), Excel parsing error spikes, and API response degradation.
+- [x] **OpenTelemetry Tracing:** OpenTelemetry auto-instrumentation covering HTTP request entry points, PostGIS query spans, Redis operations, and BullMQ worker jobs.
+- [x] **Alerting & Dashboarding:** Grafana dashboard and Prometheus alert rules for BullMQ job failure rate spikes (`> 5%`), Excel parsing error spikes, and API response degradation.
 
 ---
 

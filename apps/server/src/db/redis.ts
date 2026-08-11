@@ -1,10 +1,34 @@
 import { createClient, RedisClientType } from 'redis';
+
 import { loadEnv } from '../config/env';
-import { cacheHits, cacheMisses } from '../utils/metrics';
+import { logger } from '../utils/logger';
+import { cacheHits, cacheMisses, redisOperationDuration } from '../utils/metrics';
 
 const env = loadEnv();
 
 let redisClient: RedisClientType | null = null;
+
+function cacheKeyType(value: string): string {
+  const knownTypes = new Set(['geo', 'region', 'fiscal', 'analytics', 'defisitwatch', 'rankfin']);
+  const type = value.split(':').find((part) => knownTypes.has(part));
+  return type ?? 'other';
+}
+
+async function timedRedisOperation<T>(
+  operation: 'get' | 'set_ex' | 'keys' | 'delete',
+  keyType: string,
+  action: () => Promise<T>
+): Promise<T> {
+  const startedAt = process.hrtime.bigint();
+  try {
+    return await action();
+  } finally {
+    redisOperationDuration?.observe(
+      { operation, key_type: keyType },
+      Number(process.hrtime.bigint() - startedAt) / 1e9
+    );
+  }
+}
 
 export function getRedisClient(): RedisClientType {
   if (!redisClient) {
@@ -13,11 +37,11 @@ export function getRedisClient(): RedisClientType {
     });
 
     redisClient.on('error', (err) => {
-      console.error('[redis] Client error:', err);
+      logger.error({ err }, '[redis] Client error');
     });
 
     redisClient.connect().catch((err) => {
-      console.error('[redis] Connection failed:', err);
+      logger.error({ err }, '[redis] Connection failed');
     });
   }
   return redisClient;
@@ -43,25 +67,26 @@ export async function getCached<T>(
   const client = getRedisClient();
   const fullKey = `${options.keyPrefix || 'petakeu'}:${key}`;
   const ttl = options.ttl || 300; // default 5 minutes
+  const keyType = cacheKeyType(options.keyPrefix || 'petakeu');
 
   try {
-    const cached = await client.get(fullKey);
+    const cached = await timedRedisOperation('get', keyType, () => client.get(fullKey));
     if (cached !== null) {
       const data = JSON.parse(cached) as T;
       cacheHits.inc({ cache_type: 'redis' });
       return data;
     }
   } catch (error) {
-    console.warn('[cache] Get failed:', error);
+    logger.warn({ err: error, key_type: keyType }, '[cache] Get failed');
   }
 
   cacheMisses.inc({ cache_type: 'redis' });
   const data = await fetchFn();
 
   try {
-    await client.setEx(fullKey, ttl, JSON.stringify(data));
+    await timedRedisOperation('set_ex', keyType, () => client.setEx(fullKey, ttl, JSON.stringify(data)));
   } catch (error) {
-    console.warn('[cache] Set failed:', error);
+    logger.warn({ err: error, key_type: keyType }, '[cache] Set failed');
   }
 
   return data;
@@ -70,14 +95,15 @@ export async function getCached<T>(
 export async function invalidateCache(pattern: string): Promise<void> {
   const client = getRedisClient();
   const fullPattern = `petakeu:${pattern}*`;
+  const keyType = cacheKeyType(pattern);
 
   try {
-    const keys = await client.keys(fullPattern);
+    const keys = await timedRedisOperation('keys', keyType, () => client.keys(fullPattern));
     if (keys.length > 0) {
-      await client.del(keys);
+      await timedRedisOperation('delete', keyType, () => client.del(keys));
     }
   } catch (error) {
-    console.warn('[cache] Invalidate failed:', error);
+    logger.warn({ err: error, key_type: keyType }, '[cache] Invalidate failed');
   }
 }
 

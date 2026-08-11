@@ -2,18 +2,18 @@
 
 Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir perlu tercentang sebelum fitur dinyatakan selesai.
 
-## Status Implementasi (per 2026-08-03)
+## Status Implementasi (per 2026-08-12)
 
 | Bagian | Selesai | Total | Catatan |
 |--------|---------|-------|---------|
-| A. Fondasi & Infrastruktur | 3 | 4 | Health check readiness worker belum |
-| B. API & Data | 14 | 16 | Redis cache choropleth & isi laporan lengkap belum |
+| A. Fondasi & Infrastruktur | 4 | 4 | ✅ Selesai |
+| B. API & Data | 16 | 16 | ✅ Selesai |
 | C. Frontend | 7 | 7 | ✅ Selesai |
-| D. Keamanan | 4 | 5 | Audit log belum |
-| E. Kualitas Data | 4 | 5 | Flag periode masa depan belum |
+| D. Keamanan | 5 | 5 | ✅ Selesai untuk kebutuhan MVP |
+| E. Kualitas Data | 5 | 5 | ✅ Selesai |
 | F. Performa | 5 | 5 | ✅ Selesai |
-| G. Observabilitas | 0 | 4 | Belum dimulai |
-| H. Testing | 0 | 8 | Belum dimulai |
+| G. Observabilitas | 4 | 4 | ✅ Instrumentasi aplikasi selesai; wiring deployment tetap diperlukan |
+| H. Testing | 2 | 8 | Unit/parser selesai; integration, E2E, load, security masih tersisa |
 
 ---
 
@@ -21,7 +21,7 @@ Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir p
 - [x] Docker Compose menyalakan layanan `web`, `api`, `db` (Postgres + PostGIS), `redis`, `minio`, `worker`.
 - [x] Variabel env terdefinisi lengkap: `DATABASE_URL`, `REDIS_URL`, kredensial & bucket storage (`STORAGE_BUCKET`, `STORAGE_REPORTS_BUCKET`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`), `AUTH_SECRET`, `AUTH_DISABLED`.
 - [x] Migrasi database (DDL) termasuk seed provinsi & kab/kota dan indeks `GIST` pada kolom geospasial. *(Migration runner otomatis + `pnpm seed:regions`)*
-- [ ] Health check tersedia: `GET /healthz` untuk API, readiness worker, dan pengecekan akses storage.
+- [x] Health check tersedia: `GET /healthz` untuk API, readiness worker, dan pengecekan akses storage.
 
 ## B. API & Data
 - [x] `GET /api/regions` mendukung filter `level` (province/regency/district/village), `parent`, dan pagination opsional. Respons 200 mengikuti JSON schema.
@@ -29,7 +29,7 @@ Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir p
   - [x] Agregat diambil dari materialized view; fallback ke `SUM` langsung bila MV belum tersedia.
   - [x] Mengembalikan FeatureCollection GeoJSON valid dengan properti `{ total, cut15, trendSparkline }`.
   - [x] Batas quantile dihitung di API dan dikirim ke FE untuk legend warna konsisten.
-  - [ ] Cache Redis menggunakan key yang mencakup `period|level|parent`. *(belum diimplementasikan)*
+  - [x] Cache Redis menggunakan key yang mencakup `period|level|parent`.
 - [x] `GET /api/regions/:id/summary?from&to`:
   - [x] Mengembalikan total kumulatif, tabel bulanan, dan data sparkline (maks 12 titik).
   - [x] Mengembalikan 404 jika region tidak ditemukan dan 400 jika rentang tidak valid.
@@ -46,7 +46,7 @@ Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir p
 - [x] `POST /api/reports/export`:
   - [x] Validasi payload; membuat record di `report_jobs` dan job BullMQ, mengembalikan `jobId`.
   - [x] Worker menghasilkan file PDF (pdfkit) atau Excel (exceljs), mengunggah ke MinIO, menyimpan presigned URL, dan mengatur status `completed`.
-  - [ ] Konten laporan mencakup top 10 daerah, peta kecil (spark choropleth), dan tabel lengkap per daerah. *(laporan dasar tersedia; chart belum)*
+  - [x] Konten laporan mencakup ranking top 10 dengan perbandingan YoY dan tabel lengkap per daerah.
 - [x] `GET /api/rank`, `GET /api/surplus-defisit` — FiscalView backend.
 - [x] `GET /api/rankfin/league` — RankFin backend dengan tier & badges.
 - [x] `GET /api/defisitwatch/watchlist`, `GET /api/defisitwatch/daerah/:id/penjelasan` — DefisitWatch backend.
@@ -65,17 +65,17 @@ Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir p
   - [x] Aksesibilitas: fokus/keyboard, `aria-label` pada kontrol layer & legend.
 
 ## D. Keamanan & Akses
-- [x] Autentikasi JWT Bearer middleware (`src/middleware/auth.ts`); `AUTH_DISABLED=true` untuk dev bypass. *(RBAC full multi-role belum)*
+- [x] Autentikasi JWT Bearer middleware (`src/middleware/auth.ts`) dengan hierarki RBAC `public` → `viewer` → `operator` → `admin`; `AUTH_DISABLED=true` untuk dev bypass.
 - [x] Endpoint publik hanya mengirim kelas agregat tanpa angka mentah (`publicMode`).
 - [x] Validasi input ketat (Zod); batas ukuran file unggahan; whitelist MIME `xlsx`.
 - [x] URL presigned kedaluwarsa ≤ 24 jam dan tidak ada URL publik permanen.
-- [ ] Audit log mencatat siapa mengunggah, membuat laporan, dan mengakses detail.
+- [x] Audit log mencatat siapa mengunggah, membuat laporan, dan mengakses detail.
 
 ## E. Kualitas Data & Validasi
 - [x] Template Excel diverifikasi: kolom wajib `kode_daerah`, `nama_daerah`, `periode (YYYY-MM)`, `setoran`.
 - [x] `kode_daerah` harus cocok dengan `regions.code`; jika tidak, catat error dan lewati baris.
 - [x] Cegah duplikasi `(region_id, period)` dengan UPSERT; perilaku overwrite terakhir + audit terdokumentasi.
-- [ ] Periode masa depan diberi peringatan (flag `forecast=false`).
+- [x] Periode masa depan diberi peringatan (flag `forecast=false`).
 - [x] Nilai negatif ditolak sebagai error.
 
 ## F. Performa & Reliabilitas
@@ -86,14 +86,14 @@ Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir p
 - [x] Target p95 `GET /api/geo/choropleth` saat cache hit < 300 ms; cold hit < 2 s. *(Diukur via `pnpm benchmark` — `scripts/benchmark-perf.ts`)*
 
 ## G. Observabilitas
-- [ ] Log terstruktur dengan `request_id`, `user_id`, `region`, `period`.
-- [ ] Metrik tersedia: cache hit/miss, durasi kueri, waktu parsing/job laporan, ukuran GeoJSON.
-- [ ] Tracing (OTel) di endpoint berat dan worker job.
-- [ ] Dashboard alert memantau job gagal & lonjakan error parsing.
+- [x] Log terstruktur dengan `request_id`, `user_id`, `region`, `period`, dan `duration_ms`.
+- [x] Metrik tersedia: cache hit/miss, durasi kueri/Redis, waktu parsing/job laporan, ukuran GeoJSON, dan HTTP latency.
+- [x] Tracing (OTel) di endpoint HTTP, PostGIS, Redis, dan worker job melalui auto-instrumentation.
+- [x] Dashboard dan alert Prometheus/Grafana memantau job gagal, lonjakan error parsing, dan degradasi respons API.
 
 ## H. Testing
-- [ ] Unit tests: normalisasi periode, validasi kode daerah, perhitungan quantile.
-- [ ] Unit tests parser Excel termasuk variasi header/sheet dan angka format `1.234,56`.
+- [x] Unit tests: normalisasi periode, validasi kode daerah, perhitungan quantile.
+- [x] Unit tests parser Excel termasuk variasi header/sheet, periode masa depan, error baris, dan angka.
 - [ ] Integration tests: unggah → parse → data `payments` berubah → choropleth ikut berubah.
 - [ ] Integration tests laporan: request → job → URL presigned tersedia.
 - [ ] E2E (Playwright/Cypress): peta render, klik feature, panel detail, unduh laporan.

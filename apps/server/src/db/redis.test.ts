@@ -1,7 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-import { getCached } from './redis';
 import { cacheHits, cacheMisses } from '../utils/metrics';
+
+import { getCached } from './redis';
 
 const mockRedisClient = {
   get: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('redis', () => ({
 vi.mock('../utils/metrics', () => ({
   cacheHits: { inc: vi.fn() },
   cacheMisses: { inc: vi.fn() },
+  redisOperationDuration: { observe: vi.fn() },
 }));
 
 describe('redis getCached', () => {

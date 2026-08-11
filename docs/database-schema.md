@@ -12,7 +12,10 @@ erDiagram
     regions ||--o{ payments : "has"
     payments }|--|| regions : "belongs to"
     uploads ||--o{ payments : "produces"
-    reports ||--o{ regions : "covers"
+    report_jobs ||--o{ regions : "filters"
+    regions ||--o{ revenue_targets : "has targets"
+    uploads ||--|| approval_workflows : "has workflow"
+    approval_workflows ||--o{ approval_workflow_events : "records"
     
     regions {
         uuid id PK
@@ -40,7 +43,7 @@ erDiagram
         uuid id PK
         text filename
         text mimetype
-        bigint size
+        integer size_bytes
         text status
         text hash UK
         text storage_path
@@ -50,10 +53,10 @@ erDiagram
         timestamptz updated_at
     }
     
-    reports {
+    report_jobs {
         uuid id PK
         text period
-        uuid[] region_ids
+        text[] region_ids
         text format
         text status
         text download_url
@@ -61,6 +64,33 @@ erDiagram
         timestamptz updated_at
         timestamptz expires_at
         jsonb summary
+    }
+
+    revenue_targets {
+        uuid id PK
+        uuid region_id FK
+        date period
+        numeric target
+    }
+
+    approval_workflows {
+        uuid id PK
+        uuid upload_id FK
+        text status
+        date period
+    }
+
+    approval_workflow_events {
+        uuid id PK
+        uuid workflow_id FK
+        text event_type
+        text actor_role
+    }
+
+    fiscal_period_locks {
+        date period PK
+        text locked_by
+        text reason
     }
     
     mv_payments_with_cut {
@@ -146,7 +176,7 @@ Tracks Excel file uploads, processing status, and validation errors.
 | `id` | `UUID` | `PRIMARY KEY` | Unique identifier (upload_id) |
 | `filename` | `TEXT` | `NOT NULL` | Original filename |
 | `mimetype` | `TEXT` | `NOT NULL` | MIME type (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet) |
-| `size` | `BIGINT` | `NOT NULL` | File size in bytes |
+| `size_bytes` | `INTEGER` | `NOT NULL` | File size in bytes |
 | `status` | `TEXT` | `NOT NULL DEFAULT 'queued'` | `queued`, `processing`, `parsed`, `failed` |
 | `hash` | `TEXT` | `UNIQUE NOT NULL` | SHA-256 hash for deduplication |
 | `storage_path` | `TEXT` | `NOT NULL` | Path in object storage (MinIO/S3) |
@@ -165,7 +195,7 @@ Tracks Excel file uploads, processing status, and validation errors.
 
 ---
 
-### 4. `reports` - Report Generation Jobs
+### 4. `report_jobs` - Report Generation Jobs
 
 Tracks asynchronous report generation jobs.
 
@@ -173,7 +203,7 @@ Tracks asynchronous report generation jobs.
 |--------|------|-------------|-------------|
 | `id` | `UUID` | `PRIMARY KEY` | Unique identifier (job_id) |
 | `period` | `TEXT` | `NOT NULL` | Report period (YYYY-MM) |
-| `region_ids` | `UUID[]` | `NOT NULL` | Array of region IDs included |
+| `region_ids` | `TEXT[]` | `NOT NULL` | Array of region IDs included |
 | `format` | `TEXT` | `NOT NULL CHECK (pdf, excel)` | Output format |
 | `status` | `TEXT` | `NOT NULL DEFAULT 'queued'` | `queued`, `processing`, `completed`, `failed` |
 | `download_url` | `TEXT` | - | Presigned URL (valid 24h) |
@@ -199,7 +229,33 @@ Tracks asynchronous report generation jobs.
 
 ---
 
-### 5. `mv_payments_with_cut` - Materialized View
+### 5. `audit_logs` - Immutable Request Audit Trail
+
+Migration `004_audit_logs.sql` creates the append-only request audit table.
+It retains the event, actor, request correlation ID, endpoint, response status,
+origin metadata, and structured details used by the audit query API.
+
+### 6. `revenue_targets` - Monthly Analytics Targets
+
+Migration `005_analytics_targets.sql` creates one non-negative target per
+`(region_id, period)`. The period is normalized to the first day of its month
+and references `regions(id)` with `ON DELETE CASCADE`.
+
+### 7. `approval_workflows` and `approval_workflow_events`
+
+Migration `006_approval_workflow.sql` stores one workflow per upload and an
+append-only transition history. Valid statuses are `draft`, `under_review`,
+`approved`, and `published`; invalid transitions and event mutation are
+rejected by database triggers.
+
+### 8. `fiscal_period_locks` and `fiscal_period_lock_events`
+
+The active lock table contains one row per locked month. The event table
+retains lock/unlock history. Database triggers call
+`assert_fiscal_period_unlocked()` before writes to payments, report jobs,
+revenue targets, and approval workflows.
+
+### 9. `mv_payments_with_cut` - Materialized View
 
 Pre-aggregated payments with 15% cut and quantile classification for fast choropleth queries.
 
@@ -350,13 +406,19 @@ ORDER BY month;
 - `_migrations` tracking table auto-created by `src/db/migrate.ts`
 - Migrations now run automatically at server startup — no manual `psql` required
 
-### Future Migrations
+### Applied Migrations
 | Version | Description | Status |
 |---------|-------------|--------|
-| 003 | Add `users` and `roles` tables for RBAC | Planned |
-| 004 | Add `audit_log` table | Planned |
-| 005 | Add `region_boundaries` history table | Planned |
-| 006 | Partition `payments` by period | Future |
+| 003 | RankFin gamification tables and indexes | Applied |
+| 004 | Immutable request audit trail (`audit_logs`) | Applied |
+| 005 | Monthly analytics targets (`revenue_targets`) | Applied |
+| 006 | Approval workflow, fiscal-period locks, and write-protection triggers | Applied |
+
+### Future Migrations
+
+| Version | Description | Status |
+|---------|-------------|--------|
+| 007+ | Optional historical boundary and payment partitioning work | Future |
 
 ---
 

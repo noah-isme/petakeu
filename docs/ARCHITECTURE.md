@@ -21,7 +21,7 @@ petakeu/
 │   │       ├── db/           # Postgres, Redis, and MinIO clients
 │   │       ├── jobs/         # BullMQ worker handlers (upload & report)
 │   │       ├── middleware/   # Auth (JWT) & file upload (Multer)
-│   │       ├── routes/       # API v1 route modules
+│   │       ├── routes/       # API route modules (mounted at /api)
 │   │       ├── services/     # Core domain business logic
 │   │       ├── types/        # Shared TypeScript interface definitions
 │   │       └── utils/        # Logger, metrics, error helpers
@@ -33,6 +33,7 @@ petakeu/
 │           ├── pages/        # Page route components (MapDashboard, AdminDashboard, etc.)
 │           └── lib/          # Utilities & formatting functions
 ├── docs/                     # Technical documentation & guides
+├── monitoring/               # Prometheus rules and Grafana dashboard
 ├── docker-compose.dev.yml    # Local development container orchestration
 └── docker-compose.prod.yml   # Production container orchestration
 ```
@@ -62,7 +63,7 @@ Users → Nginx → React App (static)
 flowchart TD
     Client[Browser / User] -->|HTTP / HTTPS| Nginx[Nginx Reverse Proxy]
     Nginx -->|Static Assets| ReactApp[React 18 SPA]
-    Nginx -->|/api/v1/*| Express[Express API - Port 4000]
+    Nginx -->|/api/*| Express[Express API - Port 4000]
 
     Express -->|Auth / Dynamic Queries| Postgres[(PostgreSQL 16 + PostGIS)]
     Express -->|Enqueue Jobs| Redis[(Redis 7)]
@@ -97,6 +98,7 @@ The application codebase is organized around route-level page views and reusable
 
 *   [`pages/MapDashboard`](file:///home/noah/project/petakeu/apps/web/src/pages/MapDashboard.tsx): Interactive map workspace combining Leaflet choropleth layers, quantile legend scales, and period controls.
 *   [`pages/AdminDashboard`](file:///home/noah/project/petakeu/apps/web/src/pages/AdminDashboard.tsx): Comparative fiscal ranking table, RankFin leagues, and DefisitWatch monitoring tabs.
+*   [`pages/AnalyticsPage`](file:///home/noah/project/petakeu/apps/web/src/pages/AnalyticsPage.tsx): Executive KPI, trend, target, YoY, province-comparison, and reporting-matrix views.
 *   [`pages/UploadPage`](file:///home/noah/project/petakeu/apps/web/src/pages/UploadPage.tsx): Regional revenue data upload interface and processing log table.
 
 ---
@@ -120,22 +122,25 @@ Incoming Request
 ### Core Middleware
 
 *   [`auth.ts`](file:///home/noah/project/petakeu/apps/server/src/middleware/auth.ts): Handles JWT Bearer token authentication (`requireAuth`) and role authorization (`requireRole`). Supports bypass via `AUTH_DISABLED=true` during local development.
+*   [`request-context.ts`](file:///home/noah/project/petakeu/apps/server/src/middleware/request-context.ts): Propagates bounded `X-Request-Id` values and request-scoped user, region, period, and duration fields into logs and metrics.
 *   [`upload.ts`](file:///home/noah/project/petakeu/apps/server/src/middleware/upload.ts): Configures **Multer** in-memory buffer storage for secure file validation and upload processing.
 *   [`audit.ts`](file:///home/noah/project/petakeu/apps/server/src/middleware/audit.ts): Automatically records all mutative requests (`POST`, `PUT`, `PATCH`, `DELETE`) to the `audit_logs` table — capturing `user_id`, `action`, endpoint, IP address, and request metadata.
 
-### API v1 Route Structure
+### API Route Structure
 
-All API endpoints are prefixed under `/api/v1`:
+Application routes are mounted under `/api`:
 
 | Route Endpoint | Module | Description |
 | :--- | :--- | :--- |
-| `/api/v1/regions` | [`regions.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/regions.ts) | Administrative region metadata and parent-child hierarchy queries. |
-| `/api/v1/geo` | [`geo.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/geo.ts) | Spatial GeoJSON boundaries and choropleth metrics payloads (Redis-cached). |
-| `/api/v1/uploads` | [`uploads.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/uploads.ts) | Spreadsheet upload ingestion, hash verification, and job status. |
-| `/api/v1/reports` | [`reports.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/reports.ts) | Report job queuing and presigned download URL retrieval. |
-| `/api/v1/rankfin` | [`rankfin.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/rankfin.ts) | Fiscal ranking calculations and sortable summaries (Redis-cached). |
-| `/api/v1/defisitwatch` | [`defisitwatch.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/defisitwatch.ts) | Regional surplus and deficit monitoring statistics (Redis-cached). |
-| `/api/v1/audit-logs` | [`audit.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/audit.ts) | Immutable audit log query endpoint (admin role required). |
+| `/api/regions` | [`regions.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/regions.ts) | Administrative region metadata and parent-child hierarchy queries. |
+| `/api/geo` | [`geo.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/geo.ts) | Spatial GeoJSON boundaries and choropleth metrics payloads (Redis-cached). |
+| `/api/uploads` | [`uploads.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/uploads.ts) | Spreadsheet upload ingestion, hash verification, and job status. |
+| `/api/reports` | [`reports.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/reports.ts) | Report job queuing and presigned download URL retrieval. |
+| `/api/rankfin` | [`rankfin.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/rankfin.ts) | Fiscal ranking calculations and sortable summaries (Redis-cached). |
+| `/api/defisitwatch` | [`defisitwatch.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/defisitwatch.ts) | Regional surplus and deficit monitoring statistics (Redis-cached). |
+| `/api/audit-logs` | [`audit.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/audit.ts) | Immutable audit log query endpoint (admin role required). |
+| `/api/analytics` | [`analytics.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/analytics.ts) | Executive analytics overview and revenue-target APIs (`viewer+` reads, `operator+` writes). |
+| `/api/approvals` | [`approvals.ts`](file:///home/noah/project/petakeu/apps/server/src/routes/v1/approvals.ts) | Upload approval transitions and fiscal-period lock/unlock actions. |
 
 ---
 
@@ -151,6 +156,9 @@ erDiagram
     regions ||--o{ payments : "has"
     uploads ||--o{ payments : "ingests"
     report_jobs ||--o{ regions : "filters"
+    regions ||--o{ revenue_targets : "has targets"
+    uploads ||--|| approval_workflows : "has workflow"
+    approval_workflows ||--o{ approval_workflow_events : "records"
 
     regions {
         uuid id PK
@@ -191,6 +199,39 @@ erDiagram
         text download_url
         timestamptz expires_at
     }
+
+    revenue_targets {
+        uuid id PK
+        uuid region_id FK
+        date period
+        numeric target
+        text created_by
+        text updated_by
+    }
+
+    approval_workflows {
+        uuid id PK
+        uuid upload_id FK
+        date period
+        text status
+        text review_notes
+    }
+
+    approval_workflow_events {
+        uuid id PK
+        uuid workflow_id FK
+        text event_type
+        text actor_id
+        text actor_role
+        timestamptz created_at
+    }
+
+    fiscal_period_locks {
+        date period PK
+        timestamptz locked_at
+        text locked_by
+        text reason
+    }
 ```
 
 ### Materialized View (`mv_payments_with_cut`)
@@ -217,6 +258,8 @@ Database migrations are stored as sequential SQL files in [`apps/server/migratio
 | `002_uploads_reports.sql` | Upload tracking (`uploads`) and report job (`report_jobs`) tables |
 | `003_gamification.sql` | Gamification league tables and scoring schema |
 | `004_audit_logs.sql` | Immutable audit trail (`audit_logs`) table with indexes |
+| `005_analytics_targets.sql` | Monthly `revenue_targets` used by the analytics read model |
+| `006_approval_workflow.sql` | Approval workflow/event history, fiscal-period locks, and write-protection triggers |
 
 ---
 
@@ -298,7 +341,19 @@ Petakeu uses **Redis 7** as both the BullMQ job broker and the application-level
 
 ---
 
-## 9. Authentication & Authorization
+## 9. Observability
+
+Application telemetry is exposed without coupling the API to a vendor-specific backend:
+
+*   `GET /metrics` exposes Prometheus metrics for HTTP latency, database and Redis operations, cache hit/miss rates, worker jobs, upload parsing, reports, and GeoJSON payload sizes.
+*   `GET /healthz` and `GET /ready` cover service health and readiness; `GET /live` provides a liveness probe.
+*   Pino JSON logs receive the request context from `request-context.ts`, and BullMQ workers use the same structured logger.
+*   OpenTelemetry instruments HTTP, PostgreSQL, Redis, and worker execution when tracing is enabled.
+*   Deployable alert rules and a dashboard are maintained in `monitoring/prometheus-rules.yml` and `monitoring/grafana-dashboard.json`.
+
+---
+
+## 10. Authentication & Authorization
 
 Authentication is based on **JWT (JSON Web Tokens)** transmitted via the `Authorization: Bearer <token>` header.
 
@@ -319,11 +374,11 @@ Request → requireAuth → Is AUTH_DISABLED=true? ──Yes──> Assign Dev U
 ```
 
 *   **Dev Mode**: Setting `AUTH_DISABLED=true` injects a synthetic admin user (`sub: 'dev-user'`, `role: 'admin'`) for local sandbox testing.
-*   **Role Enforcement**: `requireRole('admin')` restricts file uploads and system configuration routes to authorized administrative personnel.
+*   **Role Enforcement**: The hierarchy is `public` → `viewer` → `operator` → `admin`. Analytics reads require `viewer+`, target registration and approval submission/review require `operator+`, and approval/publish/period-lock actions require `admin`.
 
 ---
 
-## 10. Deployment
+## 11. Deployment
 
 Deployment is containerized using **Docker Compose**, with environment-specific configurations:
 
@@ -342,7 +397,7 @@ Deployment is containerized using **Docker Compose**, with environment-specific 
 
 ---
 
-## 11. Key Data Flows
+## 12. Key Data Flows
 
 ### Flow 1: Excel Data Upload & Ingestion
 
@@ -358,7 +413,7 @@ sequenceDiagram
     participant DB as Postgres DB
 
     Admin->>Client: Select & upload Excel file
-    Client->>API: POST /api/v1/uploads (multipart/form-data)
+    Client->>API: POST /api/uploads (multipart/form-data)
     API->>API: Calculate SHA-256 hash & check duplicate
     API->>Storage: Store raw file in 'uploads' bucket
     API->>DB: INSERT INTO uploads (status='queued')
@@ -373,7 +428,7 @@ sequenceDiagram
     Worker->>DB: UPDATE uploads SET status='persisted'
 
     loop Poll Status
-        Client->>API: GET /api/v1/uploads/:id
+        Client->>API: GET /api/uploads/:id
         API->>DB: Query status & summary
         API-->>Client: Return status 'persisted'
     end
@@ -393,7 +448,7 @@ sequenceDiagram
     participant Storage as MinIO Storage
 
     User->>Client: Request PDF / Excel Report
-    Client->>API: POST /api/v1/reports (period, region_ids, format)
+    Client->>API: POST /api/reports/export (period, region_ids, format)
     API->>DB: INSERT INTO report_jobs (status='queued')
     API->>Queue: Enqueue 'report-generation' job
     API-->>Client: Return job ID & status 'queued'
@@ -407,7 +462,7 @@ sequenceDiagram
     Worker->>DB: UPDATE report_jobs SET download_url, status='completed'
 
     loop Poll Job Status
-        Client->>API: GET /api/v1/reports/:id
+        Client->>API: GET /api/reports/:id
         API->>DB: Query report_jobs status
         API-->>Client: Return status 'completed' & download_url
     end

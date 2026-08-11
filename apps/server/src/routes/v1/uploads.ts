@@ -1,8 +1,10 @@
 import { Router } from "express";
 
-import { requireAuth } from "../../middleware/auth";
+import { requireAnyRole, requireAuth } from "../../middleware/auth";
 import { uploadController } from "../../controllers/upload-controller";
 import { memoryUpload } from "../../middleware/upload";
+import { assertFiscalPeriodUnlocked } from "../../services/approval-service";
+import { asyncHandler } from "../../utils/async-handler";
 
 /**
  * @swagger
@@ -25,7 +27,7 @@ import { memoryUpload } from "../../middleware/upload";
  *               file:
  *                 type: string
  *                 format: binary
- *                 description: Excel file with columns: kode_daerah, nama_daerah, periode, nominal, sumber
+ *                 description: "Excel file with columns: kode_daerah, nama_daerah, periode, nominal, sumber"
  *     responses:
  *       '202':
  *         description: Upload accepted for processing
@@ -131,6 +133,26 @@ import { memoryUpload } from "../../middleware/upload";
 
 export const uploadRouter = Router();
 
-uploadRouter.get("/", requireAuth, uploadController.listUploads);
-uploadRouter.get("/:id", requireAuth, uploadController.getUpload);
-uploadRouter.post("/", requireAuth, memoryUpload.single("file"), uploadController.handleUpload);
+const canManageUploads = requireAnyRole("operator", "admin");
+
+// Multipart clients may provide the period as a form field. The payment-level
+// trigger in migration 006 remains the authoritative guard for files whose
+// period is only known after parsing by the worker.
+const rejectLockedUploadPeriod = asyncHandler(async (req, _res, next) => {
+  const period = req.body?.period;
+  if (typeof period === "string") {
+    await assertFiscalPeriodUnlocked(period);
+  }
+  next();
+});
+
+uploadRouter.get("/", requireAuth, canManageUploads, uploadController.listUploads);
+uploadRouter.get("/:id", requireAuth, canManageUploads, uploadController.getUpload);
+uploadRouter.post(
+  "/",
+  requireAuth,
+  canManageUploads,
+  memoryUpload.single("file"),
+  rejectLockedUploadPeriod,
+  uploadController.handleUpload
+);

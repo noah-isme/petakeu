@@ -15,7 +15,7 @@ const env = loadEnv();
 
 async function main() {
   // Start OpenTelemetry tracing
-  if (env.nodeEnv !== 'test') {
+  if (env.nodeEnv !== 'test' && process.env.OTEL_SDK_DISABLED !== 'true') {
     startTracing();
   }
 

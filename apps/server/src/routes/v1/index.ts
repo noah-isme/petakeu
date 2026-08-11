@@ -1,5 +1,7 @@
 import { Router } from 'express';
 
+import { auditMiddleware } from '../../middleware/audit';
+
 import { regionRouter } from './regions';
 import { geoRouter } from './geo';
 import { uploadRouter } from './uploads';
@@ -8,7 +10,8 @@ import { fiscalRouter } from './fiscal';
 import { rankfinRouter } from './rankfin';
 import { defisitwatchRouter } from './defisitwatch';
 import { auditRouter } from './audit';
-import { auditMiddleware } from '../../middleware/audit';
+import { analyticsRouter } from './analytics';
+import { approvalRouter } from './approvals';
 
 export const apiRouter = Router();
 
@@ -22,3 +25,5 @@ apiRouter.use('/', fiscalRouter);         // /rank and /surplus-defisit at root 
 apiRouter.use('/rankfin', rankfinRouter);
 apiRouter.use('/defisitwatch', defisitwatchRouter);
 apiRouter.use('/audit-logs', auditRouter);
+apiRouter.use('/analytics', analyticsRouter);
+apiRouter.use('/approvals', approvalRouter);

@@ -22,6 +22,7 @@ import { ToastContainer, type ToastKind, type ToastMessage } from "./components/
 import { MapPage, type MapStatus, type RegionStat } from "./pages/MapPage";
 import { UploadPage, type UploadState } from "./pages/UploadPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { AboutPage } from "./pages/AboutPage";
 import { BASE_REGIONS } from "./data/regions";
 import { formatCurrency } from "./lib/format";
@@ -30,6 +31,7 @@ import type { FeatureCollection } from "geojson";
 
 const NAVIGATION: SidebarItem[] = [
   { key: "map", label: "Peta Heatmap", icon: MapIcon, section: "analysis" },
+  { key: "analytics", label: "Analitik Eksekutif", icon: BarChart3, section: "analysis" },
   { key: "reports", label: "Ringkasan Laporan", icon: FileText, section: "analysis" },
   { key: "upload", label: "Unggah Data Excel", icon: UploadCloud, section: "tools" },
   { key: "about", label: "Tentang Petakeu", icon: Info, section: "tools" }
@@ -37,6 +39,7 @@ const NAVIGATION: SidebarItem[] = [
 
 const PAGE_TITLE: Record<string, string> = {
   map: "Peta Heatmap & Visualisasi Spasial",
+  analytics: "Analitik Eksekutif & Kepatuhan Pelaporan",
   reports: "Ringkasan Laporan Revenue & Ekspor",
   upload: "Unggah Data Excel (Validasi & Bulk Upsert)",
   about: "Tentang Petakeu — Telemetri & PostGIS"
@@ -327,7 +330,6 @@ export default function App() {
   const renderPage = () => {
     switch (activePage) {
       case "map":
-      case "analytics":
         return (
           <MapPage
             status={mapStatus}
@@ -340,6 +342,8 @@ export default function App() {
             onRetry={() => setSelectedPeriod("2024-Q3")}
           />
         );
+      case "analytics":
+        return <AnalyticsPage period={selectedPeriod} />;
       case "upload":
         return (
           <UploadPage

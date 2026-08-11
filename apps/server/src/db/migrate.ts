@@ -1,16 +1,17 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import { getPgPool } from './postgres';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../migrations');
 
-const MIGRATION_FILES = [
-  '001_init.sql',
-  '002_uploads_reports.sql',
-  '003_gamification.sql',
-  '004_audit_logs.sql',
-];
+async function getMigrationFiles(): Promise<string[]> {
+  const entries = await readdir(MIGRATIONS_DIR, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && /^\d+_.+\.sql$/.test(entry.name))
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+}
 
 export async function runMigrations(): Promise<void> {
   const pool = getPgPool();
@@ -24,7 +25,7 @@ export async function runMigrations(): Promise<void> {
       )
     `);
 
-    for (const file of MIGRATION_FILES) {
+    for (const file of await getMigrationFiles()) {
       const { rows } = await client.query(
         'SELECT name FROM _migrations WHERE name = $1',
         [file]

@@ -151,8 +151,8 @@ interface Payment {
 | `id` | `UUID` | `PK` | Unique identifier (upload_id) |
 | `filename` | `TEXT` | `NOT NULL` | Original filename |
 | `mimetype` | `TEXT` | `NOT NULL` | MIME type |
-| `size` | `BIGINT` | `NOT NULL` | File size in bytes |
-| `status` | `TEXT` | `NOT NULL DEFAULT 'queued'` | `queued`, `processing`, `parsed`, `failed` |
+| `size_bytes` | `INTEGER` | `NOT NULL` | File size in bytes |
+| `status` | `TEXT` | `NOT NULL DEFAULT 'queued'` | `queued`, `processing`, `parsed`, `persisted`, `failed` |
 | `hash` | `TEXT` | `UNIQUE NOT NULL` | SHA-256 for deduplication |
 | `storage_path` | `TEXT` | `NOT NULL` | MinIO/S3 object path |
 | `error_count` | `INTEGER` | `DEFAULT 0` | Number of validation errors |
@@ -201,13 +201,13 @@ interface UploadErrorDetail {
 
 **Purpose**: Asynchronous report generation jobs
 
-**Table**: `reports`
+**Table**: `report_jobs`
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
 | `id` | `UUID` | `PK` | Unique identifier (job_id) |
 | `period` | `TEXT` | `NOT NULL` | Report period (YYYY-MM) |
-| `region_ids` | `UUID[]` | `NOT NULL` | Array of region IDs |
+| `region_ids` | `TEXT[]` | `NOT NULL` | Array of region IDs |
 | `format` | `TEXT` | `NOT NULL CHECK IN ('pdf','excel')` | Output format |
 | `status` | `TEXT` | `DEFAULT 'queued'` | `queued`, `processing`, `completed`, `failed` |
 | `download_url` | `TEXT` | | Presigned URL (24h TTL) |
@@ -294,47 +294,80 @@ interface ReportJob {
 
 ---
 
-### 6. User & Role (Planned)
+### 6. User & Role (JWT contract)
 
-**Table**: `users`
+Authentication is currently claim-based; there is no `users` table in the
+database migrations. The API validates a JWT `sub` claim and one role from the
+following hierarchy:
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| `id` | `UUID` | `PK` | Unique identifier |
-| `email` | `TEXT` | `UNIQUE NOT NULL` | Login email |
-| `password_hash` | `TEXT` | `NOT NULL` | Bcrypt hash |
-| `full_name` | `TEXT` | `NOT NULL` | Display name |
-| `roles` | `TEXT[]` | `NOT NULL DEFAULT '{}'` | `['admin']`, `['operator']`, `['viewer']` |
-| `region_scope` | `UUID[]` | | Region IDs (for operator scoping) |
-| `is_active` | `BOOLEAN` | `DEFAULT true` | Account status |
-| `last_login` | `TIMESTAMPTZ` | | Last successful login |
-| `created_at` | `TIMESTAMPTZ` | `DEFAULT NOW()` | Creation timestamp |
-| `updated_at` | `TIMESTAMPTZ` | `DEFAULT NOW()` | Last update timestamp |
-
-**Role Definitions**:
 | Role | Description | Permissions |
 |------|-------------|-------------|
-| `admin` | Pemprov Administrator | Full system access, user management |
-| `operator` | BPKAD/Bappeda Staff | Upload, reports, scoped regions |
-| `viewer` | Read-only stakeholder | Choropleth, summaries, public reports |
+| `admin` | Pemprov Administrator | Approval, publish, period locks, audit access, and system administration |
+| `operator` | BPKAD/Bappeda Staff | Uploads, target registration, approval submission/review, and reports |
+| `viewer` | Read-only stakeholder | Analytics, choropleth, summaries, and reports |
+| `public` | Restricted public view | Aggregated classes without raw currency values where public mode is enabled |
+
+`AUTH_DISABLED=true` injects a development-only admin identity and must not be
+used in production.
 
 ---
 
-### 7. Audit Log (Planned)
+### 7. Revenue Target
 
-**Table**: `audit_log`
+**Table**: `revenue_targets`
+
+Monthly target values are keyed by region and period and are consumed by the
+analytics overview read model.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `UUID` | `PK` | Target identifier |
+| `region_id` | `UUID` | `FK → regions.id ON DELETE CASCADE` | Target region |
+| `period` | `DATE` | `NOT NULL`, first day of month | Target month |
+| `target` | `NUMERIC(18,2)` | `NOT NULL CHECK (target >= 0)` | Revenue target in IDR |
+| `created_by` / `updated_by` | `TEXT` | `NOT NULL` | JWT subject that wrote the value |
+
+Unique key: `(region_id, period)`.
+
+---
+
+### 8. Approval Workflow
+
+**Tables**: `approval_workflows`, `approval_workflow_events`
+
+Each upload can have one workflow. Status transitions are strictly ordered:
+`draft` → `under_review` → `approved` → `published`. Every transition records
+the actor, role, notes, metadata, and timestamp in the append-only event table.
+
+---
+
+### 9. Fiscal Period Lock
+
+**Tables**: `fiscal_period_locks`, `fiscal_period_lock_events`
+
+An active row in `fiscal_period_locks` prevents writes to payments, reports,
+targets, and approval workflows for that month. Lock and unlock actions are
+retained as append-only events so the current state can be audited.
+
+---
+
+### 10. Audit Log
+
+**Table**: `audit_logs`
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
 | `id` | `UUID` | `PK` | Unique identifier |
 | `timestamp` | `TIMESTAMPTZ` | `NOT NULL DEFAULT NOW()` | Event timestamp |
-| `user_id` | `UUID` | `FK → users.id` | Acting user (NULL for system) |
-| `action` | `TEXT` | `NOT NULL` | `create`, `read`, `update`, `delete`, `login`, `logout`, `upload`, `report` |
-| `resource` | `TEXT` | `NOT NULL` | `region`, `payment`, `upload`, `report`, `user`, `config` |
-| `resource_id` | `UUID` | | Affected resource ID |
-| `details` | `JSONB` | | Before/after values, metadata |
-| `ip_address` | `INET` | | Client IP |
-| `user_agent` | `TEXT` | | Client user agent |
+| `event` | `TEXT` | `NOT NULL` | Event category |
+| `request_id` | `TEXT` | | Correlation identifier |
+| `user_id` | `TEXT` | | JWT subject or system actor |
+| `action` | `TEXT` | `NOT NULL` | HTTP or domain action |
+| `resource` / `resource_id` | `TEXT` | | Affected resource |
+| `endpoint` / `method` | `TEXT` | `NOT NULL` | Request route and HTTP method |
+| `status_code` | `INTEGER` | | HTTP response status |
+| `ip_address` / `user_agent` | `TEXT` | | Request origin metadata |
+| `details` | `JSONB` | | Structured event metadata |
 
 ---
 
@@ -478,6 +511,45 @@ interface SurplusDeficitItem {
 }
 ```
 
+#### Analytics API
+```typescript
+// GET /api/analytics/overview
+interface AnalyticsOverviewResponse {
+  filters: { period: string; from: string; to: string; provinceIds: string[] };
+  kpis: {
+    nationalTotal: number;
+    momGrowth: number;
+    reportingCoverage: number;
+    outlierRegions: unknown[];
+  };
+  monthlyTrend: unknown[];
+  targetVsActual: unknown;
+  crossProvinceComparison: unknown[];
+  yoyComparison: unknown;
+  reportingMatrix: unknown;
+}
+
+// GET /api/analytics/targets and POST /api/analytics/targets
+interface RevenueTargetInput {
+  regionId: string;
+  period: string; // YYYY-MM
+  target: number;
+}
+```
+
+#### Governance API
+```typescript
+// POST /api/approvals/uploads/:uploadId/submit
+// POST /api/approvals/uploads/:workflowId/review
+// POST /api/approvals/uploads/:workflowId/approve
+// POST /api/approvals/uploads/:workflowId/publish
+// POST /api/approvals/periods/:period/lock|unlock
+interface ApprovalReviewInput {
+  notes?: string;
+  metadata?: Record<string, unknown>;
+}
+```
+
 ---
 
 ## Data Flow Summary
@@ -513,7 +585,10 @@ interface SurplusDeficitItem {
 | Payment | `amount` >= 0, `period` valid date, `source` non-empty, unique per region/period/source |
 | Upload | `.xlsx` only, ≤10MB, SHA-256 unique, required headers |
 | Report | `region_ids` exist, `periodFrom` <= `periodTo`, valid format |
-| User | `email` unique, valid bcrypt hash, at least one role |
+| Revenue target | `target` >= 0, month-normalized period, unique per region/period |
+| Approval | only `draft → under_review → approved → published`; events immutable |
+| Fiscal lock | month-normalized period; locked periods reject protected writes |
+| JWT role | role must be one of `public`, `viewer`, `operator`, `admin` |
 
 ---
 
@@ -521,10 +596,11 @@ interface SurplusDeficitItem {
 
 | Version | Changes |
 |---------|---------|
-| 1.0 (v1) | Initial schema: regions, payments, uploads, reports, MV |
-| 1.1 (planned) | Add users, roles, audit_log tables |
-| 1.2 (planned) | Add partition to payments by period |
-| 2.0 (future) | Historical boundary changes table |
+| 1.0 (v1) | Initial schema: regions, payments, uploads, `report_jobs`, MV |
+| 1.1 (applied) | Audit log table and middleware (`004_audit_logs.sql`) |
+| 1.2 (applied) | Revenue targets for analytics (`005_analytics_targets.sql`) |
+| 1.3 (applied) | Approval workflows and fiscal-period locks (`006_approval_workflow.sql`) |
+| 2.0 (future) | Historical boundary changes table and optional payment partitioning |
 
 ---
 

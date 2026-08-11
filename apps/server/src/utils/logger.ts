@@ -1,5 +1,7 @@
 import pino from 'pino';
+
 import { loadEnv } from '../config/env';
+import { getRequestLogContext } from '../middleware/request-context';
 
 const env = loadEnv();
 
@@ -26,6 +28,7 @@ if (isDev) {
 export const logger = pino({
   level: env.nodeEnv === 'production' ? 'info' : 'debug',
   transport: transportConfig,
+  mixin: () => getRequestLogContext(),
   formatters: {
     level: (label) => {
       return { level: label };

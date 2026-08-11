@@ -65,14 +65,14 @@ async function fetchTop10Rankings(
       FROM regions r
       LEFT JOIN mv_payments_with_cut m
         ON m.region_id = r.id AND m.period = ($1 || '-01')::date
-      WHERE r.level = 'kabupaten'
+      WHERE r.level = 2
     ),
     previous AS (
       SELECT r.id::text AS region_id, COALESCE(m.net_amount, 0) AS net_amount_prev
       FROM regions r
       LEFT JOIN mv_payments_with_cut m
         ON m.region_id = r.id AND m.period = ($2 || '-01')::date
-      WHERE r.level = 'kabupaten'
+      WHERE r.level = 2
     )
     SELECT
       c.region_id,
@@ -287,6 +287,7 @@ async function generatePdfStream(
 export async function generateReport(job: Job): Promise<void> {
   const startTime = Date.now();
   const { jobId, period, regionIds, format } = job.data;
+  const metricFormat: 'pdf' | 'excel' | 'other' = format === 'pdf' || format === 'excel' ? format : 'other';
   const pool = getPgPool();
 
   await pool.query(
@@ -364,21 +365,27 @@ export async function generateReport(job: Job): Promise<void> {
       [jobId, downloadUrl, JSON.stringify(summary)]
     );
 
-    reportsTotal.inc({ format, status: 'completed' });
+    reportsTotal.inc({ format: metricFormat, status: 'completed' });
     workerJobsTotal.inc({ worker: 'report', status: 'success' });
-    logger.info({ jobId, format, regionCount: regionIds.length }, '[report-worker] Job completed');
+    logger.info(
+      { jobId, format: metricFormat, period, regionCount: regionIds.length, status: 'success', duration_ms: Date.now() - startTime },
+      '[report-worker] Job completed'
+    );
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Report generation failed';
     await pool.query(
       `UPDATE report_jobs SET status = 'failed', error = $2, updated_at = NOW() WHERE id = $1`,
       [jobId, errMsg]
     );
-    reportsTotal.inc({ format, status: 'failed' });
+    reportsTotal.inc({ format: metricFormat, status: 'failed' });
     workerJobsTotal.inc({ worker: 'report', status: 'failed' });
-    logger.error({ jobId, err }, '[report-worker] Job failed');
+    logger.error(
+      { jobId, err, format: metricFormat, period, status: 'failed', duration_ms: Date.now() - startTime },
+      '[report-worker] Job failed'
+    );
     throw err;
   } finally {
-    workerJobDuration.observe({ worker: 'report', job_type: format }, (Date.now() - startTime) / 1000);
+    workerJobDuration.observe({ worker: 'report', job_type: metricFormat }, (Date.now() - startTime) / 1000);
   }
 }
 

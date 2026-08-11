@@ -8,7 +8,12 @@ import { invalidateFiscalCache } from '../services/fiscal-service';
 import { invalidateDefisitwatchCache } from '../services/defisitwatch-service';
 import { invalidateRankfinCache } from '../services/rankfin-service';
 import { logger } from '../utils/logger';
-import { workerJobsTotal, workerJobDuration, uploadsTotal } from '../utils/metrics';
+import {
+  workerJobsTotal,
+  workerJobDuration,
+  uploadsTotal,
+  uploadParseErrorsTotal,
+} from '../utils/metrics';
 
 const QUEUE_NAME = 'upload-processing';
 
@@ -50,10 +55,22 @@ function normalizeHeader(v: string) {
   return v.trim().toLowerCase().replace(/\s+/g, '_');
 }
 
+class UploadParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UploadParseError';
+  }
+}
+
 function parseRows(buffer: Buffer) {
-  const workbook = read(buffer, { type: 'buffer' });
+  let workbook;
+  try {
+    workbook = read(buffer, { type: 'buffer' });
+  } catch (error) {
+    throw new UploadParseError(error instanceof Error ? error.message : 'File tidak dapat dibaca');
+  }
   const [firstSheet] = workbook.SheetNames;
-  if (!firstSheet) throw new Error('File tidak memiliki sheet');
+  if (!firstSheet) throw new UploadParseError('File tidak memiliki sheet');
   const sheet = workbook.Sheets[firstSheet];
   return utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' }) as string[][];
 }
@@ -62,6 +79,8 @@ export async function processUpload(job: Job): Promise<void> {
   const startTime = Date.now();
   const { uploadId, buffer: bufferB64 } = job.data;
   const pool = getPgPool();
+  let workerStatus: 'success' | 'failed' = 'success';
+  let observedPeriod: string | undefined;
 
   // Mark as processing
   await pool.query(
@@ -78,6 +97,8 @@ export async function processUpload(job: Job): Promise<void> {
         `UPDATE uploads SET status = 'parsed', summary = $2, updated_at = NOW() WHERE id = $1`,
         [uploadId, JSON.stringify({ totalRows: 0, validRows: 0, totalAmount: 0, periodRange: {} })]
       );
+      uploadsTotal.inc({ status: 'parsed' });
+      workerJobsTotal.inc({ worker: 'upload', status: 'success' });
       return;
     }
 
@@ -85,7 +106,7 @@ export async function processUpload(job: Job): Promise<void> {
     const headers = rawHeaders.map(normalizeHeader);
     const missing = EXPECTED_HEADERS.filter((h) => !headers.includes(h));
     if (missing.length) {
-      throw new Error(`Header tidak valid. Kolom wajib: ${missing.join(', ')}`);
+      throw new UploadParseError(`Header tidak valid. Kolom wajib: ${missing.join(', ')}`);
     }
 
     const errors: Array<{ row: number; column: string; message: string }> = [];
@@ -153,10 +174,16 @@ export async function processUpload(job: Job): Promise<void> {
         meta,
       });
 
+      observedPeriod ??= period;
+
       if (!minPeriod || period < minPeriod) minPeriod = period;
       if (!maxPeriod || period > maxPeriod) maxPeriod = period;
       totalAmount += nominal;
       validRows++;
+    }
+
+    if (errors.length > 0) {
+      uploadParseErrorsTotal?.inc(errors.length);
     }
 
     // Bulk upsert payments
@@ -203,6 +230,10 @@ export async function processUpload(job: Job): Promise<void> {
     uploadsTotal.inc({ status: finalStatus });
     workerJobsTotal.inc({ worker: 'upload', status: 'success' });
   } catch (err) {
+    workerStatus = 'failed';
+    if (err instanceof UploadParseError) {
+      uploadParseErrorsTotal?.inc();
+    }
     const errMsg = err instanceof Error ? err.message : 'Gagal memproses file';
     await pool.query(
       `UPDATE uploads
@@ -214,7 +245,12 @@ export async function processUpload(job: Job): Promise<void> {
     workerJobsTotal.inc({ worker: 'upload', status: 'failed' });
     throw err; // BullMQ will retry
   } finally {
-    workerJobDuration.observe({ worker: 'upload', job_type: 'process_upload' }, (Date.now() - startTime) / 1000);
+    const durationMs = Date.now() - startTime;
+    workerJobDuration.observe({ worker: 'upload', job_type: 'process_upload' }, durationMs / 1000);
+    logger.info(
+      { jobId: job.id, uploadId, period: observedPeriod, status: workerStatus, duration_ms: durationMs },
+      '[upload-worker] Job finished'
+    );
   }
 }
 
