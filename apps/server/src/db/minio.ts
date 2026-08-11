@@ -1,9 +1,12 @@
+import { Readable } from 'stream';
+
 import {
   S3Client,
   PutObjectCommand,
   CreateBucketCommand,
   HeadBucketCommand,
- GetObjectCommand } from '@aws-sdk/client-s3';
+  GetObjectCommand
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 let s3Client: S3Client | undefined;
@@ -36,7 +39,7 @@ export async function ensureBucket(bucket: string): Promise<void> {
 export async function uploadToS3(
   bucket: string,
   key: string,
-  body: Buffer,
+  body: Buffer | Readable,
   contentType: string
 ): Promise<string> {
   const client = getS3Client();
@@ -50,6 +53,15 @@ export async function uploadToS3(
   );
   const endpoint = process.env.STORAGE_ENDPOINT ?? 'http://localhost:9000';
   return `${endpoint}/${bucket}/${key}`;
+}
+
+export async function uploadStreamToS3(
+  bucket: string,
+  key: string,
+  stream: Readable,
+  contentType: string
+): Promise<string> {
+  return uploadToS3(bucket, key, stream, contentType);
 }
 
 export async function getPresignedDownloadUrl(

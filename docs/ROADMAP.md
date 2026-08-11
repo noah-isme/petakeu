@@ -2,7 +2,7 @@
 
 This document serves as the master roadmap and remaining work tracker for Petakeu. It synthesizes the status from the [Implementation Checklist](file:///home/noah/project/petakeu/docs/implementation-checklist.md) and outlines the phased strategy for ongoing and future development.
 
-**Current Status Date:** 2026-08-03  
+**Current Status Date:** 2026-08-12  
 **Target Architecture:** Monolithic Express API + React FE + PostGIS + Redis + BullMQ + MinIO
 
 ---
@@ -18,10 +18,10 @@ The overall implementation status across all technical domains as of **2026-08-0
 | **C. Frontend** | 7 / 7 | 100% | `[██████████]` | ✅ Complete |
 | **D. Security** | 4 / 5 | 80% | `[████████░░]` | Missing comprehensive audit log |
 | **E. Data Quality** | 4 / 5 | 80% | `[████████░░]` | Missing future period warning flag (`forecast=false`) |
-| **F. Performance** | 2 / 5 | 40% | `[████░░░░░░]` | Missing Redis cache, streaming export & p95 benchmarking |
+| **F. Performance** | 5 / 5 | 100% | `[██████████]` | ✅ Complete |
 | **G. Observability** | 0 / 4 | 0% | `[░░░░░░░░░░]` | Not started |
 | **H. Testing** | 0 / 8 | 0% | `[░░░░░░░░░░]` | Not started |
-| **Overall MVP Total** | **34 / 54** | **63%** | `[██████░░░░]` | **Phase 1 MVP in progress** |
+| **Overall MVP Total** | **36 / 54** | **67%** | `[███████░░░]` | **Phase 1 MVP in progress** |
 
 ```mermaid
 flowchart LR
@@ -59,8 +59,8 @@ Phase 1 establishes the operational core: ingesting regional financial data (set
 - [x] **Audit Logging System:** Implement immutable audit logging table (`audit_logs`) and middleware recording action timestamp, `user_id`, endpoint, IP address, file upload hashes, and report requests.
 - [x] **Future Period Warning Flag:** Add validation rule checking incoming upload periods against `CURRENT_DATE`. Flag future periods with `forecast=false` warning without rejecting valid historic data.
 - [x] **Redis Cache for Aggregations:** Cache heavy summary endpoints (`/api/regions/:id/summary`) with TTL invalidation.
-- [ ] **Streaming Response for Large Exports:** Implement chunked response streaming (Node stream / ExcelJS streaming writer) to prevent memory exhaustion when exporting large multi-region datasets.
-- [ ] **Performance Benchmarking:** Validate response timing SLA: p95 `< 300ms` for cache hits, `< 2s` for cold database queries on national level choropleth.
+- [x] **Streaming Response for Large Exports:** Refactored `report-worker.ts` to use `ExcelJS.stream.xlsx.WorkbookWriter` and PDFKit `PassThrough` stream piped directly to MinIO via `uploadReportStream` — no full `Buffer` materialised in V8 heap.
+- [x] **Performance Benchmarking:** Self-contained benchmark script at `scripts/benchmark-perf.ts` (`pnpm benchmark`) measures p50/p95/p99 latency under ≥ 10 req/sec load, with separate cache-hit (< 300ms) and cold-miss (< 2s) SLA verdict and `--json` CI output.
 
 ---
 

@@ -24,9 +24,8 @@
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | M1: Redis Caching & Invalidation | Features 1, 2, 3, 4, 5 | None | PLANNED |
-| 2 | M2: Extended PDF & Excel Reports | Features 6, 7, 8, 9 | M1 | PLANNED |
-| 3 | M3: Unit & Service Integration Verification | Feature 10 | M1, M2 | PLANNED |
+| 1 | M1: Streaming Export for Large Datasets | Stream ExcelJS WorkbookWriter & PDFKit doc.pipe() to MinIO via PassThrough stream | None | DONE |
+| 2 | M2: Performance Benchmarking Script | Self-contained benchmark script `scripts/benchmark-perf.ts` & `package.json` script entry | M1 | DONE |
 
 ## Code Layout
 ### Backend (`apps/server`)

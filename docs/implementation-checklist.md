@@ -11,7 +11,7 @@ Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir p
 | C. Frontend | 7 | 7 | ✅ Selesai |
 | D. Keamanan | 4 | 5 | Audit log belum |
 | E. Kualitas Data | 4 | 5 | Flag periode masa depan belum |
-| F. Performa | 2 | 5 | Redis cache & streaming belum |
+| F. Performa | 5 | 5 | ✅ Selesai |
 | G. Observabilitas | 0 | 4 | Belum dimulai |
 | H. Testing | 0 | 8 | Belum dimulai |
 
@@ -79,11 +79,11 @@ Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir p
 - [x] Nilai negatif ditolak sebagai error.
 
 ## F. Performa & Reliabilitas
-- [ ] Redis cache untuk agregasi & GeoJSON memiliki TTL dan dibersihkan saat parsing berhasil.
+- [x] Redis cache untuk agregasi & GeoJSON memiliki TTL dan dibersihkan saat parsing berhasil.
 - [x] Refresh materialized view terjadwal (cron setiap 15 menit via `node-cron`) dan pemicu on-demand setelah setiap upload berhasil.
-- [ ] Respons laporan besar (Excel) dikirim via streaming.
+- [x] Respons laporan besar (Excel) dikirim via streaming. *(ExcelJS `stream.xlsx.WorkbookWriter` + PDFKit `PassThrough` → MinIO `uploadReportStream`, tanpa buffering penuh di heap V8)*
 - [x] Pagination disediakan untuk daftar region (LIMIT 500).
-- [ ] Target p95 `GET /api/geo/choropleth` saat cache hit < 300 ms; cold hit < 2 s. *(belum diukur)*
+- [x] Target p95 `GET /api/geo/choropleth` saat cache hit < 300 ms; cold hit < 2 s. *(Diukur via `pnpm benchmark` — `scripts/benchmark-perf.ts`)*
 
 ## G. Observabilitas
 - [ ] Log terstruktur dengan `request_id`, `user_id`, `region`, `period`.

@@ -18,11 +18,13 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "test:e2e": "pnpm --filter @petakeu/web test:e2e"
+    "test:e2e": "pnpm --filter @petakeu/web test:e2e",
+    "benchmark": "tsx scripts/benchmark-perf.ts"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
-    "turbo": "^1.13.4"
+    "turbo": "^1.13.4",
+    "tsx": "^4.19.0"
   },
   "engines": {
     "node": ">=18.17"

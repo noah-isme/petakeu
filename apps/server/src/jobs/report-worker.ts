@@ -1,9 +1,11 @@
+import { PassThrough, Writable } from 'stream';
+
 import { Queue, Worker, Job } from 'bullmq';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 
 import { getPgPool } from '../db/postgres';
-import { uploadReport, getReportDownloadUrl } from '../services/storage-service';
+import { uploadReportStream, getReportDownloadUrl } from '../services/storage-service';
 import { logger } from '../utils/logger';
 import { workerJobsTotal, workerJobDuration, reportsTotal } from '../utils/metrics';
 
@@ -115,12 +117,17 @@ function applyHeaderStyle(row: ExcelJS.Row, argbColor = 'FF2563EB') {
   row.alignment = { vertical: 'middle' };
 }
 
-async function generateExcel(
+async function generateExcelStream(
   period: string,
   rows: ReportRow[],
-  rankings: RankingRow[]
-): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  rankings: RankingRow[],
+  stream: Writable
+): Promise<void> {
+  const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+    stream,
+    useStyles: true,
+    useSharedStrings: false,
+  });
 
   // ── Sheet 1: Per-region payment summary ───────────────────────────────────
   const sheet = workbook.addWorksheet(`Setoran ${period}`);
@@ -130,22 +137,32 @@ async function generateExcel(
     { header: 'Potongan 15% (IDR)', key: 'cut_amount', width: 22 },
     { header: 'Neto (IDR)', key: 'net_amount', width: 22 },
   ];
-  applyHeaderStyle(sheet.getRow(1));
+  const headerRow1 = sheet.getRow(1);
+  applyHeaderStyle(headerRow1);
+  headerRow1.commit();
 
   for (const row of rows) {
-    sheet.addRow({
+    const r = sheet.addRow({
       region_name: row.region_name,
       amount: Number(row.amount),
       cut_amount: Number(row.cut_amount),
       net_amount: Number(row.net_amount),
     });
+    r.commit();
   }
 
   const total = rows.reduce((acc, r) => acc + Number(r.amount), 0);
   const totalCut = rows.reduce((acc, r) => acc + Number(r.cut_amount), 0);
   const totalNet = rows.reduce((acc, r) => acc + Number(r.net_amount), 0);
-  const totalsRow = sheet.addRow({ region_name: 'TOTAL', amount: total, cut_amount: totalCut, net_amount: totalNet });
+  const totalsRow = sheet.addRow({
+    region_name: 'TOTAL',
+    amount: total,
+    cut_amount: totalCut,
+    net_amount: totalNet,
+  });
   totalsRow.font = { bold: true };
+  totalsRow.commit();
+  sheet.commit();
 
   // ── Sheet 2: Top 10 Rankings with YoY comparison ──────────────────────────
   const rankSheet = workbook.addWorksheet('Top 10 Peringkat');
@@ -156,7 +173,9 @@ async function generateExcel(
     { header: 'Neto Tahun Lalu (IDR)', key: 'net_amount_prev', width: 24 },
     { header: 'YoY (%)', key: 'yoy_pct', width: 14 },
   ];
-  applyHeaderStyle(rankSheet.getRow(1), 'FF059669');
+  const headerRow2 = rankSheet.getRow(1);
+  applyHeaderStyle(headerRow2, 'FF059669');
+  headerRow2.commit();
 
   rankings.forEach((r, idx) => {
     const dataRow = rankSheet.addRow({
@@ -166,29 +185,31 @@ async function generateExcel(
       net_amount_prev: Number(r.net_amount_prev ?? 0),
       yoy_pct: r.yoy_pct !== null ? Number(r.yoy_pct) : 'N/A',
     });
-    // Colour positive/negative YoY
     const yoyCell = dataRow.getCell('yoy_pct');
     if (typeof yoyCell.value === 'number') {
       yoyCell.font = { color: { argb: yoyCell.value >= 0 ? 'FF059669' : 'FFDC2626' } };
     }
+    dataRow.commit();
   });
+  rankSheet.commit();
 
-  const buf = await workbook.xlsx.writeBuffer();
-  return Buffer.from(buf);
+  await workbook.commit();
 }
 
-async function generatePdf(
+async function generatePdfStream(
   period: string,
   rows: ReportRow[],
-  rankings: RankingRow[]
-): Promise<Buffer> {
+  rankings: RankingRow[],
+  stream: Writable
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40 });
-    const chunks: Buffer[] = [];
 
-    doc.on('data', (chunk) => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
+    stream.on('error', reject);
+    stream.on('finish', resolve);
+
+    doc.pipe(stream);
 
     const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n);
 
@@ -263,7 +284,7 @@ async function generatePdf(
   });
 }
 
-async function generateReport(job: Job): Promise<void> {
+export async function generateReport(job: Job): Promise<void> {
   const startTime = Date.now();
   const { jobId, period, regionIds, format } = job.data;
   const pool = getPgPool();
@@ -279,22 +300,43 @@ async function generateReport(job: Job): Promise<void> {
       fetchTop10Rankings(pool, period),
     ]);
 
-    let fileBuffer: Buffer;
     let contentType: string;
     let extension: string;
 
     if (format === 'excel') {
-      fileBuffer = await generateExcel(period, rows, rankings);
       contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
       extension = 'xlsx';
     } else {
-      fileBuffer = await generatePdf(period, rows, rankings);
       contentType = 'application/pdf';
       extension = 'pdf';
     }
 
     const key = `${jobId}.${extension}`;
-    await uploadReport(key, fileBuffer, contentType);
+
+    // V8 HEAP MEMORY OPTIMIZATION RATIONALE:
+    // Instead of buffering the entire Excel or PDF document in Node.js V8 heap memory before uploading to S3/MinIO,
+    // we create a PassThrough stream and stream chunks directly to storage in parallel with generation.
+    // This keeps peak memory consumption down to O(Stream Buffer Size) (~64 KB) instead of O(File Size + AST),
+    // preventing V8 heap memory exhaustion during large multi-region dataset exports.
+    const passThrough = new PassThrough();
+
+    const uploadPromise = uploadReportStream(key, passThrough, contentType);
+
+    const generationPromise = (async () => {
+      try {
+        if (format === 'excel') {
+          await generateExcelStream(period, rows, rankings, passThrough);
+        } else {
+          await generatePdfStream(period, rows, rankings, passThrough);
+        }
+      } catch (err) {
+        passThrough.destroy(err instanceof Error ? err : new Error(String(err)));
+        throw err;
+      }
+    })();
+
+    await Promise.all([generationPromise, uploadPromise]);
+
     const downloadUrl = await getReportDownloadUrl(key);
 
     // Build summary with top-10 rankings

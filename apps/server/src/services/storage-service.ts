@@ -1,5 +1,8 @@
-import { uploadToS3, ensureBucket, getPresignedDownloadUrl, getS3Client } from '../db/minio';
+import { Readable } from 'stream';
+
 import { ListBucketsCommand } from '@aws-sdk/client-s3';
+
+import { uploadToS3, uploadStreamToS3, ensureBucket, getPresignedDownloadUrl, getS3Client } from '../db/minio';
 import { logger } from '../utils/logger';
 
 const UPLOADS_BUCKET = process.env.STORAGE_BUCKET ?? 'uploads';
@@ -21,10 +24,18 @@ export async function uploadFile(
 
 export async function uploadReport(
   key: string,
-  buffer: Buffer,
+  buffer: Buffer | Readable,
   contentType: string
 ): Promise<string> {
   return uploadToS3(REPORTS_BUCKET, key, buffer, contentType);
+}
+
+export async function uploadReportStream(
+  key: string,
+  stream: Readable,
+  contentType: string
+): Promise<string> {
+  return uploadStreamToS3(REPORTS_BUCKET, key, stream, contentType);
 }
 
 export async function getUploadDownloadUrl(key: string): Promise<string> {
@@ -50,6 +61,7 @@ export const storageService = {
   initStorage,
   uploadFile,
   uploadReport,
+  uploadReportStream,
   getUploadDownloadUrl,
   getReportDownloadUrl,
   checkStorageHealth,
