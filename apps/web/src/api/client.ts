@@ -1,12 +1,20 @@
 import { buildUrl } from "../config/api";
+import { getAccessToken } from "../lib/auth";
 
+import type { AuditLogQuery, AuditLogResponse } from "../types/audit";
 import type { ChoroplethResponse } from "../types/geo";
 import type { Region, RegionSummary } from "../types/region";
 import type { ReportJob, ReportRequest } from "../types/report";
 import type { UploadCreated, UploadRecord } from "../types/upload";
 
 async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, init);
+  const headers = new Headers(init?.headers);
+  const token = getAccessToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(input, { ...init, headers });
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || `Request failed with status ${response.status}`);
@@ -31,8 +39,15 @@ export const apiClient = {
   },
   async uploadFile(formData: FormData) {
     const url = buildUrl("/uploads");
+    const headers = new Headers();
+    const token = getAccessToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+
     const response = await fetch(url, {
       method: "POST",
+      headers,
       body: formData
     });
     if (!response.ok) {
@@ -59,5 +74,9 @@ export const apiClient = {
   listReportJobs() {
     const url = buildUrl("/reports");
     return fetchJson<{ data: ReportJob[] }>(url).then((res) => res.data);
+  },
+  listAuditLogs(params: AuditLogQuery) {
+    const url = buildUrl("/audit-logs", { ...params });
+    return fetchJson<AuditLogResponse>(url);
   }
 };

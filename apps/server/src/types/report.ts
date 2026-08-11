@@ -1,9 +1,31 @@
 export type ReportStatus = "queued" | "processing" | "completed" | "failed";
 
+export interface ReportLogo {
+  /** A bounded data URI for a PNG or JPEG logo. */
+  dataUri: string;
+}
+
+export interface ReportBranding {
+  organizationName?: string;
+  header?: string;
+  footer?: string;
+  signatureText?: string;
+  logo?: ReportLogo;
+}
+
 export interface ReportRequest {
   period: string;
   regionIds: string[];
   format: "pdf" | "excel";
+  branding?: ReportBranding;
+}
+
+export interface ReportJobData {
+  jobId: string;
+  period: string;
+  regionIds: string[];
+  format: "pdf" | "excel";
+  branding?: ReportBranding;
 }
 
 export interface ReportSummaryRegion {

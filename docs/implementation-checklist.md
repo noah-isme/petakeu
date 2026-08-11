@@ -13,7 +13,7 @@ Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir p
 | E. Kualitas Data | 5 | 5 | ✅ Selesai |
 | F. Performa | 5 | 5 | ✅ Selesai |
 | G. Observabilitas | 4 | 4 | ✅ Instrumentasi aplikasi selesai; wiring deployment tetap diperlukan |
-| H. Testing | 2 | 8 | Unit/parser selesai; integration, E2E, load, security masih tersisa |
+| H. Testing | 8 | 8 | ✅ Coverage integration/E2E/load/security tersedia; live execution membutuhkan infrastruktur |
 
 ---
 
@@ -94,9 +94,9 @@ Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir p
 ## H. Testing
 - [x] Unit tests: normalisasi periode, validasi kode daerah, perhitungan quantile.
 - [x] Unit tests parser Excel termasuk variasi header/sheet, periode masa depan, error baris, dan angka.
-- [ ] Integration tests: unggah → parse → data `payments` berubah → choropleth ikut berubah.
-- [ ] Integration tests laporan: request → job → URL presigned tersedia.
-- [ ] E2E (Playwright/Cypress): peta render, klik feature, panel detail, unduh laporan.
-- [ ] E2E RBAC: perbedaan akses public, viewer, operator, admin.
-- [ ] Load test: choropleth nasional 10x/menit memastikan cache efektif.
-- [ ] Security test: endpoint publik tidak bocorkan angka detail & presigned URL kedaluwarsa tepat waktu.
+- [x] Integration tests: unggah → parse → data `payments` berubah → choropleth ikut berubah (opt-in `PETAKEU_INTEGRATION=1`).
+- [x] Integration tests laporan: request → job → URL presigned tersedia (opt-in `PETAKEU_INTEGRATION=1`).
+- [x] E2E (Playwright): peta render, toggle layer, klik feature, panel detail, dan unduh tersedia di `release-hardening.spec.ts`.
+- [x] E2E RBAC: public redaction dan perbedaan akses public/viewer/operator/admin tersedia sebagai live contracts.
+- [x] Load test: choropleth nasional ≥10 req/s warm/cold dengan p95 verdict via k6 atau Node fallback.
+- [x] Security test: endpoint publik tidak bocorkan angka detail dan expiry presigned URL diverifikasi pada live API.

@@ -7,6 +7,7 @@ import { initStorage } from './services/storage-service';
 import { startUploadWorker } from './jobs/upload-worker';
 import { startReportWorker } from './jobs/report-worker';
 import { startMvRefreshCron } from './jobs/mv-refresh-cron';
+import { startScheduledReportJobs } from './jobs/scheduled-report-cron';
 import { loadEnv } from './config/env';
 import { startTracing, shutdownTracing } from './utils/tracing';
 import { logger } from './utils/logger';
@@ -41,6 +42,7 @@ async function main() {
   // 3. Start background workers
   const uploadWorker = startUploadWorker();
   const reportWorker = startReportWorker();
+  const scheduledReportJobs = startScheduledReportJobs(env.scheduledReports);
   logger.info('[petakeu] Background workers started');
 
   // 4. Start materialized view refresh cron
@@ -59,6 +61,7 @@ async function main() {
     server.close(async () => {
       await uploadWorker.close();
       await reportWorker.close();
+      await scheduledReportJobs.close();
       await shutdownPg();
       await shutdownRedis();
       await shutdownTracing();

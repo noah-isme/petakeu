@@ -10,7 +10,7 @@ import { asyncHandler } from "../../utils/async-handler";
  * /reports:
  *   post:
  *     summary: Generate a new report
- *     description: Queue a report generation job for specified regions and period
+ *     description: Queue a report generation job for specified regions and period. PDF requests may include bounded text branding and a PNG/JPEG data URI logo.
  *     tags: [Reports]
  *     security:
  *       - bearerAuth: []

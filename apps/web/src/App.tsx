@@ -11,7 +11,8 @@ import {
   HelpCircle,
   LogOut,
   FileText,
-  Map as MapIcon
+  Map as MapIcon,
+  ShieldCheck
 } from "lucide-react";
 
 import { AppLayout } from "./layouts/AppLayout";
@@ -24,8 +25,10 @@ import { UploadPage, type UploadState } from "./pages/UploadPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { AboutPage } from "./pages/AboutPage";
+import { AuditLogInspector } from "./components/admin/AuditLogInspector";
 import { BASE_REGIONS } from "./data/regions";
 import { formatCurrency } from "./lib/format";
+import { useAdminAccess } from "./lib/auth";
 
 import type { FeatureCollection } from "geojson";
 
@@ -42,7 +45,8 @@ const PAGE_TITLE: Record<string, string> = {
   analytics: "Analitik Eksekutif & Kepatuhan Pelaporan",
   reports: "Ringkasan Laporan Revenue & Ekspor",
   upload: "Unggah Data Excel (Validasi & Bulk Upsert)",
-  about: "Tentang Petakeu — Telemetri & PostGIS"
+  about: "Tentang Petakeu — Telemetri & PostGIS",
+  audit: "Audit Trail — Kepatuhan & Governance"
 };
 
 const MAP_PALETTE = ["#0f4c5c", "#10b981", "#06b6d4", "#f59e0b"] as const;
@@ -163,6 +167,7 @@ const initialUploadState: UploadState = {
 };
 
 export default function App() {
+  const { isAdmin } = useAdminAccess();
   const [activePage, setActivePage] = useState<string>("map");
   const [selectedPeriod, setSelectedPeriod] = useState<string>(PERIOD_OPTIONS[0]);
   const [mapStatus, setMapStatus] = useState<MapStatus>("loading");
@@ -179,6 +184,17 @@ export default function App() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const navigation = useMemo<SidebarItem[]>(
+    () => (isAdmin ? [...NAVIGATION, { key: "audit", label: "Audit Trail", icon: ShieldCheck, section: "tools" }] : NAVIGATION),
+    [isAdmin]
+  );
+
+  useEffect(() => {
+    if (!isAdmin && activePage === "audit") {
+      setActivePage("map");
+    }
+  }, [activePage, isAdmin]);
+
   const addToast = useCallback((kind: ToastKind, message: string) => {
     const id = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
     setToasts((prev) => [...prev, { id, kind, message }]);
@@ -357,6 +373,8 @@ export default function App() {
       case "calendar":
       case "team":
         return <ReportsPage metrics={reportsMetrics} />;
+      case "audit":
+        return isAdmin ? <AuditLogInspector /> : null;
       case "about":
       case "help":
       case "settings":
@@ -383,7 +401,7 @@ export default function App() {
         sidebar={
           <div className="hidden lg:block h-full" data-testid="desktop-sidebar-wrapper">
             <Sidebar
-              items={NAVIGATION}
+              items={navigation}
               activeKey={activePage}
               onSelect={setActivePage}
               collapsed={sidebarCollapsed}
@@ -414,7 +432,7 @@ export default function App() {
             }`}
           >
             <Sidebar
-              items={NAVIGATION}
+              items={navigation}
               activeKey={activePage}
               onSelect={(key) => {
                 setActivePage(key);

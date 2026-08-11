@@ -16,7 +16,13 @@ const enqueueReport = asyncHandler(async (req: Request, res: Response) => {
 
   const job = await reportService.enqueueReport(parseResult.data);
   reportsTotal.inc({ format: parseResult.data.format, status: 'queued' });
-  logger.info({ jobId: job.jobId, period: parseResult.data.period, format: parseResult.data.format, regionCount: parseResult.data.regionIds?.length }, 'Report queued');
+  logger.info({
+    jobId: job.jobId,
+    period: parseResult.data.period,
+    format: parseResult.data.format,
+    regionCount: parseResult.data.regionIds?.length,
+    branded: Boolean(parseResult.data.branding),
+  }, 'Report queued');
 
   const rawIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim();
   const ip = rawIp || req.socket.remoteAddress || req.ip || '';
@@ -36,6 +42,7 @@ const enqueueReport = asyncHandler(async (req: Request, res: Response) => {
       period: parseResult.data.period,
       format: parseResult.data.format,
       regionIds: parseResult.data.regionIds,
+      branded: Boolean(parseResult.data.branding),
     },
   }).catch(() => {});
 

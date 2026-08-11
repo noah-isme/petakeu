@@ -19,7 +19,8 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:e2e": "pnpm --filter @petakeu/web test:e2e",
-    "benchmark": "tsx scripts/benchmark-perf.ts"
+    "benchmark": "tsx scripts/benchmark-perf.ts",
+    "loadtest:choropleth": "node scripts/run-choropleth-load.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

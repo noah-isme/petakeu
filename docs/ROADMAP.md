@@ -20,14 +20,14 @@ The overall implementation status across all technical domains as of **2026-08-1
 | **E. Data Quality** | 5 / 5 | 100% | `[██████████]` | ✅ Complete |
 | **F. Performance** | 5 / 5 | 100% | `[██████████]` | ✅ Complete |
 | **G. Observability** | 4 / 4 | 100% | `[██████████]` | ✅ Complete for application-level telemetry |
-| **H. Testing** | 2 / 8 | 25% | `[███░░░░░░░]` | Unit/parser coverage added; integration, E2E, load, and security suites remain |
-| **Overall MVP Total** | **48 / 54** | **89%** | `[█████████░]` | **Phase 1 complete; release-hardening work remains** |
+| **H. Testing** | 8 / 8 | 100% | `[██████████]` | Integration, browser, load, and security suites added; live execution is infrastructure-gated |
+| **Overall MVP Total** | **54 / 54** | **100%** | `[██████████]` | **Phase 1 and release-hardening implementation complete; deployment verification remains** |
 
 ```mermaid
 flowchart LR
     P1["Phase 1: MVP Core (100% Complete)\n- GeoJSON Choropleth\n- Excel Parser & Storage\n- Base PDF/Excel Exports\n- Auth & Access Control"]
     P2["Phase 2: Analytics & Insights (100% Complete)\n- Executive Dashboard\n- Trend, Target & YoY Analysis\n- Multi-Province Compare\n- Reporting Grid"]
-    P3["Phase 3: Enterprise Features (Core 3/6)\n- Granular RBAC\n- Approval Workflows\n- Fiscal-Period Locks\n- Audit UI / Scheduling / Branding deferred"]
+    P3["Phase 3: Enterprise Features (6/6 Complete)\n- RBAC, approvals & period locks\n- Searchable audit UI\n- Scheduled/email reports\n- Branded PDF exports"]
     
     P1 --> P2 --> P3
     
@@ -89,42 +89,40 @@ Phase 3 introduces enterprise governance, multi-tenant RBAC, workflow approvals,
   - `admin`: User management, audit logs, system configuration.
 - [x] **Data Approval Workflow:** Multi-stage review workflow for uploaded payment files (Draft → Under Review → Approved → Published), with append-only transition history.
 - [x] **Data Locking:** Ability to freeze and lock fiscal periods post-approval to prevent inadvertent overwrites or historical modification.
-- [ ] **Enterprise Audit Trail UI:** Searchable log inspector in admin dashboard for compliance monitoring.
-- [ ] **Scheduled & Automated Reports:** Cron-based automated generation and email dispatch of weekly/monthly executive summary PDFs.
-- [ ] **Branded PDF Reports:** Customizable PDF templates supporting organizational logos, custom headers, footers, and official signatures.
+- [x] **Enterprise Audit Trail UI:** Searchable, filterable, paginated log inspector in the admin shell; API RBAC remains authoritative.
+- [x] **Scheduled & Automated Reports:** Configurable weekly/monthly cron jobs enqueue idempotent executive-summary PDFs and dispatch completed files through an SMTP-backed BullMQ email worker.
+- [x] **Branded PDF Reports:** Optional bounded text and PNG/JPEG data-URI branding for PDF headers, footers, logos, and official signatures; unbranded output remains backward-compatible.
 
 ---
 
 ## 5. Testing Roadmap
 
-Currently at **25% of the roadmap checklist**. Systematic integration, browser, load, and security testing is still required before production deployment.
+The complete **8/8 test coverage set is now present**. Integration and live security checks are opt-in because they require PostgreSQL/PostGIS, Redis, MinIO, BullMQ, and a running API; deployment verification is still required before production release.
 
 ```
-tests/
-├── unit/
-│   ├── normalize-period.test.ts
-│   ├── bps-code-validator.test.ts
-│   ├── quantile-calculator.test.ts
-│   └── excel-parser.test.ts
+apps/server/src/
 ├── integration/
-│   ├── upload-pipeline.test.ts
-│   └── report-generation.test.ts
-├── e2e/
-│   ├── map-interaction.spec.ts
-│   └── rbac-access.spec.ts
-└── performance/
-    └── choropleth-load.k6.js
+│   ├── upload-pipeline.integration.test.ts
+│   └── report-generation.integration.test.ts
+apps/web/e2e/
+├── release-hardening.spec.ts
+└── security-contracts.spec.ts
+scripts/
+├── choropleth-load.k6.js
+└── run-choropleth-load.mjs
 ```
 
 ### 📋 Actionable Checklist
 - [x] **Unit Tests — Core Calculations:** Test period normalization (`2026-08` → `2026-08-01`), BPS regional code pattern matching, and 5-class quantile classification algorithm edges.
 - [x] **Unit Tests — Excel Parser:** Test parser resilience against header variations, invalid/future periods, blank/error rows, and numeric parsing paths.
-- [ ] **Integration Tests — Ingestion Pipeline:** End-to-end integration test: `POST /api/uploads` → BullMQ queue dispatch → worker execution → `payments` table populated → PostGIS choropleth view refreshed.
-- [ ] **Integration Tests — Report Generation:** Test report job creation (`POST /api/reports/export`), background execution, MinIO object persistence, and presigned URL retrieval.
-- [ ] **E2E Tests — Map & Detail UI:** Playwright/Cypress automation verifying map initialization, layer toggling, feature click event, detail panel rendering, and download modal.
-- [ ] **E2E Tests — RBAC Enforcement:** Verification that unauthenticated and `public` users cannot view exact setoran figures or access administrative upload panels.
-- [ ] **Load Testing — Cache Effectiveness:** K6 load testing script executing 10+ req/sec on national choropleth endpoint to measure cache hit ratio and p95 latency under concurrent load.
-- [ ] **Security Testing:** Automated verification that public API endpoints do not leak detail payloads and presigned S3 URLs expire correctly within designated TTL.
+- [x] **Integration Tests — Ingestion Pipeline:** Opt-in real integration test covers `POST /api/uploads` → BullMQ → `payments` → materialized-view refresh and cache invalidation (`PETAKEU_INTEGRATION=1`).
+- [x] **Integration Tests — Report Generation:** Opt-in real integration test covers report queue execution, MinIO persistence, workbook output, and presigned URL expiry.
+- [x] **E2E Tests — Map & Detail UI:** Playwright coverage verifies map initialization, legend/layer interaction, feature detail, and download behavior.
+- [x] **E2E Tests — RBAC Enforcement:** Live opt-in contracts verify public redaction and role-specific upload/detail access.
+- [x] **Load Testing — Cache Effectiveness:** k6 script and dependency-free Node fallback execute ≥10 req/sec warm/cold scenarios and emit p95 SLA JSON.
+- [x] **Security Testing:** Live opt-in contracts verify public payload redaction and future presigned URL expiry metadata.
+
+The opt-in live suites are intentionally skipped when their required services or tokens are unavailable; a skipped local run is not a production readiness verdict.
 
 ---
 

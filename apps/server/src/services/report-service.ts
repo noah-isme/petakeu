@@ -3,6 +3,7 @@ import { reportQueue } from '../jobs/report-worker';
 
 import type {
   ReportJob,
+  ReportJobData,
   ReportRequest,
 } from '../types/report';
 
@@ -33,12 +34,17 @@ export async function enqueueReport(request: ReportRequest): Promise<ReportJob> 
   const job = rowToJob(rows[0]);
 
   // Enqueue generation job
-  await reportQueue.add('generate-report', {
+  const queueData: ReportJobData = {
     jobId: job.jobId,
     period: request.period,
     regionIds: request.regionIds,
     format: request.format,
-  }, {
+  };
+  if (request.format === 'pdf' && request.branding) {
+    queueData.branding = request.branding;
+  }
+
+  await reportQueue.add('generate-report', queueData, {
     attempts: 3,
     backoff: { type: 'exponential', delay: 3000 },
   });

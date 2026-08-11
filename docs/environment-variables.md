@@ -26,6 +26,18 @@ Complete reference for all environment variables in the Petakeu monorepo.
 | `MAP_TILE_KEY` | No | — | Mapbox/Carto API key for custom map tiles |
 | `LOG_LEVEL` | No | `debug` | Log level (`debug`, `info`, `warn`, `error`) |
 | `CORS_ORIGIN` | No | `*` | Allowed CORS origin(s) |
+| `REPORT_SCHEDULE_ENABLED` | No | Enabled only with complete config | Set to `false` to disable automated report schedules. Missing schedule, SMTP, recipient, or region configuration also disables them safely. |
+| `REPORT_SCHEDULE_WEEKLY_CRON` | No | — | Optional 5-field cron expression for weekly executive PDF reports |
+| `REPORT_SCHEDULE_MONTHLY_CRON` | No | — | Optional 5-field cron expression for monthly executive PDF reports |
+| `REPORT_SCHEDULE_TIMEZONE` | No | `Asia/Jakarta` | IANA timezone used to evaluate scheduled report cadence |
+| `REPORT_SCHEDULE_REGION_IDS` | No | — | Comma/space-separated region UUIDs included in scheduled reports |
+| `SMTP_HOST` | No | — | SMTP host; required with schedule settings to send email |
+| `SMTP_PORT` | No | `587` | SMTP port (`465` implies secure transport by default) |
+| `SMTP_SECURE` | No | Inferred from port | Set `true` for TLS SMTP transport |
+| `SMTP_USER` / `SMTP_PASS` | No | — | Optional paired SMTP credentials |
+| `REPORT_EMAIL_FROM` | No | — | Sender address for scheduled report emails |
+| `REPORT_EMAIL_TO` | No | — | Comma/space-separated recipient addresses |
+| `REPORT_EMAIL_SUBJECT` | No | `Petakeu Executive Revenue Summary` | Subject prefix for automated report emails |
 
 ---
 
