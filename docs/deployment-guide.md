@@ -42,6 +42,29 @@ Graceful shutdown menangani `SIGTERM`/`SIGINT`: menutup workers BullMQ, koneksi 
 > [!IMPORTANT]
 > Pastikan `AUTH_DISABLED=false` tidak di-set di production. Set `AUTH_SECRET` ke string acak minimal 32 karakter: `openssl rand -base64 32`
 
+## R4 Staging Release Verification
+
+Before enabling staged upload confirmation or promoting the R4 candidate, use
+the [R4 staging release verification runbook](r4-staging-release-verification.md).
+It covers the sequential migration runner (`007_staged_ingestion.sql` and
+`008_report_filters.sql`), backup and isolated restore evidence, health and
+readiness, Redis/BullMQ/MinIO checks, live integration/RBAC/performance suites,
+the upload confirmation/cancellation workflow, and application rollback.
+
+The read-only preflight can be run from the repository root after staging
+variables are loaded:
+
+```bash
+R4_API_URL="https://api.staging.example" \
+  node scripts/verify-r4-staging.mjs --phase baseline --json
+```
+
+The production Compose file does not currently pass
+`UPLOAD_REQUIRE_CONFIRMATION`, `STORAGE_REPORTS_BUCKET`, or `AUTH_DISABLED` to
+the API service. Inject those values through the staging deployment's
+secret/configuration layer and verify them inside the API container before
+proceeding.
+
 ---
 
 ## Inisialisasi Data (Seeding)

@@ -166,6 +166,37 @@ The original MVP, analytics, and enterprise milestones are implemented. R4 close
 
 The staged confirmation behavior is controlled by `UPLOAD_REQUIRE_CONFIRMATION=true`; enable it after the first-party frontend is deployed and the staging acceptance suite passes.
 
+## 9. Next Milestone — R5 Workflow & Accessibility Release
+
+R5 begins after the R4 staging gate passes. It is a cross-role frontend quality
+release for public users, fiscal analysts, operators, and administrators; it
+does not change the current REST contracts or database schema.
+
+- [x] **Route-driven navigation:** replace shell-only page state with stable
+  deep-linkable routes (`/map`, `/analytics`, `/reports`, `/uploads`, `/about`,
+  `/admin/audit`) and preserve period filters in the URL.
+- [x] **Role-aware shell:** centralize route metadata and minimum roles, hide
+  unauthorized navigation, and expose a clear forbidden state while retaining
+  backend RBAC as the authoritative guard.
+- [ ] **Workflow resilience:** make staged upload correction, warning
+  acknowledgement, confirmation, cancellation, retry, pagination, stale
+  revision, and refresh recovery explicit and testable in the UI.
+- [x] **Accessibility and responsive gates:** support keyboard completion,
+  skip-to-content, focus restoration, semantic landmarks, reduced motion,
+  readable chart/map alternatives, WCAG 2.1 AA serious/critical scanning, and
+  360px/tablet/desktop layout checks.
+- [ ] **Release automation:** run route, browser, accessibility, and live
+  security contracts in CI; retain traces and failure artifacts for diagnosis.
+
+The route, role, and accessibility tracks are implemented and covered by the
+desktop, tablet, and 360px mobile browser gates. Final R5 acceptance still
+depends on the live R4 contracts and CI artifact retention.
+
+R5 acceptance requires all primary routes to support direct entry and browser
+history, all core-role journeys to complete at supported viewports, no serious
+or critical automated accessibility violations, and no regression in the R4
+integration/security/performance contracts.
+
 ---
 
 ## Related Documentation

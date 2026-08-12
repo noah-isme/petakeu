@@ -100,6 +100,7 @@ Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir p
 - [x] E2E RBAC: public redaction dan perbedaan akses public/viewer/operator/admin tersedia sebagai live contracts.
 - [x] Load test: choropleth nasional ≥10 req/s warm/cold dengan p95 verdict via k6 atau Node fallback.
 - [x] Security test: endpoint publik tidak bocorkan angka detail dan expiry presigned URL diverifikasi pada live API.
+- [ ] Release execution: gunakan [R4 staging release verification runbook](r4-staging-release-verification.md) untuk backup/restore evidence, migration 007/008 checks, live infrastructure suites, rollback, and go/no-go.
 
 ## I. PRD Conformance Release (R4)
 

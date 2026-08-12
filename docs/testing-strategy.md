@@ -40,6 +40,26 @@ hierarchy, approval transitions, fiscal-period locks, and report ranking paths
 also have focused server tests. Integration, browser, load, and security suites
 remain release-hardening work as tracked in the roadmap.
 
+### R4 staging execution
+
+The live release gate is documented in the
+[R4 staging release verification runbook](r4-staging-release-verification.md).
+It is the source for staging environment variables, backup/restore evidence,
+migration 007/008 verification, the real PostgreSQL/Redis/MinIO/BullMQ suites,
+RBAC/security contracts, warm/cold choropleth performance thresholds, and the
+`UPLOAD_REQUIRE_CONFIRMATION=true` upload lifecycle. The non-destructive
+preflight validates local migration markers and API health without deploying or
+mutating data:
+
+```bash
+R4_API_URL="$STAGING_API_URL" \
+  node scripts/verify-r4-staging.mjs --phase baseline --json
+```
+
+An opt-in integration or Playwright test that is skipped because staging
+services/tokens are unavailable is not a release pass; rerun after the
+environment is repaired and retain the evidence artifacts.
+
 ---
 
 ## Test Categories
