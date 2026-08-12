@@ -101,7 +101,7 @@ export const reportRouter = Router();
 const canReadReports = requireAnyRole("viewer", "operator", "admin");
 
 const rejectLockedReportPeriod = asyncHandler(async (req, _res, next) => {
-  const period = req.body?.period;
+  const period = req.body?.periodTo ?? req.body?.to ?? req.body?.period;
   if (typeof period === "string") {
     await assertFiscalPeriodUnlocked(period);
   }

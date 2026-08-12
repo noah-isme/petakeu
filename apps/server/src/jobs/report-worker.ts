@@ -10,7 +10,13 @@ import { parseReportBranding, MAX_REPORT_LOGO_BYTES } from '../validators/report
 import { logger } from '../utils/logger';
 import { workerJobsTotal, workerJobDuration, reportsTotal } from '../utils/metrics';
 
-import type { ReportBranding, ReportJobData } from '../types/report';
+import type {
+  ReportAmountBasis,
+  ReportBranding,
+  ReportJobData,
+  ReportRankingCriterion,
+  ReportType,
+} from '../types/report';
 
 const QUEUE_NAME = 'report-generation';
 
@@ -32,76 +38,207 @@ export const reportQueue = {
 async function fetchReportData(
   pool: import('pg').Pool,
   period: string,
-  regionIds: string[]
+  regionIds: string[],
+  options: {
+    periodFrom?: string;
+    periodTo?: string;
+    provinceIds?: string[];
+  } = {},
 ) {
+  const periodFrom = options.periodFrom ?? period;
+  const periodTo = options.periodTo ?? period;
+  const values: unknown[] = [periodFrom, periodTo, regionIds];
+  let provinceFilter = '';
+  if (options.provinceIds && options.provinceIds.length > 0) {
+    values.push(options.provinceIds);
+    provinceFilter = ` AND r.parent_id = ANY($${values.length}::uuid[])`;
+  }
   const sql = `
+    WITH financials AS (
+      SELECT
+        p.region_id,
+        date_trunc('month', p.period)::date AS period,
+        SUM(COALESCE(p.gross_amount, p.amount)) AS gross_amount,
+        SUM(COALESCE(p.share_amount, p.amount * 0.15)) AS share_amount,
+        SUM(COALESCE(p.net_amount, p.amount - p.amount * 0.15)) AS net_amount
+      FROM payments p
+      GROUP BY p.region_id, date_trunc('month', p.period)::date
+    ), months AS (
+      SELECT generate_series(($1 || '-01')::date, ($2 || '-01')::date, INTERVAL '1 month')::date AS period
+    )
     SELECT
       r.name AS region_name,
       r.id::text AS region_id,
-      COALESCE(m.amount, 0) AS amount,
-      COALESCE(m.cut_amount, 0) AS cut_amount,
-      COALESCE(m.net_amount, 0) AS net_amount
+      to_char(months.period, 'YYYY-MM') AS period,
+      COALESCE(f.gross_amount, m.amount) AS amount,
+      COALESCE(f.share_amount, m.cut_amount) AS cut_amount,
+      COALESCE(f.net_amount, m.net_amount) AS net_amount,
+      t.target AS target_amount,
+      payment.source,
+      payment.upload_id,
+      u.filename,
+      COALESCE(u.created_by, payment.imported_by) AS imported_by,
+      COALESCE(u.created_at, payment.imported_at) AS imported_at,
+      COALESCE(payment.validation_findings, '[]'::jsonb) AS validation_findings
     FROM regions r
+    CROSS JOIN months
     LEFT JOIN mv_payments_with_cut m
-      ON m.region_id = r.id AND m.period = ($1 || '-01')::date
-    WHERE r.id = ANY($2::uuid[])
-    ORDER BY r.name
+      ON m.region_id = r.id AND m.period = months.period
+    LEFT JOIN financials f
+      ON f.region_id = r.id AND f.period = months.period
+    LEFT JOIN revenue_targets t
+      ON t.region_id = r.id AND t.period = months.period
+    LEFT JOIN LATERAL (
+      SELECT
+        p.source,
+        p.updated_at AS imported_at,
+        COALESCE(p.upload_id::text, p.meta->>'uploadId', p.meta->>'upload_id') AS upload_id,
+        COALESCE(p.meta->>'importedBy', p.meta->>'imported_by') AS imported_by,
+        COALESCE(p.meta->'validationFindings', p.meta->'validation_findings', p.meta->'validationWarnings', '[]'::jsonb) AS validation_findings
+      FROM payments p
+      WHERE p.region_id = r.id AND date_trunc('month', p.period)::date = months.period
+      ORDER BY p.updated_at DESC
+      LIMIT 1
+    ) payment ON TRUE
+    LEFT JOIN uploads u ON u.id = CASE
+      WHEN payment.upload_id ~ '^[0-9a-fA-F-]{36}$' THEN payment.upload_id::uuid
+      ELSE NULL
+    END
+    WHERE r.id = ANY($3::uuid[])${provinceFilter}
+    ORDER BY r.name, months.period
   `;
-  const { rows } = await pool.query(sql, [period, regionIds]);
+  const { rows } = await pool.query(sql, values);
   return rows;
 }
 
 /** Fetch top 10 regions by net_amount for the given period, with YoY comparison */
 async function fetchTop10Rankings(
   pool: import('pg').Pool,
-  period: string
+  period: string,
+  options: {
+    periodFrom?: string;
+    periodTo?: string;
+    provinceIds?: string[];
+    amountBasis?: ReportAmountBasis;
+    rankingCriterion?: ReportRankingCriterion;
+  } = {},
 ) {
-  // Compute previous year same month
-  const [year, month] = period.split('-');
-  const prevPeriod = `${parseInt(year, 10) - 1}-${month}`;
+  const periodFrom = options.periodFrom ?? period;
+  const periodTo = options.periodTo ?? period;
+  const rangeMonths = monthDistance(periodFrom, periodTo);
+  const previousFrom = addMonths(periodFrom, -rangeMonths);
+  const previousTo = addMonths(periodTo, -rangeMonths);
+  const amountExpression = options.amountBasis === 'share'
+    ? 'COALESCE(f.share_amount, m.cut_amount)'
+    : options.amountBasis === 'net' ? 'COALESCE(f.net_amount, m.net_amount)' : 'COALESCE(f.gross_amount, m.amount)';
+  const criterion = options.rankingCriterion ?? 'total';
+  const orderExpression = criterion === 'target_achievement' ? 'achievement_percentage'
+    : criterion === 'average_monthly' ? 'average_monthly'
+      : criterion === 'growth' ? 'growth_percentage'
+        : criterion === 'surplus' ? 'surplus'
+          : criterion === 'deficit' ? 'deficit' : 'actual';
+  const orderDirection = criterion === 'deficit' ? 'ASC' : 'DESC';
+  const provinceFilter = options.provinceIds?.length ? ' AND r.parent_id = ANY($5::uuid[])' : '';
+  const values: unknown[] = [periodFrom, periodTo, previousFrom, previousTo];
+  if (options.provinceIds?.length) values.push(options.provinceIds);
 
   const sql = `
-    WITH current AS (
+    WITH financials AS (
+      SELECT
+        p.region_id,
+        date_trunc('month', p.period)::date AS period,
+        SUM(COALESCE(p.gross_amount, p.amount)) AS gross_amount,
+        SUM(COALESCE(p.share_amount, p.amount * 0.15)) AS share_amount,
+        SUM(COALESCE(p.net_amount, p.amount - p.amount * 0.15)) AS net_amount
+      FROM payments p
+      GROUP BY p.region_id, date_trunc('month', p.period)::date
+    ), current AS (
       SELECT r.id::text AS region_id, r.name AS region_name,
-             COALESCE(m.amount, 0) AS amount,
-             COALESCE(m.net_amount, 0) AS net_amount
+             COALESCE(SUM(${amountExpression}) FILTER (WHERE m.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date), 0) AS actual,
+             COALESCE(SUM(${amountExpression}) FILTER (WHERE m.period BETWEEN ($3 || '-01')::date AND ($4 || '-01')::date), 0) AS previous_actual,
+             COUNT(*) FILTER (WHERE m.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date) AS reported_months,
+             COALESCE((SELECT SUM(t.target) FROM revenue_targets t
+                       WHERE t.region_id = r.id
+                         AND t.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date), 0) AS target
+             ,CASE WHEN COUNT(*) FILTER (WHERE m.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date) = 0 THEN 0
+                ELSE COALESCE(SUM(${amountExpression}) FILTER (WHERE m.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date), 0)
+                  / COUNT(*) FILTER (WHERE m.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date) END AS average_monthly
+             ,CASE WHEN COALESCE((SELECT SUM(t.target) FROM revenue_targets t
+                       WHERE t.region_id = r.id
+                         AND t.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date), 0) = 0 THEN 0
+                ELSE COALESCE(SUM(${amountExpression}) FILTER (WHERE m.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date), 0)
+                  / (SELECT SUM(t.target) FROM revenue_targets t
+                       WHERE t.region_id = r.id
+                         AND t.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date) * 100 END AS achievement_percentage
+             ,CASE WHEN COALESCE(SUM(${amountExpression}) FILTER (WHERE m.period BETWEEN ($3 || '-01')::date AND ($4 || '-01')::date), 0) = 0 THEN 0
+                ELSE (COALESCE(SUM(${amountExpression}) FILTER (WHERE m.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date), 0)
+                  - COALESCE(SUM(${amountExpression}) FILTER (WHERE m.period BETWEEN ($3 || '-01')::date AND ($4 || '-01')::date), 0))
+                  / COALESCE(SUM(${amountExpression}) FILTER (WHERE m.period BETWEEN ($3 || '-01')::date AND ($4 || '-01')::date), 0) * 100 END AS growth_percentage
+             ,GREATEST(COALESCE(SUM(${amountExpression}) FILTER (WHERE m.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date), 0)
+               - COALESCE((SELECT SUM(t.target) FROM revenue_targets t WHERE t.region_id = r.id
+                    AND t.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date), 0), 0) AS surplus
+             ,LEAST(COALESCE(SUM(${amountExpression}) FILTER (WHERE m.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date), 0)
+               - COALESCE((SELECT SUM(t.target) FROM revenue_targets t WHERE t.region_id = r.id
+                    AND t.period BETWEEN ($1 || '-01')::date AND ($2 || '-01')::date), 0), 0) AS deficit
       FROM regions r
       LEFT JOIN mv_payments_with_cut m
-        ON m.region_id = r.id AND m.period = ($1 || '-01')::date
-      WHERE r.level = 2
-    ),
-    previous AS (
-      SELECT r.id::text AS region_id, COALESCE(m.net_amount, 0) AS net_amount_prev
-      FROM regions r
-      LEFT JOIN mv_payments_with_cut m
-        ON m.region_id = r.id AND m.period = ($2 || '-01')::date
-      WHERE r.level = 2
+        ON m.region_id = r.id
+       AND m.period BETWEEN ($3 || '-01')::date AND ($2 || '-01')::date
+      LEFT JOIN financials f ON f.region_id = r.id AND f.period = m.period
+      WHERE r.level = 2${provinceFilter}
+      GROUP BY r.id, r.name
     )
     SELECT
-      c.region_id,
-      c.region_name,
-      c.amount,
-      c.net_amount,
-      p.net_amount_prev,
-      CASE
-        WHEN COALESCE(p.net_amount_prev, 0) = 0 THEN NULL
-        ELSE ROUND(((c.net_amount - p.net_amount_prev) / p.net_amount_prev * 100)::numeric, 2)
-      END AS yoy_pct
+      c.region_id, c.region_name,
+      c.actual AS amount,
+      c.actual AS net_amount,
+      c.previous_actual AS net_amount_prev,
+      CASE WHEN c.previous_actual = 0 THEN NULL
+        ELSE ROUND(((c.actual - c.previous_actual) / c.previous_actual * 100)::numeric, 2) END AS yoy_pct,
+      c.target,
+      c.reported_months,
+      c.average_monthly,
+      c.achievement_percentage,
+      c.growth_percentage,
+      c.surplus,
+      c.deficit,
+      c.${orderExpression} AS ranking_value
     FROM current c
-    LEFT JOIN previous p ON p.region_id = c.region_id
-    ORDER BY c.net_amount DESC
+    ORDER BY c.${orderExpression} ${orderDirection}, c.region_name ASC
     LIMIT 10
   `;
-  const { rows } = await pool.query(sql, [period, prevPeriod]);
+  const { rows } = await pool.query(sql, values);
   return rows;
+}
+
+function addMonths(period: string, offset: number): string {
+  const [year, month] = period.split('-').map(Number);
+  const absolute = year * 12 + month - 1 + offset;
+  return `${Math.floor(absolute / 12).toString().padStart(4, '0')}-${String((absolute % 12) + 1).padStart(2, '0')}`;
+}
+
+function monthDistance(from: string, to: string): number {
+  const [fromYear, fromMonth] = from.split('-').map(Number);
+  const [toYear, toMonth] = to.split('-').map(Number);
+  return (toYear - fromYear) * 12 + toMonth - fromMonth + 1;
 }
 
 interface ReportRow {
   region_name: string;
   region_id?: string;
-  amount: string | number;
-  cut_amount: string | number;
-  net_amount: string | number;
+  province_id?: string | null;
+  province_name?: string | null;
+  period?: string | null;
+  amount: string | number | null;
+  cut_amount: string | number | null;
+  net_amount: string | number | null;
+  target_amount?: string | number | null;
+  source?: string | null;
+  upload_id?: string | null;
+  filename?: string | null;
+  imported_by?: string | null;
+  imported_at?: string | Date | null;
+  validation_findings?: unknown;
 }
 
 interface RankingRow {
@@ -152,7 +289,14 @@ async function generateExcelStream(
   period: string,
   rows: ReportRow[],
   rankings: RankingRow[],
-  stream: Writable
+  stream: Writable,
+  options: {
+    periodFrom?: string;
+    periodTo?: string;
+    amountBasis?: ReportAmountBasis;
+    rankingCriterion?: ReportRankingCriterion;
+    reportType?: ReportType;
+  } = {},
 ): Promise<void> {
   const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
     stream,
@@ -224,6 +368,175 @@ async function generateExcelStream(
   });
   rankSheet.commit();
 
+  // ── Sheet 3: Executive summary ────────────────────────────────────────────
+  const summarySheet = workbook.addWorksheet('Executive Summary');
+  summarySheet.columns = [
+    { header: 'Indikator', key: 'label', width: 32 },
+    { header: 'Nilai', key: 'value', width: 28 },
+  ];
+  applyHeaderStyle(summarySheet.getRow(1), 'FF7C3AED');
+  summarySheet.getRow(1).commit();
+  const sumGross = rows.reduce((total, row) => total + Number(row.amount ?? 0), 0);
+  const sumShare = rows.reduce((total, row) => total + Number(row.cut_amount ?? 0), 0);
+  const sumNet = rows.reduce((total, row) => total + Number(row.net_amount ?? 0), 0);
+  const missingCount = rows.filter((row) => row.amount === null || row.amount === undefined).length;
+  [
+    ['Periode dari', options.periodFrom ?? period],
+    ['Periode sampai', options.periodTo ?? period],
+    ['Basis nominal', options.amountBasis ?? 'gross'],
+    ['Kriteria ranking', options.rankingCriterion ?? 'total'],
+    ['Jenis laporan', options.reportType ?? 'full'],
+    ['Total gross (IDR)', sumGross],
+    ['Total share (IDR)', sumShare],
+    ['Total net (IDR)', sumNet],
+    ['Data belum dilaporkan', missingCount],
+  ].forEach(([label, value]) => summarySheet.addRow({ label, value }).commit());
+  summarySheet.commit();
+
+  // ── Sheet 4: Canonical rankings ───────────────────────────────────────────
+  const rankingsSheet = workbook.addWorksheet('Rankings');
+  rankingsSheet.columns = [
+    { header: 'Peringkat', key: 'rank', width: 12 },
+    { header: 'Region ID', key: 'region_id', width: 38 },
+    { header: 'Wilayah', key: 'region_name', width: 32 },
+    { header: 'Nilai Ranking', key: 'ranking_value', width: 20 },
+    { header: 'Realisasi (IDR)', key: 'amount', width: 20 },
+    { header: 'Target (IDR)', key: 'target', width: 20 },
+    { header: 'Capaian (%)', key: 'achievement', width: 16 },
+    { header: 'YoY (%)', key: 'yoy', width: 14 },
+  ];
+  applyHeaderStyle(rankingsSheet.getRow(1), 'FF059669');
+  rankingsSheet.getRow(1).commit();
+  rankings.forEach((row, index) => rankingsSheet.addRow({
+    rank: index + 1,
+    region_id: row.region_id,
+    region_name: row.region_name,
+    ranking_value: Number((row as RankingRow & { ranking_value?: string | number }).ranking_value ?? row.net_amount ?? 0),
+    amount: Number(row.amount ?? 0),
+    target: Number((row as RankingRow & { target?: string | number }).target ?? 0),
+    achievement: Number((row as RankingRow & { achievement_percentage?: string | number }).achievement_percentage ?? 0),
+    yoy: row.yoy_pct === null ? 'N/A' : Number(row.yoy_pct),
+  }).commit());
+  rankingsSheet.commit();
+
+  // ── Sheet 5: Monthly breakdown ────────────────────────────────────────────
+  const monthlySheet = workbook.addWorksheet('Monthly Breakdown');
+  monthlySheet.columns = [
+    { header: 'Periode', key: 'period', width: 14 },
+    { header: 'Gross (IDR)', key: 'gross', width: 22 },
+    { header: 'Share (IDR)', key: 'share', width: 22 },
+    { header: 'Net (IDR)', key: 'net', width: 22 },
+    { header: 'Target (IDR)', key: 'target', width: 22 },
+    { header: 'Data Dilaporkan', key: 'reported', width: 18 },
+  ];
+  applyHeaderStyle(monthlySheet.getRow(1), 'FF0EA5E9');
+  monthlySheet.getRow(1).commit();
+  const monthly = new Map<string, { gross: number; share: number; net: number; target: number; reported: number }>();
+  rows.forEach((row) => {
+    const key = row.period ?? period;
+    const current = monthly.get(key) ?? { gross: 0, share: 0, net: 0, target: 0, reported: 0 };
+    current.gross += Number(row.amount ?? 0);
+    current.share += Number(row.cut_amount ?? 0);
+    current.net += Number(row.net_amount ?? 0);
+    current.target += Number(row.target_amount ?? 0);
+    if (row.amount !== null && row.amount !== undefined) current.reported += 1;
+    monthly.set(key, current);
+  });
+  [...monthly.entries()].sort(([left], [right]) => left.localeCompare(right)).forEach(([month, values]) => {
+    monthlySheet.addRow({ period: month, ...values }).commit();
+  });
+  monthlySheet.commit();
+
+  // ── Sheet 6: Target achievement ───────────────────────────────────────────
+  const targetSheet = workbook.addWorksheet('Target Achievement');
+  targetSheet.columns = [
+    { header: 'Region ID', key: 'region_id', width: 38 },
+    { header: 'Wilayah', key: 'region_name', width: 32 },
+    { header: 'Realisasi (IDR)', key: 'actual', width: 22 },
+    { header: 'Target (IDR)', key: 'target', width: 22 },
+    { header: 'Capaian (%)', key: 'achievement', width: 16 },
+    { header: 'Selisih (IDR)', key: 'variance', width: 22 },
+  ];
+  applyHeaderStyle(targetSheet.getRow(1), 'FFF59E0B');
+  targetSheet.getRow(1).commit();
+  const targets = new Map<string, { region_name: string; actual: number; target: number }>();
+  rows.forEach((row) => {
+    const key = row.region_id ?? row.region_name;
+    const current = targets.get(key) ?? { region_name: row.region_name, actual: 0, target: 0 };
+    current.actual += Number(row.amount ?? 0);
+    current.target += Number(row.target_amount ?? 0);
+    targets.set(key, current);
+  });
+  [...targets.entries()].forEach(([region_id, value]) => targetSheet.addRow({
+    region_id,
+    region_name: value.region_name,
+    actual: value.actual,
+    target: value.target,
+    achievement: value.target === 0 ? 0 : Number(((value.actual / value.target) * 100).toFixed(2)),
+    variance: value.actual - value.target,
+  }).commit());
+  targetSheet.commit();
+
+  // ── Sheet 7: Missing-data audit ───────────────────────────────────────────
+  const missingSheet = workbook.addWorksheet('Missing Data Audit');
+  missingSheet.columns = [
+    { header: 'Periode', key: 'period', width: 14 },
+    { header: 'Region ID', key: 'region_id', width: 38 },
+    { header: 'Wilayah', key: 'region_name', width: 32 },
+    { header: 'Status', key: 'status', width: 16 },
+    { header: 'Temuan Validasi', key: 'findings', width: 52 },
+  ];
+  applyHeaderStyle(missingSheet.getRow(1), 'FFDC2626');
+  missingSheet.getRow(1).commit();
+  rows.filter((row) => row.amount === null || row.amount === undefined).forEach((row) => missingSheet.addRow({
+    period: row.period ?? period,
+    region_id: row.region_id ?? '',
+    region_name: row.region_name,
+    status: 'missing',
+    findings: JSON.stringify(row.validation_findings ?? []),
+  }).commit());
+  missingSheet.commit();
+
+  // ── Sheet 8: Canonical re-import contract ──────────────────────────────────
+  const canonicalSheet = workbook.addWorksheet('Canonical Data');
+  canonicalSheet.columns = [
+    { header: 'period', key: 'period', width: 14 },
+    { header: 'region_id', key: 'region_id', width: 38 },
+    { header: 'region_name', key: 'region_name', width: 32 },
+    { header: 'province_id', key: 'province_id', width: 38 },
+    { header: 'province_name', key: 'province_name', width: 28 },
+    { header: 'gross_amount', key: 'gross_amount', width: 20 },
+    { header: 'share_amount', key: 'share_amount', width: 20 },
+    { header: 'net_amount', key: 'net_amount', width: 20 },
+    { header: 'target_amount', key: 'target_amount', width: 20 },
+    { header: 'source', key: 'source', width: 18 },
+    { header: 'upload_id', key: 'upload_id', width: 38 },
+    { header: 'filename', key: 'filename', width: 32 },
+    { header: 'imported_by', key: 'imported_by', width: 24 },
+    { header: 'imported_at', key: 'imported_at', width: 26 },
+    { header: 'validation_findings', key: 'validation_findings', width: 52 },
+  ];
+  applyHeaderStyle(canonicalSheet.getRow(1), 'FF374151');
+  canonicalSheet.getRow(1).commit();
+  rows.forEach((row) => canonicalSheet.addRow({
+    period: row.period ?? period,
+    region_id: row.region_id ?? '',
+    region_name: row.region_name,
+    province_id: row.province_id ?? '',
+    province_name: row.province_name ?? '',
+    gross_amount: row.amount === null ? null : Number(row.amount),
+    share_amount: row.cut_amount === null ? null : Number(row.cut_amount),
+    net_amount: row.net_amount === null ? null : Number(row.net_amount),
+    target_amount: row.target_amount === null || row.target_amount === undefined ? null : Number(row.target_amount),
+    source: row.source ?? '',
+    upload_id: row.upload_id ?? '',
+    filename: row.filename ?? '',
+    imported_by: row.imported_by ?? '',
+    imported_at: row.imported_at ? new Date(row.imported_at).toISOString() : '',
+    validation_findings: JSON.stringify(row.validation_findings ?? []),
+  }).commit());
+  canonicalSheet.commit();
+
   await workbook.commit();
 }
 
@@ -232,7 +545,14 @@ export async function generatePdfStream(
   rows: ReportRow[],
   rankings: RankingRow[],
   stream: Writable,
-  branding: ReportBranding = DEFAULT_REPORT_BRANDING
+  branding: ReportBranding = DEFAULT_REPORT_BRANDING,
+  options: {
+    periodFrom?: string;
+    periodTo?: string;
+    amountBasis?: ReportAmountBasis;
+    rankingCriterion?: ReportRankingCriterion;
+    reportType?: ReportType;
+  } = {},
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40 });
@@ -327,8 +647,26 @@ export async function generatePdfStream(
 
     // ── Cover / title ─────────────────────────────────────────────────────
     doc.fontSize(18).font('Helvetica-Bold').text('Laporan Setoran Dana Bagi Hasil', { align: 'center' });
-    doc.fontSize(12).font('Helvetica').text(`Periode: ${period}`, { align: 'center' });
+    doc.fontSize(12).font('Helvetica').text(
+      `Periode: ${options.periodFrom ?? period}${options.periodTo && options.periodTo !== (options.periodFrom ?? period) ? ` s.d. ${options.periodTo}` : ''}`,
+      { align: 'center' },
+    );
+    doc.fontSize(9).font('Helvetica').text(
+      `Basis: ${options.amountBasis ?? 'gross'} · Kriteria: ${options.rankingCriterion ?? 'total'}`,
+      { align: 'center' },
+    );
     doc.moveDown();
+
+    // Executive scorecard. The detailed tables below retain the original
+    // report layout while these bounded lines make range exports useful to
+    // decision makers and remain readable in text-only PDF consumers.
+    const grossTotal = rows.reduce((total, row) => total + Number(row.amount ?? 0), 0);
+    const netTotal = rows.reduce((total, row) => total + Number(row.net_amount ?? 0), 0);
+    const missingTotal = rows.filter((row) => row.amount === null || row.amount === undefined).length;
+    doc.fontSize(12).font('Helvetica-Bold').text('Ringkasan Eksekutif');
+    doc.fontSize(9).font('Helvetica')
+      .text(`Gross: ${fmt(grossTotal)} IDR    Neto: ${fmt(netTotal)} IDR    Belum dilaporkan: ${missingTotal}`);
+    doc.moveDown(0.4);
 
     // ── Section 1: Per-region payment table ───────────────────────────────
     doc.fontSize(13).font('Helvetica-Bold').text('Realisasi Setoran per Wilayah');
@@ -402,6 +740,32 @@ export async function generatePdfStream(
       y += 16;
     });
 
+    // Range/missing-data summary sections are intentionally compact; the
+    // workbook carries the row-level canonical data and audit detail.
+    startNewPage();
+    doc.fontSize(13).font('Helvetica-Bold').text('Ringkasan Bulanan dan Audit Data');
+    doc.moveDown(0.4);
+    const monthly = new Map<string, { gross: number; net: number; target: number; reported: number }>();
+    rows.forEach((row) => {
+      const month = row.period ?? period;
+      const current = monthly.get(month) ?? { gross: 0, net: 0, target: 0, reported: 0 };
+      current.gross += Number(row.amount ?? 0);
+      current.net += Number(row.net_amount ?? 0);
+      current.target += Number(row.target_amount ?? 0);
+      if (row.amount !== null && row.amount !== undefined) current.reported += 1;
+      monthly.set(month, current);
+    });
+    doc.font('Helvetica-Bold').fontSize(10).text('Periode       Gross (IDR)       Neto (IDR)       Target (IDR)       Dilaporkan');
+    doc.font('Helvetica').fontSize(9);
+    [...monthly.entries()].sort(([left], [right]) => left.localeCompare(right)).forEach(([month, value]) => {
+      if (y + 16 > contentBottom()) {
+        startNewPage();
+        y = doc.y + 6;
+      }
+      doc.text(`${month}    ${fmt(value.gross)}    ${fmt(value.net)}    ${fmt(value.target)}    ${value.reported}`);
+      y = doc.y + 4;
+    });
+
     if (branding.signatureText) {
       if (y + 78 > contentBottom()) {
         startNewPage();
@@ -429,7 +793,19 @@ export async function generatePdfStream(
 
 export async function generateReport(job: Job<ReportJobData>): Promise<void> {
   const startTime = Date.now();
-  const { jobId, period, regionIds, format, branding: requestedBranding } = job.data;
+  const {
+    jobId,
+    period,
+    regionIds,
+    format,
+    branding: requestedBranding,
+    periodFrom,
+    periodTo,
+    provinceIds,
+    rankingCriterion,
+    amountBasis,
+    reportType,
+  } = job.data;
   const branding = format === 'pdf' ? parseReportBranding(requestedBranding) : undefined;
   const metricFormat: 'pdf' | 'excel' | 'other' = format === 'pdf' || format === 'excel' ? format : 'other';
   const pool = getPgPool();
@@ -441,8 +817,14 @@ export async function generateReport(job: Job<ReportJobData>): Promise<void> {
 
   try {
     const [rows, rankings] = await Promise.all([
-      fetchReportData(pool, period, regionIds),
-      fetchTop10Rankings(pool, period),
+      fetchReportData(pool, period, regionIds, { periodFrom, periodTo, provinceIds }),
+      fetchTop10Rankings(pool, period, {
+        periodFrom,
+        periodTo,
+        provinceIds,
+        amountBasis,
+        rankingCriterion,
+      }),
     ]);
 
     let contentType: string;
@@ -470,9 +852,21 @@ export async function generateReport(job: Job<ReportJobData>): Promise<void> {
     const generationPromise = (async () => {
       try {
         if (format === 'excel') {
-          await generateExcelStream(period, rows, rankings, passThrough);
+          await generateExcelStream(period, rows, rankings, passThrough, {
+            periodFrom,
+            periodTo,
+            amountBasis,
+            rankingCriterion,
+            reportType,
+          });
         } else {
-          await generatePdfStream(period, rows, rankings, passThrough, branding);
+          await generatePdfStream(period, rows, rankings, passThrough, branding, {
+            periodFrom,
+            periodTo,
+            amountBasis,
+            rankingCriterion,
+            reportType,
+          });
         }
       } catch (err) {
         passThrough.destroy(err instanceof Error ? err : new Error(String(err)));
@@ -500,6 +894,19 @@ export async function generateReport(job: Job<ReportJobData>): Promise<void> {
         netAmountPrev: Number(r.net_amount_prev ?? 0),
         yoyPct: r.yoy_pct !== null ? Number(r.yoy_pct) : null,
       })),
+      filters: {
+        periodFrom: periodFrom ?? period,
+        periodTo: periodTo ?? period,
+        provinceIds: provinceIds ?? [],
+        rankingCriterion: rankingCriterion ?? 'total',
+        amountBasis: amountBasis ?? 'gross',
+        reportType: reportType ?? 'full',
+      },
+      missingData: {
+        expected: rows.length,
+        reported: rows.filter((row: ReportRow) => row.amount !== null && row.amount !== undefined).length,
+        missing: rows.filter((row: ReportRow) => row.amount === null || row.amount === undefined).length,
+      },
     };
 
     await pool.query(

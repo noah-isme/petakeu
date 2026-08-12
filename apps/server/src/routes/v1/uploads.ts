@@ -146,7 +146,12 @@ const rejectLockedUploadPeriod = asyncHandler(async (req, _res, next) => {
   next();
 });
 
+uploadRouter.get("/template", requireAuth, canManageUploads, uploadController.getTemplate);
 uploadRouter.get("/", requireAuth, canManageUploads, uploadController.listUploads);
+uploadRouter.get("/:id/rows", requireAuth, canManageUploads, uploadController.getUploadRows);
+uploadRouter.patch("/:id/rows/:rowId", requireAuth, canManageUploads, uploadController.updateUploadRow);
+uploadRouter.post("/:id/confirm", requireAuth, canManageUploads, uploadController.confirmUpload);
+uploadRouter.post("/:id/cancel", requireAuth, canManageUploads, uploadController.cancelUpload);
 uploadRouter.get("/:id", requireAuth, canManageUploads, uploadController.getUpload);
 uploadRouter.post(
   "/",

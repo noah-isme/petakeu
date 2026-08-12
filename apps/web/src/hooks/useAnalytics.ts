@@ -7,6 +7,8 @@ import {
   type AnalyticsNumber,
   type AnalyticsOverview,
   type AnalyticsOverviewMeta,
+  type AnalyticsAmountBasis,
+  type AnalyticsRankingCriterion,
   type AnalyticsProvinceMetric,
   type AnalyticsRegionMetric,
   type AnalyticsReportingCell,
@@ -24,6 +26,9 @@ export interface AnalyticsQueryParams {
   from?: string;
   to?: string;
   provinceId?: string;
+  provinceIds?: string[];
+  ranking?: AnalyticsRankingCriterion;
+  amountBasis?: AnalyticsAmountBasis;
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -263,14 +268,38 @@ function normalizeReportingCell(value: unknown, fallbackPeriod?: string): Analyt
     return {
       period: fallbackPeriod ?? "",
       status: normalizeStatus(value),
-      submittedAt: null
+      submittedAt: null,
+      actual: null
     };
   }
+
+  const detailValue = firstValue(value, ["detail", "reportingDetail", "reporting_detail"]);
+  const detail = isRecord(detailValue)
+    ? {
+        grossAmount: firstNumber(detailValue, ["grossAmount", "gross_amount", "gross", "amount"]),
+        shareAmount: firstNumber(detailValue, ["shareAmount", "share_amount", "share", "cut15Amount"]),
+        netAmount: firstNumber(detailValue, ["netAmount", "net_amount", "net"]),
+        targetAmount: firstNumber(detailValue, ["targetAmount", "target_amount", "target"]),
+        importFilename: firstString(detailValue, ["importFilename", "import_filename", "filename"]),
+        importedBy: firstString(detailValue, ["importedBy", "imported_by", "operator", "user"]),
+        importedAt: firstString(detailValue, ["importedAt", "imported_at", "createdAt"]),
+        validationFindings: firstArray(detailValue, ["validationFindings", "validation_findings", "findings"]).map((finding) => {
+          const item = isRecord(finding) ? finding : {};
+          return {
+            findingId: firstString(item, ["findingId", "finding_id", "id"] ) ?? undefined,
+            severity: String(firstValue(item, ["severity", "level"]) ?? "info") as "error" | "warning" | "info",
+            message: firstString(item, ["message", "detail", "reason"]) ?? "Validasi perlu ditinjau."
+          };
+        })
+      }
+    : undefined;
 
   return {
     period: firstString(value, ["period", "month", "label", "date"]) ?? fallbackPeriod ?? "",
     status: normalizeStatus(firstValue(value, ["status", "state", "value", "compliance"])),
-    submittedAt: firstString(value, ["submittedAt", "submitted_at", "reportedAt", "reported_at"])
+    submittedAt: firstString(value, ["submittedAt", "submitted_at", "reportedAt", "reported_at"]),
+    actual: firstNumber(value, ["actual", "amount", "grossAmount", "gross_amount"]),
+    detail
   };
 }
 
@@ -377,7 +406,9 @@ export async function fetchAnalyticsOverview(params: AnalyticsQueryParams = {}):
     period,
     from,
     to,
-    provinceIds: params.provinceId
+    provinceIds: params.provinceIds?.join(",") ?? params.provinceId,
+    ranking: params.ranking,
+    amountBasis: params.amountBasis
   });
   const response = await fetch(url);
 
@@ -395,7 +426,16 @@ export function useAnalytics(params: AnalyticsQueryParams = {}, options?: { enab
   const to = normalizeAnalyticsPeriod(params.to);
 
   return useQuery({
-    queryKey: ["analytics-overview", period ?? null, from ?? null, to ?? null, params.provinceId ?? null],
+    queryKey: [
+      "analytics-overview",
+      period ?? null,
+      from ?? null,
+      to ?? null,
+      params.provinceId ?? null,
+      params.provinceIds?.join(",") ?? null,
+      params.ranking ?? null,
+      params.amountBasis ?? null
+    ],
     queryFn: () => fetchAnalyticsOverview({ ...params, period, from, to }),
     enabled: options?.enabled ?? true,
     staleTime: 5 * 60 * 1000,

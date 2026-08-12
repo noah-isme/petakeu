@@ -100,3 +100,12 @@ Gunakan daftar berikut sebagai acuan evaluasi kesiapan rilis MVP. Setiap butir p
 - [x] E2E RBAC: public redaction dan perbedaan akses public/viewer/operator/admin tersedia sebagai live contracts.
 - [x] Load test: choropleth nasional ≥10 req/s warm/cold dengan p95 verdict via k6 atau Node fallback.
 - [x] Security test: endpoint publik tidak bocorkan angka detail dan expiry presigned URL diverifikasi pada live API.
+
+## I. PRD Conformance Release (R4)
+
+- [x] Staged upload rows with immutable validation findings and atomic confirmation/cancellation.
+- [x] Region alias resolution and role-scoped alias management.
+- [x] Persisted gross/share/net/target source values with backward-compatible gross `amount` reads.
+- [x] Analytics ranking criteria, amount basis, range/province filters, and reporting-matrix detail.
+- [x] Executive/missing-data/canonical-data report sections and accessible review UI.
+- [ ] Staging migrations `007_staged_ingestion.sql` and `008_report_filters.sql` plus live infrastructure verification with `UPLOAD_REQUIRE_CONFIRMATION=true`.

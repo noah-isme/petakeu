@@ -21,7 +21,7 @@ import { Topbar } from "./components/dashboard/Topbar";
 import { type LegendItem } from "./components/dashboard/LegendCard";
 import { ToastContainer, type ToastKind, type ToastMessage } from "./components/dashboard/ToastContainer";
 import { MapPage, type MapStatus, type RegionStat } from "./pages/MapPage";
-import { UploadPage, type UploadState } from "./pages/UploadPage";
+import { UploadPage } from "./pages/UploadPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { AboutPage } from "./pages/AboutPage";
@@ -158,14 +158,6 @@ function buildLegend(featureCollection: FeatureCollection): LegendItem[] {
   }));
 }
 
-const initialUploadState: UploadState = {
-  file: null,
-  status: "idle",
-  progress: 0,
-  summary: null,
-  isDragging: false
-};
-
 export default function App() {
   const { isAdmin } = useAdminAccess();
   const [activePage, setActivePage] = useState<string>("map");
@@ -175,9 +167,6 @@ export default function App() {
   const [legendItems, setLegendItems] = useState<LegendItem[]>([]);
   const [legendHighlight, setLegendHighlight] = useState<LegendItem | null>(null);
   const [activeRegion, setActiveRegion] = useState<RegionStat | null>(null);
-
-  const [uploadState, setUploadState] = useState<UploadState>(initialUploadState);
-  const uploadTimerRef = useRef<number | null>(null);
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const toastTimers = useRef(new Map<string, number>());
@@ -240,9 +229,6 @@ export default function App() {
     const timers = toastTimers.current;
     return () => {
       timers.forEach((timeoutId) => window.clearTimeout(timeoutId));
-      if (uploadTimerRef.current) {
-        window.clearInterval(uploadTimerRef.current);
-      }
     };
   }, []);
 
@@ -257,49 +243,6 @@ export default function App() {
   const handleRegionFocus = useCallback((region: RegionStat | null) => {
     setActiveRegion(region);
   }, []);
-
-  const handleSelectFile = useCallback(
-    (selectedFile: File) => {
-      const validExtensions = [".xlsx", ".xls", ".csv"];
-      const isExtensionValid = validExtensions.some((ext) => selectedFile.name.toLowerCase().endsWith(ext));
-
-      if (!isExtensionValid) {
-        addToast("error", "File tidak valid. Gunakan template Excel atau CSV.");
-        setUploadState((prev) => ({
-          ...prev,
-          file: null,
-          status: "idle",
-          progress: 0,
-          summary: null
-        }));
-        return;
-      }
-
-      // Synchronous status update for deterministic React state rendering
-      setUploadState({
-        file: selectedFile,
-        status: "success",
-        progress: 100,
-        summary: {
-          validRows: 172,
-          invalidRows: 14
-        },
-        isDragging: false
-      });
-
-      addToast("success", "Unggah berhasil diproses.");
-    },
-    [addToast]
-  );
-
-  const handleUploadReset = useCallback(() => {
-    if (uploadTimerRef.current) {
-      window.clearInterval(uploadTimerRef.current);
-      uploadTimerRef.current = null;
-    }
-    setUploadState(initialUploadState);
-    addToast("info", "Formulir unggah berhasil direset.");
-  }, [addToast]);
 
   const totalValue = useMemo(() => {
     if (!featureCollection) return 0;
@@ -361,14 +304,7 @@ export default function App() {
       case "analytics":
         return <AnalyticsPage period={selectedPeriod} />;
       case "upload":
-        return (
-          <UploadPage
-            state={uploadState}
-            onSelectFile={handleSelectFile}
-            onReset={handleUploadReset}
-            onDragStateChange={(dragging) => setUploadState((prev) => ({ ...prev, isDragging: dragging }))}
-          />
-        );
+        return <UploadPage />;
       case "reports":
       case "calendar":
       case "team":

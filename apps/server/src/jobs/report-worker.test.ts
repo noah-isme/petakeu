@@ -146,9 +146,17 @@ describe('report-worker streaming export', () => {
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(completeBuffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
-    expect(workbook.worksheets).toHaveLength(2);
+    expect(workbook.worksheets).toHaveLength(8);
     expect(workbook.worksheets[0].name).toBe('Setoran 2026-08');
     expect(workbook.worksheets[1].name).toBe('Top 10 Peringkat');
+    expect(workbook.worksheets.map((worksheet) => worksheet.name)).toEqual(expect.arrayContaining([
+      'Executive Summary',
+      'Rankings',
+      'Monthly Breakdown',
+      'Target Achievement',
+      'Missing Data Audit',
+      'Canonical Data',
+    ]));
   });
 
   it('streams PDF report directly to storage service and updates job status to completed', async () => {

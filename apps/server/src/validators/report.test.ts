@@ -44,4 +44,49 @@ describe("branded report validation", () => {
     expect(excelResult.success).toBe(false);
     expect(unsafeLogoResult.success).toBe(false);
   });
+
+  it("normalizes the range, province, ranking, and amount-basis report contract", () => {
+    const result = reportRequestSchema.safeParse({
+      periodFrom: "2026-01",
+      periodTo: "2026-03",
+      regionId: "region-1",
+      provinceIds: ["11111111-1111-4111-8111-111111111111"],
+      format: "excel",
+      rankingCriterion: "surplus",
+      amountBasis: "share",
+      reportType: "full",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toMatchObject({
+        period: "2026-03",
+        periodFrom: "2026-01",
+        periodTo: "2026-03",
+        regionIds: ["region-1"],
+        rankingCriterion: "surplus",
+        amountBasis: "share",
+      });
+    }
+  });
+
+  it("accepts legacy frontend aliases for range, ranking, and report type", () => {
+    const result = reportRequestSchema.safeParse({
+      period: "2026-03",
+      from: "2026-01",
+      to: "2026-03",
+      regionIds: ["region-1"],
+      format: "pdf",
+      ranking: "monthly_average",
+      reportType: "executive_summary",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.periodFrom).toBe("2026-01");
+      expect(result.data.periodTo).toBe("2026-03");
+      expect(result.data.rankingCriterion).toBe("average_monthly");
+      expect(result.data.reportType).toBe("executive-summary");
+    }
+  });
 });

@@ -152,6 +152,20 @@ The following features have been evaluated and **explicitly deferred** to mainta
 | **Apache Kafka Message Bus** | 🛑 Deferred | Redis + BullMQ provides reliable distributed queues, retries, and job tracking without the operational complexity of a Kafka cluster. |
 | **Kubernetes (K8s) Deployment** | 🛑 Deferred | Docker Compose / Single-node Docker Swarm / Managed container service (e.g. AWS ECS / GCP Cloud Run) is sufficient for current traffic demands. |
 
+## 8. PRD Conformance Release (R4)
+
+The original MVP, analytics, and enterprise milestones are implemented. R4 closes the remaining fidelity gaps between the PRD/design documents and the production APIs.
+
+- [x] **Staged ingestion lifecycle:** upload → parse → review → row correction → warning acknowledgement → atomic confirmation/cancellation.
+- [x] **Canonical region aliases:** scoped alias storage, operator creation, admin lifecycle management, and alias-aware validation.
+- [x] **Financial source values:** persisted gross, submitted 15% share, net, target, upload provenance, and validation findings while retaining legacy `amount` compatibility.
+- [x] **Analytics controls:** period ranges, province filters, six ranking criteria, gross/share/net basis, and reporting-matrix detail endpoints.
+- [x] **Report fidelity:** executive summary, rankings, monthly breakdown, target achievement, missing-data audit, and canonical re-import workbook sheets.
+- [x] **Frontend workflow:** accessible staged-upload review/correction and interactive analytics matrix/detail controls.
+- [ ] **Release verification:** apply migrations `007_staged_ingestion.sql` and `008_report_filters.sql` in staging, run live PostgreSQL/Redis/MinIO/BullMQ suites, and validate rollback/backup procedures.
+
+The staged confirmation behavior is controlled by `UPLOAD_REQUIRE_CONFIRMATION=true`; enable it after the first-party frontend is deployed and the staging acceptance suite passes.
+
 ---
 
 ## Related Documentation

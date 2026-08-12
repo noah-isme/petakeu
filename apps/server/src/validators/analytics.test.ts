@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   addMonths,
+  normalizeAnalyticsRankingQuery,
   normalizeAnalyticsOverviewQuery,
   normalizeTargetListQuery,
   targetRegistrationSchema,
@@ -38,5 +39,37 @@ describe('analytics validation', () => {
       period: '2025-08',
       target: '1250000.50',
     }).target).toBe(1250000.5);
+  });
+
+  it('normalizes ranking filters and supports every ranking criterion', () => {
+    const criteria = ['total', 'average_monthly', 'target_achievement', 'growth', 'surplus', 'deficit'] as const;
+    for (const rankingCriterion of criteria) {
+      const result = normalizeAnalyticsRankingQuery({
+        from: '2025-01',
+        to: '2025-03',
+        rankingCriterion,
+        amountBasis: 'net',
+        limit: '25',
+      });
+      expect(result).toMatchObject({
+        from: '2025-01',
+        to: '2025-03',
+        rankingCriterion,
+        amountBasis: 'net',
+        limit: 25,
+        provinceIds: [],
+      });
+    }
+  });
+
+  it('treats metric as the amount basis and criterion as the ranking alias', () => {
+    const result = normalizeAnalyticsRankingQuery({
+      from: '2025-01',
+      to: '2025-01',
+      metric: 'share',
+      criterion: 'monthly_average',
+    });
+    expect(result.amountBasis).toBe('share');
+    expect(result.rankingCriterion).toBe('average_monthly');
   });
 });

@@ -1,4 +1,13 @@
 export type ReportStatus = "queued" | "processing" | "completed" | "failed";
+export type ReportAmountBasis = "gross" | "share" | "net";
+export type ReportRankingCriterion =
+  | "total"
+  | "average_monthly"
+  | "target_achievement"
+  | "growth"
+  | "surplus"
+  | "deficit";
+export type ReportType = "executive-summary" | "full" | "missing-data";
 
 export interface ReportLogo {
   /** A bounded data URI for a PNG or JPEG logo. */
@@ -18,6 +27,12 @@ export interface ReportRequest {
   regionIds: string[];
   format: "pdf" | "excel";
   branding?: ReportBranding;
+  periodFrom?: string;
+  periodTo?: string;
+  provinceIds?: string[];
+  rankingCriterion?: ReportRankingCriterion;
+  amountBasis?: ReportAmountBasis;
+  reportType?: ReportType;
 }
 
 export interface ReportJobData {
@@ -26,6 +41,12 @@ export interface ReportJobData {
   regionIds: string[];
   format: "pdf" | "excel";
   branding?: ReportBranding;
+  periodFrom?: string;
+  periodTo?: string;
+  provinceIds?: string[];
+  rankingCriterion?: ReportRankingCriterion;
+  amountBasis?: ReportAmountBasis;
+  reportType?: ReportType;
 }
 
 export interface ReportSummaryRegion {
@@ -51,6 +72,19 @@ export interface ReportSummary {
   topGainers?: ReportTrendItem[];
   topDecliners?: ReportTrendItem[];
   lastTwelveMonths?: ReportMonthlySummaryItem[];
+  filters?: {
+    periodFrom: string;
+    periodTo: string;
+    provinceIds: string[];
+    rankingCriterion: ReportRankingCriterion;
+    amountBasis: ReportAmountBasis;
+    reportType: ReportType;
+  };
+  missingData?: {
+    expected: number;
+    reported: number;
+    missing: number;
+  };
 }
 
 export interface ReportJob {
@@ -65,4 +99,10 @@ export interface ReportJob {
   expiresAt?: string;
   errorMessage?: string;
   summary?: ReportSummary | null;
+  periodFrom?: string;
+  periodTo?: string;
+  provinceIds?: string[];
+  rankingCriterion?: ReportRankingCriterion;
+  amountBasis?: ReportAmountBasis;
+  reportType?: ReportType;
 }

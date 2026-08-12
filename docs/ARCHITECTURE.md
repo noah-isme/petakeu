@@ -260,6 +260,8 @@ Database migrations are stored as sequential SQL files in [`apps/server/migratio
 | `004_audit_logs.sql` | Immutable audit trail (`audit_logs`) table with indexes |
 | `005_analytics_targets.sql` | Monthly `revenue_targets` used by the analytics read model |
 | `006_approval_workflow.sql` | Approval workflow/event history, fiscal-period locks, and write-protection triggers |
+| `007_staged_ingestion.sql` | Staged upload rows/findings, canonical region aliases, upload lifecycle fields, and persisted gross/share/net/target values |
+| `008_report_filters.sql` | Persisted report range, province, ranking, amount-basis, and report-type filters |
 
 ---
 

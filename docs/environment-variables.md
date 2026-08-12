@@ -23,6 +23,7 @@ Complete reference for all environment variables in the Petakeu monorepo.
 | `AUTH_DISABLED` | No | `true` | Set to `true` to bypass JWT auth entirely (dev only). Must be `false` in production. |
 | `AUTH_ISSUER` | No | `petakeu` | JWT issuer claim |
 | `AUTH_AUDIENCE` | No | `petakeu-api` | JWT audience claim |
+| `UPLOAD_REQUIRE_CONFIRMATION` | No | `false` | Stage uploaded rows for validation/review and require explicit confirmation before persistence. Set to `true` when the staged ingestion workflow is enabled. |
 | `MAP_TILE_KEY` | No | — | Mapbox/Carto API key for custom map tiles |
 | `LOG_LEVEL` | No | `debug` | Log level (`debug`, `info`, `warn`, `error`) |
 | `CORS_ORIGIN` | No | `*` | Allowed CORS origin(s) |

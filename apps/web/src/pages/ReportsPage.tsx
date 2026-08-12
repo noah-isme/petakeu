@@ -1,8 +1,13 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Download, MapPin, ArrowUpRight, BarChart3 } from "lucide-react";
 
 import { formatCurrency } from "../lib/format";
+import { apiClient } from "../api/client";
+import { useRegions } from "../hooks/useRegions";
+
+import type { ReportAmountBasis, ReportRankingCriterion, ReportRequest } from "../types/report";
 
 interface MetricCardProps {
   title: string;
@@ -12,6 +17,18 @@ interface MetricCardProps {
 }
 
 export function ReportsPage({ metrics }: { metrics: MetricCardProps[] }) {
+  const provincesQuery = useRegions({ level: "province" });
+  const [reportPayload, setReportPayload] = useState<ReportRequest>({
+    period: "2024-09",
+    from: "2024-01",
+    to: "2024-09",
+    regionIds: [],
+    format: "pdf",
+    reportType: "full",
+    ranking: "total",
+    amountBasis: "gross"
+  });
+  const reportMutation = useMutation({ mutationFn: () => apiClient.createReport(reportPayload) });
   const regionalBreakdown = useMemo(
     () => [
       { name: "Jawa Timur", code: "35", total: 3340000000, cut15: 501000000, net85: 2839000000, share: 24.6 },
@@ -26,6 +43,23 @@ export function ReportsPage({ metrics }: { metrics: MetricCardProps[] }) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-12">
+      <section className="rounded-[24px] border border-slate-100 bg-white p-6 shadow-xs" aria-labelledby="report-builder-title">
+        <div className="flex items-start justify-between gap-4">
+          <div><p className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700">Generator laporan</p><h2 id="report-builder-title" className="mt-1 text-xl font-bold text-slate-900">Buat laporan terarah</h2><p className="mt-1 text-xs text-slate-500">Pilih rentang, provinsi, metrik peringkat, dan basis nominal untuk PDF atau Excel.</p></div>
+          {reportMutation.data && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">Job {reportMutation.data.jobId} masuk antrean</span>}
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="text-xs font-bold text-slate-700">Dari<input type="month" value={reportPayload.from ?? reportPayload.period} onChange={(event) => setReportPayload((current) => ({ ...current, from: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500" /></label>
+          <label className="text-xs font-bold text-slate-700">Sampai<input type="month" value={reportPayload.to ?? reportPayload.period} onChange={(event) => setReportPayload((current) => ({ ...current, to: event.target.value, period: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500" /></label>
+          <label className="text-xs font-bold text-slate-700">Format<select value={reportPayload.format} onChange={(event) => setReportPayload((current) => ({ ...current, format: event.target.value as ReportRequest["format"] }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"><option value="pdf">PDF</option><option value="excel">Excel</option></select></label>
+          <label className="text-xs font-bold text-slate-700">Jenis laporan<select value={reportPayload.reportType} onChange={(event) => setReportPayload((current) => ({ ...current, reportType: event.target.value as ReportRequest["reportType"] }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"><option value="full">Lengkap</option><option value="executive_summary">Ringkasan eksekutif</option><option value="rankings">Peringkat</option><option value="monthly_breakdown">Rincian bulanan</option><option value="target_achievement">Pencapaian target</option><option value="missing_data_audit">Audit data hilang</option></select></label>
+          <label className="text-xs font-bold text-slate-700">Peringkat<select value={reportPayload.ranking} onChange={(event) => setReportPayload((current) => ({ ...current, ranking: event.target.value as ReportRankingCriterion }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"><option value="total">Total</option><option value="monthly_average">Rata-rata bulanan</option><option value="target_achievement">Pencapaian target</option><option value="growth">Pertumbuhan</option><option value="surplus">Surplus</option><option value="deficit">Defisit</option></select></label>
+          <label className="text-xs font-bold text-slate-700">Basis nominal<select value={reportPayload.amountBasis} onChange={(event) => setReportPayload((current) => ({ ...current, amountBasis: event.target.value as ReportAmountBasis }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"><option value="gross">Bruto</option><option value="share">Share 15%</option><option value="net">Netto 85%</option></select></label>
+          <label className="text-xs font-bold text-slate-700 sm:col-span-2">Provinsi<select multiple value={reportPayload.regionIds} onChange={(event) => setReportPayload((current) => ({ ...current, regionIds: [...event.target.selectedOptions].map((option) => option.value), provinceIds: [...event.target.selectedOptions].map((option) => option.value) }))} className="mt-1 h-20 w-full rounded-xl border border-slate-200 px-3 py-1 text-xs outline-none focus:border-emerald-500" aria-label="Pilih provinsi untuk laporan">{(provincesQuery.data ?? []).map((province) => <option key={province.id} value={province.id}>{province.name}</option>)}</select></label>
+        </div>
+        {reportMutation.isError && <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">{reportMutation.error instanceof Error ? reportMutation.error.message : "Gagal membuat laporan."}</p>}
+        <div className="mt-4 flex justify-end"><button type="button" disabled={reportMutation.isPending || reportPayload.regionIds.length === 0} onClick={() => reportMutation.mutate()} className="inline-flex items-center gap-2 rounded-full bg-emerald-700 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-4 w-4" aria-hidden="true" />{reportMutation.isPending ? "Menyiapkan…" : "Buat laporan"}</button></div>
+      </section>
       {/* Header Banner */}
       <div className="rounded-[24px] border border-slate-100 bg-white p-6 shadow-xs transition hover:shadow-md">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -161,4 +195,3 @@ export function ReportsPage({ metrics }: { metrics: MetricCardProps[] }) {
     </div>
   );
 }
-

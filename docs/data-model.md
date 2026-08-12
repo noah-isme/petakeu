@@ -588,6 +588,8 @@ interface ApprovalReviewInput {
 | Revenue target | `target` >= 0, month-normalized period, unique per region/period |
 | Approval | only `draft → under_review → approved → published`; events immutable |
 | Fiscal lock | month-normalized period; locked periods reject protected writes |
+| Staged upload | blocking errors prevent confirmation; warnings require acknowledgement; row revisions are optimistic-locked |
+| Region alias | normalized alias is unique within level/parent scope while active |
 | JWT role | role must be one of `public`, `viewer`, `operator`, `admin` |
 
 ---
@@ -600,6 +602,8 @@ interface ApprovalReviewInput {
 | 1.1 (applied) | Audit log table and middleware (`004_audit_logs.sql`) |
 | 1.2 (applied) | Revenue targets for analytics (`005_analytics_targets.sql`) |
 | 1.3 (applied) | Approval workflows and fiscal-period locks (`006_approval_workflow.sql`) |
+| 1.4 (pending release) | Staged ingestion, canonical aliases, and source financial values (`007_staged_ingestion.sql`) |
+| 1.5 (pending release) | Persisted report-builder filters (`008_report_filters.sql`) |
 | 2.0 (future) | Historical boundary changes table and optional payment partitioning |
 
 ---

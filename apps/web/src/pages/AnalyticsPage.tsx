@@ -1,6 +1,10 @@
-import { RefreshCcw } from "lucide-react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { RefreshCcw, X } from "lucide-react";
 
 import { useAnalytics } from "../hooks/useAnalytics";
+import { useRegions } from "../hooks/useRegions";
+import { apiClient } from "../api/client";
 import { appConfig } from "../config/app";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -16,7 +20,14 @@ import { RegionComparison } from "../components/analytics/RegionComparison";
 import { TargetVarianceChart } from "../components/analytics/TargetVarianceChart";
 import { hasAnalyticsData, formatAmount, formatPeriod, formatPercent, formatUpdatedAt, normalizeAnalyticsPeriod } from "../components/analytics/analytics-utils";
 
-import type { AnalyticsOverview, AnalyticsProvinceMetric, AnalyticsReportingCell, ReportingStatus } from "../types/analytics";
+import type {
+  AnalyticsAmountBasis,
+  AnalyticsOverview,
+  AnalyticsProvinceMetric,
+  AnalyticsReportingCell,
+  AnalyticsRankingCriterion,
+  ReportingStatus
+} from "../types/analytics";
 
 interface AnalyticsPageProps {
   period?: string;
@@ -103,7 +114,14 @@ function YearOverYear({ data, publicMode }: { data: AnalyticsOverview["yoyCompar
   );
 }
 
-function ReportingMatrix({ data }: { data: AnalyticsOverview["reportingMatrix"] }) {
+interface SelectedReportingCell {
+  regionId: string | null;
+  regionName: string;
+  period: string;
+  cell: AnalyticsReportingCell;
+}
+
+function ReportingMatrix({ data, onSelect }: { data: AnalyticsOverview["reportingMatrix"]; onSelect: (selection: SelectedReportingCell) => void }) {
   return (
     <AnalyticsSection
       title="Matriks kepatuhan pelaporan"
@@ -127,7 +145,7 @@ function ReportingMatrix({ data }: { data: AnalyticsOverview["reportingMatrix"] 
                   <th className="sticky left-0 bg-white px-4 py-3 text-left font-bold text-slate-800">{region.regionName}</th>
                   {data.periods.map((period, index) => {
                     const cell = region.cells.find((item) => item.period === period) ?? region.cells[index];
-                    return <td key={`${region.regionId ?? region.regionName}-${period}`} className="px-3 py-2 text-center">{cell ? <StatusCell cell={cell} /> : <span className="text-slate-300">—</span>}</td>;
+                    return <td key={`${region.regionId ?? region.regionName}-${period}`} className="px-3 py-2 text-center">{cell ? <button type="button" className="rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/40" onClick={() => onSelect({ regionId: region.regionId, regionName: region.regionName, period, cell })} aria-label={`Lihat detail ${region.regionName} ${formatPeriod(period)}`}><StatusCell cell={cell} /></button> : <span className="text-slate-300">—</span>}</td>;
                   })}
                 </tr>
               ))}
@@ -139,10 +157,88 @@ function ReportingMatrix({ data }: { data: AnalyticsOverview["reportingMatrix"] 
   );
 }
 
+function ReportingDetailDrawer({ selection, publicMode, onClose }: { selection: SelectedReportingCell | null; publicMode: boolean; onClose: () => void }) {
+  const detailQuery = useQuery({
+    queryKey: ["reporting-matrix-detail", selection?.regionId, selection?.period],
+    queryFn: () => apiClient.getReportingMatrixDetail(selection?.regionId as string, selection?.period as string),
+    enabled: Boolean(selection?.regionId) && !selection?.cell.detail,
+    staleTime: 5 * 60 * 1000
+  });
+  if (!selection) return null;
+  const detail = selection.cell.detail ?? detailQuery.data;
+  const amount = (value: number | null | undefined) => publicMode ? "Data terbatas" : formatAmount(value ?? null);
+  return (
+    <aside className="fixed inset-y-0 right-0 z-[60] w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white p-6 shadow-2xl" aria-label="Detail pelaporan" role="dialog">
+      <div className="flex items-start justify-between gap-4">
+        <div><p className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700">Detail pelaporan</p><h2 className="mt-1 text-lg font-extrabold text-slate-900">{selection.regionName}</h2><p className="mt-1 text-xs text-slate-500">{formatPeriod(selection.period)} · {selection.cell.status}</p></div>
+        <Button type="button" variant="outline" size="icon" aria-label="Tutup detail pelaporan" onClick={onClose}><X className="h-4 w-4" aria-hidden="true" /></Button>
+      </div>
+      {detailQuery.isLoading && !detail && <p className="mt-8 text-sm text-slate-500">Memuat rincian…</p>}
+      {detailQuery.isError && !detail && <p className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">Rincian transaksi belum tersedia.</p>}
+      {detail && (
+        <div className="mt-6 space-y-4">
+          <dl className="grid grid-cols-2 gap-3">
+            {[["Bruto", detail.grossAmount], ["Share", detail.shareAmount], ["Netto", detail.netAmount], ["Target", detail.targetAmount]].map(([label, value]) => <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 p-3"><dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</dt><dd className="mt-1 text-sm font-extrabold text-slate-900">{amount(value as number | null)}</dd></div>)}
+          </dl>
+          <div className="rounded-xl border border-slate-200 p-4 text-xs text-slate-600"><p><strong>File:</strong> {detail.importFilename ?? "—"}</p><p className="mt-1"><strong>Operator:</strong> {detail.importedBy ?? "—"}</p><p className="mt-1"><strong>Waktu:</strong> {detail.importedAt ? formatUpdatedAt(detail.importedAt) : "—"}</p></div>
+          {detail.validationFindings.length > 0 && <div><h3 className="text-xs font-extrabold text-slate-900">Temuan validasi</h3><ul className="mt-2 space-y-2">{detail.validationFindings.map((finding, index) => <li key={finding.findingId ?? index} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{finding.message}</li>)}</ul></div>}
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function AnalyticsFilters({
+  from,
+  to,
+  provinceIds,
+  ranking,
+  amountBasis,
+  provinces,
+  onFromChange,
+  onToChange,
+  onProvinceChange,
+  onRankingChange,
+  onAmountBasisChange
+}: {
+  from: string;
+  to: string;
+  provinceIds: string[];
+  ranking: AnalyticsRankingCriterion;
+  amountBasis: AnalyticsAmountBasis;
+  provinces: Array<{ id: string; name: string }>;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+  onProvinceChange: (values: string[]) => void;
+  onRankingChange: (value: AnalyticsRankingCriterion) => void;
+  onAmountBasisChange: (value: AnalyticsAmountBasis) => void;
+}) {
+  return (
+    <section aria-labelledby="analytics-filter-heading" className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+      <h2 id="analytics-filter-heading" className="text-sm font-extrabold text-slate-900">Filter analitik</h2>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <label className="text-xs font-bold text-slate-700">Dari<input type="month" value={from} onChange={(event) => onFromChange(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-emerald-500" /></label>
+        <label className="text-xs font-bold text-slate-700">Sampai<input type="month" value={to} onChange={(event) => onToChange(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-emerald-500" /></label>
+        <label className="text-xs font-bold text-slate-700">Peringkat<select value={ranking} onChange={(event) => onRankingChange(event.target.value as AnalyticsRankingCriterion)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-emerald-500"><option value="total">Total</option><option value="monthly_average">Rata-rata bulanan</option><option value="target_achievement">Pencapaian target</option><option value="growth">Pertumbuhan</option><option value="surplus">Surplus</option><option value="deficit">Defisit</option></select></label>
+        <label className="text-xs font-bold text-slate-700">Basis nominal<select value={amountBasis} onChange={(event) => onAmountBasisChange(event.target.value as AnalyticsAmountBasis)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-emerald-500"><option value="gross">Bruto</option><option value="share">Share 15%</option><option value="net">Netto 85%</option></select></label>
+        <label className="text-xs font-bold text-slate-700">Provinsi<select multiple value={provinceIds} onChange={(event) => onProvinceChange([...event.target.selectedOptions].map((option) => option.value))} className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 py-1 text-xs font-medium outline-none focus:border-emerald-500" aria-label="Pilih satu atau beberapa provinsi">{provinces.map((province) => <option key={province.id} value={province.id}>{province.name}</option>)}</select></label>
+      </div>
+    </section>
+  );
+}
+
 export function AnalyticsPage({ period }: AnalyticsPageProps) {
   const analyticsPeriod = normalizeAnalyticsPeriod(period);
-  const query = useAnalytics({ period: analyticsPeriod });
+  const [from, setFrom] = useState(analyticsPeriod ?? "");
+  const [to, setTo] = useState(analyticsPeriod ?? "");
+  const [provinceIds, setProvinceIds] = useState<string[]>([]);
+  const [ranking, setRanking] = useState<AnalyticsRankingCriterion>("total");
+  const [amountBasis, setAmountBasis] = useState<AnalyticsAmountBasis>("gross");
+  const [selectedCell, setSelectedCell] = useState<SelectedReportingCell | null>(null);
+  const provincesQuery = useRegions({ level: "province" });
+  const query = useAnalytics({ period: analyticsPeriod, from: from || undefined, to: to || undefined, provinceIds, ranking, amountBasis });
   const publicMode = appConfig.publicMode || query.data?.public === true;
+  const filters = <AnalyticsFilters from={from} to={to} provinceIds={provinceIds} ranking={ranking} amountBasis={amountBasis} provinces={provincesQuery.data ?? []} onFromChange={setFrom} onToChange={setTo} onProvinceChange={setProvinceIds} onRankingChange={setRanking} onAmountBasisChange={setAmountBasis} />;
 
   if (query.isLoading && !query.data) return <AnalyticsLoadingState />;
   if (query.isError && !query.data) {
@@ -150,7 +246,9 @@ export function AnalyticsPage({ period }: AnalyticsPageProps) {
   }
 
   const data = query.data;
-  if (!data || !hasAnalyticsData(data)) return <AnalyticsEmptyState publicMode={publicMode} />;
+  if (!data || !hasAnalyticsData(data)) {
+    return <div className="mx-auto max-w-[1500px] space-y-5 overflow-y-auto px-4 pb-10 pt-5 sm:px-6 lg:px-8">{filters}<AnalyticsEmptyState publicMode={publicMode} /></div>;
+  }
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5 overflow-y-auto px-4 pb-10 pt-5 sm:px-6 lg:px-8">
@@ -172,6 +270,8 @@ export function AnalyticsPage({ period }: AnalyticsPageProps) {
 
       <KpiCards kpis={data.kpis} period={data.period ?? analyticsPeriod ?? null} publicMode={publicMode} />
 
+      {filters}
+
       {query.isError && <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800" role="status">Data yang tampil adalah hasil terakhir; pembaruan terbaru gagal dimuat.</p>}
 
       <div className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
@@ -182,7 +282,8 @@ export function AnalyticsPage({ period }: AnalyticsPageProps) {
       <RegionComparison topRegions={data.topRegions} bottomRegions={data.bottomRegions} publicMode={publicMode} />
       <ProvinceComparison data={data.provinceComparison} publicMode={publicMode} />
       <YearOverYear data={data.yoyComparison} publicMode={publicMode} />
-      <ReportingMatrix data={data.reportingMatrix} />
+      <ReportingMatrix data={data.reportingMatrix} onSelect={setSelectedCell} />
+      <ReportingDetailDrawer selection={selectedCell} publicMode={publicMode} onClose={() => setSelectedCell(null)} />
     </div>
   );
 }

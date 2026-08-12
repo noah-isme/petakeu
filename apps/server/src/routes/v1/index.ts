@@ -12,6 +12,7 @@ import { defisitwatchRouter } from './defisitwatch';
 import { auditRouter } from './audit';
 import { analyticsRouter } from './analytics';
 import { approvalRouter } from './approvals';
+import { regionAliasRouter } from './region-aliases';
 
 export const apiRouter = Router();
 
@@ -20,6 +21,7 @@ apiRouter.use(auditMiddleware);
 apiRouter.use('/regions', regionRouter);
 apiRouter.use('/geo', geoRouter);
 apiRouter.use('/uploads', uploadRouter);
+apiRouter.use('/region-aliases', regionAliasRouter);
 apiRouter.use('/reports', reportRouter);
 apiRouter.use('/', fiscalRouter);         // /rank and /surplus-defisit at root v1
 apiRouter.use('/rankfin', rankfinRouter);

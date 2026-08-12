@@ -33,6 +33,11 @@ erDiagram
         uuid region_id FK
         date period
         numeric amount
+        numeric gross_amount
+        numeric share_amount
+        numeric net_amount
+        numeric target_amount
+        uuid upload_id FK
         text source
         jsonb meta
         timestamptz created_at
@@ -56,9 +61,15 @@ erDiagram
     report_jobs {
         uuid id PK
         text period
+        text period_from
+        text period_to
         text[] region_ids
+        text[] province_ids
         text format
         text status
+        text ranking_criterion
+        text amount_basis
+        text report_type
         text download_url
         timestamptz requested_at
         timestamptz updated_at
@@ -145,7 +156,12 @@ Stores raw payment data from Excel uploads after validation and parsing.
 | `id` | `UUID` | `PRIMARY KEY` | Unique identifier |
 | `region_id` | `UUID` | `NOT NULL FK → regions.id ON DELETE CASCADE` | Reference to region |
 | `period` | `DATE` | `NOT NULL` | First day of month (e.g., 2025-08-01) |
-| `amount` | `NUMERIC(18,2)` | `NOT NULL CHECK (amount >= 0)` | Gross payment amount in IDR |
+| `amount` | `NUMERIC(18,2)` | `NOT NULL CHECK (amount >= 0)` | Backward-compatible gross payment amount in IDR |
+| `gross_amount` | `NUMERIC(18,2)` | `NOT NULL CHECK (gross_amount >= 0)` | Canonical source gross amount |
+| `share_amount` | `NUMERIC(18,2)` | `NOT NULL CHECK (share_amount >= 0)` | Submitted/provincial 15% share |
+| `net_amount` | `NUMERIC(18,2)` | `NOT NULL CHECK (net_amount >= 0)` | Canonical net amount after share |
+| `target_amount` | `NUMERIC(18,2)` | `CHECK (target_amount IS NULL OR target_amount >= 0)` | Optional target captured with the upload |
+| `upload_id` | `UUID` | `FK → uploads.id ON DELETE SET NULL` | Upload provenance |
 | `source` | `TEXT` | `NOT NULL` | Payment source (e.g., "PAD", "DBH", "DAU", "DAK", "Lainnya") |
 | `meta` | `JSONB` | `NOT NULL DEFAULT '{}'` | Additional metadata (sheet name, row number, etc.) |
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT NOW()` | Creation timestamp |
@@ -177,7 +193,7 @@ Tracks Excel file uploads, processing status, and validation errors.
 | `filename` | `TEXT` | `NOT NULL` | Original filename |
 | `mimetype` | `TEXT` | `NOT NULL` | MIME type (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet) |
 | `size_bytes` | `INTEGER` | `NOT NULL` | File size in bytes |
-| `status` | `TEXT` | `NOT NULL DEFAULT 'queued'` | `queued`, `processing`, `parsed`, `failed` |
+| `status` | `TEXT` | `NOT NULL DEFAULT 'queued'` | `queued`, `processing`, `parsing`, `parsed`, `awaiting_confirmation`, `committing`, `persisted`, `failed`, `cancelled` |
 | `hash` | `TEXT` | `UNIQUE NOT NULL` | SHA-256 hash for deduplication |
 | `storage_path` | `TEXT` | `NOT NULL` | Path in object storage (MinIO/S3) |
 | `error_count` | `INTEGER` | `NOT NULL DEFAULT 0` | Number of validation errors |
@@ -193,6 +209,16 @@ Tracks Excel file uploads, processing status, and validation errors.
 ]
 ```
 
+Staged uploads also retain lifecycle actors/timestamps, row and warning
+counters, and immutable findings in `upload_validation_findings`. Normalized
+rows are stored in `staged_upload_rows` until atomic confirmation writes to
+`payments`.
+
+### 3a. `region_aliases` - Canonical Import Aliases
+
+Stores active, scope-aware aliases for BPS regions. The unique active index is
+scoped by normalized alias, administrative level, and parent province.
+
 ---
 
 ### 4. `report_jobs` - Report Generation Jobs
@@ -203,9 +229,14 @@ Tracks asynchronous report generation jobs.
 |--------|------|-------------|-------------|
 | `id` | `UUID` | `PRIMARY KEY` | Unique identifier (job_id) |
 | `period` | `TEXT` | `NOT NULL` | Report period (YYYY-MM) |
+| `period_from` / `period_to` | `TEXT` | - | Inclusive report range (YYYY-MM) |
 | `region_ids` | `TEXT[]` | `NOT NULL` | Array of region IDs included |
+| `province_ids` | `TEXT[]` | `NOT NULL DEFAULT '{}'` | Optional province filters |
 | `format` | `TEXT` | `NOT NULL CHECK (pdf, excel)` | Output format |
 | `status` | `TEXT` | `NOT NULL DEFAULT 'queued'` | `queued`, `processing`, `completed`, `failed` |
+| `ranking_criterion` | `TEXT` | `NOT NULL DEFAULT 'total'` | Ranking metric used in the export |
+| `amount_basis` | `TEXT` | `NOT NULL DEFAULT 'gross'` | `gross`, `share`, or `net` |
+| `report_type` | `TEXT` | `NOT NULL DEFAULT 'full'` | `executive-summary`, `full`, or `missing-data` |
 | `download_url` | `TEXT` | - | Presigned URL (valid 24h) |
 | `requested_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT NOW()` | Job creation time |
 | `updated_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT NOW()` | Last status update |

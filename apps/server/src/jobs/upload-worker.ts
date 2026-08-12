@@ -7,6 +7,12 @@ import { invalidateRegionCache } from '../services/region-service';
 import { invalidateFiscalCache } from '../services/fiscal-service';
 import { invalidateDefisitwatchCache } from '../services/defisitwatch-service';
 import { invalidateRankfinCache } from '../services/rankfin-service';
+import {
+  parseSheetRows,
+  validateUploadRow,
+  type ParsedUploadRow,
+  type ValidatedUploadRow,
+} from '../services/upload-validation';
 import { logger } from '../utils/logger';
 import {
   workerJobsTotal,
@@ -34,6 +40,10 @@ export const uploadQueue = {
 
 const EXPECTED_HEADERS = ['kode_bps', 'nama_wilayah', 'periode', 'nominal', 'sumber'];
 const PERIOD_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+function requiresUploadConfirmation(): boolean {
+  return process.env.UPLOAD_REQUIRE_CONFIRMATION === 'true';
+}
 
 export function isFuturePeriod(period: string, referenceDate: Date = new Date()): boolean {
   if (!period || !PERIOD_REGEX.test(period)) {
@@ -75,6 +85,146 @@ function parseRows(buffer: Buffer) {
   return utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' }) as string[][];
 }
 
+function findingToError(rowNumber: number, finding: ValidatedUploadRow['findings'][number]) {
+  return {
+    row: rowNumber,
+    column: finding.column,
+    code: finding.code,
+    severity: finding.severity,
+    message: finding.message,
+    details: finding.details,
+  };
+}
+
+async function stageUpload(
+  pool: ReturnType<typeof getPgPool>,
+  uploadId: string,
+  rows: ParsedUploadRow[],
+): Promise<void> {
+  let totalAmount = 0;
+  let validRows = 0;
+  let errorCount = 0;
+  let warningCount = 0;
+  let minPeriod: string | undefined;
+  let maxPeriod: string | undefined;
+  const allErrors: ReturnType<typeof findingToError>[] = [];
+
+  await pool.query(
+    `UPDATE uploads SET status = 'parsing', row_count = $2, updated_at = NOW() WHERE id = $1`,
+    [uploadId, rows.length],
+  );
+
+  for (const input of rows) {
+    const validated = await validateUploadRow(pool, input);
+    const errors = validated.findings.filter((finding) => finding.severity === 'error');
+    const warnings = validated.findings.filter((finding) => finding.severity === 'warning');
+    errorCount += errors.length;
+    warningCount += warnings.length;
+    if (errors.length === 0) {
+      validRows += 1;
+      if (validated.grossAmount !== null) totalAmount += validated.grossAmount;
+      if (validated.period && (!minPeriod || validated.period < minPeriod)) minPeriod = validated.period;
+      if (validated.period && (!maxPeriod || validated.period > maxPeriod)) maxPeriod = validated.period;
+    }
+    allErrors.push(...validated.findings.map((finding) => findingToError(input.rowNumber, finding)));
+
+    const staged = await pool.query<{ id: string; revision: number }>(
+      `INSERT INTO staged_upload_rows(
+         upload_id, row_number, revision, raw_values,
+         province_raw, region_raw, code_bps_raw, source_raw,
+         region_id, region_level, region_code, region_name, province_region_id,
+         period, gross_amount, share_amount, net_amount, target_amount,
+         status, error_count, warning_count, acknowledged_warning_ids, updated_at
+       ) VALUES($1, $2, 1, $3::jsonb, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                ($13 || '-01')::date, $14, $15, $16, $17, $18, $19, $20, ARRAY[]::uuid[], NOW())
+       ON CONFLICT(upload_id, row_number) DO UPDATE SET
+         revision = staged_upload_rows.revision + 1,
+         raw_values = EXCLUDED.raw_values,
+         province_raw = EXCLUDED.province_raw,
+         region_raw = EXCLUDED.region_raw,
+         code_bps_raw = EXCLUDED.code_bps_raw,
+         source_raw = EXCLUDED.source_raw,
+         region_id = EXCLUDED.region_id,
+         region_level = EXCLUDED.region_level,
+         region_code = EXCLUDED.region_code,
+         region_name = EXCLUDED.region_name,
+         province_region_id = EXCLUDED.province_region_id,
+         period = EXCLUDED.period,
+         gross_amount = EXCLUDED.gross_amount,
+         share_amount = EXCLUDED.share_amount,
+         net_amount = EXCLUDED.net_amount,
+         target_amount = EXCLUDED.target_amount,
+         status = EXCLUDED.status,
+         error_count = EXCLUDED.error_count,
+         warning_count = EXCLUDED.warning_count,
+         acknowledged_warning_ids = ARRAY[]::uuid[],
+         updated_at = NOW()
+       RETURNING id::text, revision`,
+      [
+        uploadId,
+        input.rowNumber,
+        JSON.stringify(input.rawValues),
+        input.provinceRaw || null,
+        input.regionRaw || null,
+        input.codeBpsRaw || null,
+        input.sourceRaw || null,
+        validated.regionId,
+        validated.regionLevel,
+        validated.regionCode,
+        validated.regionName,
+        validated.provinceRegionId,
+        validated.period,
+        validated.grossAmount,
+        validated.shareAmount,
+        validated.netAmount,
+        validated.targetAmount,
+        errors.length === 0 ? 'valid' : 'invalid',
+        errors.length,
+        warnings.length,
+      ],
+    );
+    const stagedRow = staged.rows[0];
+    if (!stagedRow) continue;
+    for (const finding of validated.findings) {
+      await pool.query(
+        `INSERT INTO upload_validation_findings(
+           upload_id, staged_row_id, revision, severity, code, column_name,
+           message, details, created_by
+         ) VALUES($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)`,
+        [
+          uploadId,
+          stagedRow.id,
+          stagedRow.revision,
+          finding.severity,
+          finding.code,
+          finding.column,
+          finding.message,
+          JSON.stringify(finding.details ?? {}),
+          null,
+        ],
+      );
+    }
+  }
+
+  const summary = {
+    totalRows: rows.length,
+    validRows,
+    totalAmount,
+    periodRange: { from: minPeriod, to: maxPeriod },
+    errorCount,
+    warningCount,
+  };
+  const status = 'awaiting_confirmation';
+  await pool.query(
+    `UPDATE uploads
+        SET status = $2, summary = $3::jsonb, errors = $4::jsonb,
+            error_count = $5, valid_row_count = $6, warning_count = $7,
+            updated_at = NOW()
+      WHERE id = $1`,
+    [uploadId, status, JSON.stringify(summary), JSON.stringify(allErrors), errorCount, validRows, warningCount],
+  );
+}
+
 export async function processUpload(job: Job): Promise<void> {
   const startTime = Date.now();
   const { uploadId, buffer: bufferB64 } = job.data;
@@ -91,6 +241,19 @@ export async function processUpload(job: Job): Promise<void> {
   try {
     const buffer = Buffer.from(bufferB64, 'base64');
     const rows = parseRows(buffer);
+
+    if (requiresUploadConfirmation()) {
+      try {
+        const stagedSheet = parseSheetRows(rows);
+        await stageUpload(pool, uploadId, stagedSheet.rows);
+      } catch (error) {
+        if (error instanceof UploadParseError) throw error;
+        throw new UploadParseError(error instanceof Error ? error.message : 'File tidak dapat divalidasi');
+      }
+      uploadsTotal.inc({ status: 'awaiting_confirmation' });
+      workerJobsTotal.inc({ worker: 'upload', status: 'success' });
+      return;
+    }
 
     if (rows.length <= 1) {
       await pool.query(
@@ -118,6 +281,8 @@ export async function processUpload(job: Job): Promise<void> {
       regionId: string;
       period: string;
       amount: number;
+      shareAmount: number;
+      netAmount: number;
       source: string;
       meta: Record<string, unknown>;
     }> = [];
@@ -170,6 +335,8 @@ export async function processUpload(job: Job): Promise<void> {
         regionId: regionRes.rows[0].id,
         period,
         amount: nominal,
+        shareAmount: Math.round(nominal * 0.15 * 100) / 100,
+        netAmount: Math.round(nominal * 0.85 * 100) / 100,
         source,
         meta,
       });
@@ -190,10 +357,28 @@ export async function processUpload(job: Job): Promise<void> {
     if (validPayments.length > 0) {
       for (const payment of validPayments) {
         await pool.query(
-          `INSERT INTO payments(id, region_id, period, amount, source, meta)
-           VALUES(gen_random_uuid(), $1, ($2 || '-01')::date, $3, $4, $5::jsonb)
-           ON CONFLICT (region_id, period, source) DO UPDATE SET amount = EXCLUDED.amount, meta = EXCLUDED.meta, updated_at = NOW()`,
-          [payment.regionId, payment.period, payment.amount, payment.source, JSON.stringify(payment.meta)]
+          `INSERT INTO payments(
+             id, region_id, period, amount, source, meta,
+             gross_amount, share_amount, net_amount, upload_id
+           ) VALUES(gen_random_uuid(), $1, ($2 || '-01')::date, $3, $4, $5::jsonb, $3, $6, $7, $8)
+           ON CONFLICT (region_id, period, source) DO UPDATE SET
+             amount = EXCLUDED.amount,
+             gross_amount = EXCLUDED.gross_amount,
+             share_amount = EXCLUDED.share_amount,
+             net_amount = EXCLUDED.net_amount,
+             upload_id = EXCLUDED.upload_id,
+             meta = EXCLUDED.meta,
+             updated_at = NOW()`,
+          [
+            payment.regionId,
+            payment.period,
+            payment.amount,
+            payment.source,
+            JSON.stringify(payment.meta),
+            payment.shareAmount,
+            payment.netAmount,
+            uploadId,
+          ]
         );
       }
       // Refresh materialized view

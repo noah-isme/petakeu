@@ -59,15 +59,15 @@ export function ReportJobsList({ jobs, onRegenerate }: ReportJobsListProps) {
                 : "—"}
             </td>
             <td>
-              <div>{job.summary.totalsByRegion.length} wilayah</div>
-              {job.summary.totalsByRegion.length > 0 && (
+              <div>{job.summary?.totalsByRegion.length ?? 0} wilayah</div>
+              {(job.summary?.totalsByRegion.length ?? 0) > 0 && (
                 <div>
                   Total tertinggi:
                   {" "}
                   {(() => {
-                    const topRegion = job.summary.totalsByRegion.reduce((best, current) =>
+                    const topRegion = (job.summary?.totalsByRegion ?? []).reduce((best, current) =>
                       current.total > best.total ? current : best,
-                      job.summary.totalsByRegion[0]
+                      (job.summary?.totalsByRegion ?? [])[0]
                     );
                     return `${currencyFormatter.format(topRegion.total)} (${topRegion.regionName})`;
                   })()}

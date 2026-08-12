@@ -1,8 +1,20 @@
+export type AmountBasis = 'gross' | 'share' | 'net';
+
+export type RankingCriterion =
+  | 'total'
+  | 'average_monthly'
+  | 'target_achievement'
+  | 'growth'
+  | 'surplus'
+  | 'deficit';
+
 export interface AnalyticsOverviewParams {
   period: string;
   from: string;
   to: string;
   provinceIds: string[];
+  amountBasis?: AmountBasis;
+  rankingCriterion?: RankingCriterion;
 }
 
 export interface TargetListParams {
@@ -45,6 +57,14 @@ export interface AnalyticsRegionMetric {
   variancePercentage: number;
   achievementPercentage: number;
   rank?: number;
+  averageMonthly?: number;
+  growthPercentage?: number;
+  surplus?: number;
+  deficit?: number;
+  rankingValue?: number;
+  rangeActual?: number;
+  rangeTarget?: number;
+  rangeAchievementPercentage?: number;
 }
 
 export interface AnalyticsOutlierRegion {
@@ -83,7 +103,12 @@ export type ReportingMatrixStatus = 'reported' | 'missing' | 'delayed' | 'pendin
 export interface ReportingMatrixCell {
   period: string;
   status: ReportingMatrixStatus;
-  actual: number;
+  actual: number | null;
+  target?: number | null;
+  grossAmount?: number | null;
+  shareAmount?: number | null;
+  netAmount?: number | null;
+  hasValidationWarnings?: boolean;
 }
 
 export interface ReportingMatrixRegion {
@@ -107,6 +132,71 @@ export interface ReportingMatrix {
   periods: string[];
   regions: ReportingMatrixRegion[];
   summary: ReportingMatrixSummary;
+}
+
+export interface ValidationFinding {
+  code?: string;
+  severity?: 'error' | 'warning' | 'info' | string;
+  message: string;
+  column?: string;
+  row?: number;
+}
+
+export interface ReportingImportMetadata {
+  uploadId?: string;
+  filename?: string;
+  importedBy?: string;
+  importedAt?: string;
+}
+
+export interface ReportingMatrixDetail {
+  regionId: string;
+  regionName: string;
+  bpsCode?: string;
+  provinceId?: string;
+  provinceName?: string;
+  period: string;
+  status: ReportingMatrixStatus;
+  grossAmount: number | null;
+  shareAmount: number | null;
+  netAmount: number | null;
+  targetAmount: number | null;
+  importMetadata?: ReportingImportMetadata | null;
+  validationFindings: ValidationFinding[];
+}
+
+export interface AnalyticsRankingParams {
+  period?: string;
+  from: string;
+  to: string;
+  provinceIds: string[];
+  amountBasis: AmountBasis;
+  rankingCriterion: RankingCriterion;
+  limit: number;
+}
+
+export interface AnalyticsRanking {
+  regionId: string;
+  regionName: string;
+  provinceId?: string;
+  provinceName?: string;
+  actual: number;
+  target: number;
+  variance: number;
+  achievementPercentage: number;
+  averageMonthly: number;
+  growthPercentage: number;
+  surplus: number;
+  deficit: number;
+  rankingValue: number;
+  reportedMonths: number;
+  expectedMonths: number;
+  rank: number;
+}
+
+export interface AnalyticsRankingsResponse {
+  filters: AnalyticsRankingParams;
+  rankings: AnalyticsRanking[];
 }
 
 export interface AnalyticsTargetVsActual {

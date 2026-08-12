@@ -1,250 +1,481 @@
-import { ChangeEvent, DragEvent, useState } from "react";
-import { CheckCircle2, FileDown, UploadCloud, AlertCircle, FileSpreadsheet, RefreshCw, Sparkles } from "lucide-react";
+import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  Loader2,
+  RefreshCw,
+  Save,
+  UploadCloud,
+  X
+} from "lucide-react";
 
-export interface UploadSummary {
-  validRows: number;
-  invalidRows: number;
+import { apiClient } from "../api/client";
+import { useUpload, useUploadRows } from "../hooks/useUploads";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+
+import type { StagedUploadRow, UploadRowPatch, UploadStatus } from "../types/upload";
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const PAGE_SIZE = 25;
+
+function statusLabel(status: UploadStatus | "idle"): string {
+  switch (status) {
+    case "queued":
+      return "Dalam antrean";
+    case "processing":
+    case "parsing":
+      return "Mem-parsing berkas";
+    case "parsed":
+      return "Berkas diparsing";
+    case "awaiting_confirmation":
+      return "Menunggu konfirmasi";
+    case "committing":
+      return "Menyimpan data";
+    case "persisted":
+    case "confirmed":
+      return "Tersimpan";
+    case "cancelled":
+      return "Dibatalkan";
+    case "failed":
+      return "Gagal diproses";
+    default:
+      return "Siap mengunggah";
+  }
 }
 
-export type UploadStatus = "idle" | "uploading" | "success" | "error";
-
-export interface UploadState {
-  file: File | null;
-  status: UploadStatus;
-  progress: number;
-  summary: UploadSummary | null;
-  isDragging: boolean;
+function isExcel(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return name.endsWith(".xlsx") || name.endsWith(".xls");
 }
 
-interface UploadPageProps {
-  state: UploadState;
-  onSelectFile: (file: File) => void;
-  onReset: () => void;
-  onDragStateChange: (dragging: boolean) => void;
+function asNumberOrNull(value: string): number | null {
+  if (value.trim() === "") return null;
+  const parsed = Number(value.replace(/\./g, "").replace(/,/g, "."));
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function UploadPage({ state, onSelectFile, onReset, onDragStateChange }: UploadPageProps) {
-  const [showErrorTable, setShowErrorTable] = useState(false);
+function stepClasses(active: boolean, complete: boolean): string {
+  if (active) return "border-emerald-600 bg-emerald-600 text-white";
+  if (complete) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "border-slate-200 bg-white text-slate-500";
+}
 
-  const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      onSelectFile(file);
+function findingClasses(severity: "error" | "warning" | "info"): string {
+  if (severity === "error") return "border-rose-200 bg-rose-50 text-rose-800";
+  if (severity === "warning") return "border-amber-200 bg-amber-50 text-amber-800";
+  return "border-sky-200 bg-sky-50 text-sky-800";
+}
+
+function RowInput({
+  label,
+  value,
+  onChange,
+  type = "text"
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  onChange: (value: string) => void;
+  type?: "text" | "month" | "number";
+}) {
+  return (
+    <label className="block min-w-32">
+      <span className="sr-only">{label}</span>
+      <input
+        aria-label={label}
+        type={type}
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+      />
+    </label>
+  );
+}
+
+function UploadSteps({ status, hasRows }: { status: UploadStatus | "idle"; hasRows: boolean }) {
+  const review = hasRows || status === "awaiting_confirmation";
+  const confirmed = status === "persisted" || status === "confirmed";
+  return (
+    <ol aria-label="Tahapan unggah" className="grid grid-cols-4 gap-2">
+      {([
+        ["1", "Unggah", status !== "idle" || false],
+        ["2", "Parse", review || status === "parsed" || confirmed],
+        ["3", "Tinjau", review || confirmed],
+        ["4", "Konfirmasi", confirmed]
+      ] as const).map(([number, label, complete], index) => {
+        const active = (!review && index === 0) || (review && !confirmed && index === 2) || confirmed && index === 3;
+        return (
+          <li key={label} className="flex items-center gap-2 text-xs font-bold">
+            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${stepClasses(active, Boolean(complete))}`}>
+              {complete && !active ? <Check className="h-4 w-4" aria-hidden="true" /> : number}
+            </span>
+            <span className={active ? "text-emerald-700" : "text-slate-600"}>{label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+export function UploadPage() {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const queryClient = useQueryClient();
+  const [dragging, setDragging] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploadId, setUploadId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [showFindings, setShowFindings] = useState(false);
+  const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
+  const [drafts, setDrafts] = useState<Record<string, UploadRowPatch>>({});
+  const [aliasStatus, setAliasStatus] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState<string | null>(null);
+  const [confirmedLocally, setConfirmedLocally] = useState(false);
+  const [cancelledLocally, setCancelledLocally] = useState(false);
+
+  const uploadQuery = useUpload(uploadId);
+  const rowsQuery = useUploadRows(uploadId, page, PAGE_SIZE);
+  const status = uploadQuery.data?.status ?? "queued";
+  const rows = useMemo(() => rowsQuery.data?.data ?? [], [rowsQuery.data?.data]);
+
+  const uploadMutation = useMutation({
+    mutationFn: (selectedFile: File) => {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      return apiClient.uploadFile(formData);
+    },
+    onSuccess: (result, selectedFile) => {
+      setFile(selectedFile);
+      setUploadId(result.uploadId);
+      setPage(1);
+      setMessage(`Berkas ${selectedFile.name} diterima. Menunggu hasil parsing…`);
+      void queryClient.invalidateQueries({ queryKey: ["uploads"] });
+    },
+    onError: (error) => setMessage(error instanceof Error ? error.message : "Gagal mengunggah berkas.")
+  });
+
+  const updateRowMutation = useMutation({
+    mutationFn: ({ row, patch }: { row: StagedUploadRow; patch: UploadRowPatch }) =>
+      apiClient.updateUploadRow(uploadId as string, row.rowId, { ...patch, revision: row.revision }),
+    onSuccess: () => {
+      setMessage("Perubahan baris disimpan dan validasi dijalankan ulang.");
+      void queryClient.invalidateQueries({ queryKey: ["upload-rows", uploadId] });
+      void queryClient.invalidateQueries({ queryKey: ["upload", uploadId] });
+    },
+    onError: (error) => setMessage(error instanceof Error ? error.message : "Gagal memperbarui baris.")
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: () => apiClient.confirmUpload(uploadId as string, { acknowledgedFindingIds: [...acknowledged] }),
+    onSuccess: (result) => {
+      setConfirmedLocally(true);
+      setMessage(`Konfirmasi berhasil. ${result.persistedRows ?? rowsQuery.data?.meta.total ?? 0} baris tersimpan.`);
+      void queryClient.invalidateQueries({ queryKey: ["upload", uploadId] });
+      void queryClient.invalidateQueries({ queryKey: ["uploads"] });
+    },
+    onError: (error) => setMessage(error instanceof Error ? error.message : "Gagal mengonfirmasi unggahan.")
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => apiClient.cancelUpload(uploadId as string),
+    onSuccess: () => {
+      setCancelledLocally(true);
+      setMessage("Unggahan dibatalkan dan tidak ada baris yang disimpan.");
+      void queryClient.invalidateQueries({ queryKey: ["upload", uploadId] });
+      void queryClient.invalidateQueries({ queryKey: ["uploads"] });
+    },
+    onError: (error) => setMessage(error instanceof Error ? error.message : "Gagal membatalkan unggahan.")
+  });
+
+  const hasRows = rows.length > 0 || (rowsQuery.data?.meta.total ?? 0) > 0;
+  const allFindings = useMemo(() => rows.flatMap((row) => row.findings), [rows]);
+  const blockingErrors = allFindings.filter((finding) => finding.severity === "error");
+  const warnings = allFindings.filter((finding) => finding.severity === "warning");
+  const missingWarningAcknowledgements = warnings.filter((finding) => !finding.acknowledged && !acknowledged.has(finding.findingId));
+  const canConfirm = Boolean(uploadId) && hasRows && blockingErrors.length === 0 && missingWarningAcknowledgements.length === 0 && !confirmMutation.isPending;
+
+  const selectFile = (selectedFile: File | undefined) => {
+    if (!selectedFile) return;
+    if (!isExcel(selectedFile)) {
+      setMessage("Format tidak didukung. Gunakan file Excel .xlsx atau .xls.");
+      return;
+    }
+    if (selectedFile.size > MAX_FILE_SIZE) {
+      setMessage("Ukuran file melebihi batas 10 MB.");
+      return;
+    }
+    setMessage(null);
+    setFile(selectedFile);
+    uploadMutation.mutate(selectedFile);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const onInputChange = (event: ChangeEvent<HTMLInputElement>) => selectFile(event.target.files?.[0]);
+  const onDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    selectFile(event.dataTransfer.files?.[0]);
+  };
+
+  const reset = () => {
+    setFile(null);
+    setUploadId(null);
+    setPage(1);
+    setDrafts({});
+    setAcknowledged(new Set());
+    setShowFindings(false);
+    setConfirmedLocally(false);
+    setCancelledLocally(false);
+    setMessage(null);
+  };
+
+  const draftFor = (row: StagedUploadRow): UploadRowPatch => drafts[row.rowId] ?? {};
+  const patchDraft = (row: StagedUploadRow, field: keyof UploadRowPatch, value: string) => {
+    const numeric = ["grossAmount", "shareAmount", "netAmount", "targetAmount"].includes(field);
+    setDrafts((current) => ({
+      ...current,
+      [row.rowId]: {
+        ...current[row.rowId],
+        [field]: numeric ? asNumberOrNull(value) : value || null
+      }
+    }));
+  };
+
+  const saveDraft = (row: StagedUploadRow) => {
+    const patch = draftFor(row);
+    if (Object.keys(patch).length === 0) return;
+    updateRowMutation.mutate({ row, patch });
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[row.rowId];
+      return next;
+    });
+  };
+
+  const downloadTemplate = async () => {
+    try {
+      const blob = await apiClient.downloadUploadTemplate();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "template-laporan-petakeu.xlsx";
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Template belum dapat diunduh.");
     }
   };
 
-  const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    onDragStateChange(false);
-    const file = event.dataTransfer.files?.[0];
-    if (file) {
-      onSelectFile(file);
+  const saveAlias = async (row: StagedUploadRow) => {
+    if (!row.regionId || !row.regionName) return;
+    try {
+      await apiClient.createRegionAlias({ alias: row.regionName, regionId: row.regionId });
+      setAliasStatus((current) => ({ ...current, [row.rowId]: "Alias tersimpan." }));
+    } catch (error) {
+      setAliasStatus((current) => ({
+        ...current,
+        [row.rowId]: error instanceof Error ? error.message : "Alias belum dapat disimpan."
+      }));
     }
   };
 
-  const handleDragOver = (event: DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    onDragStateChange(true);
-  };
-
-  const handleDragLeave = (event: DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    onDragStateChange(false);
-  };
-
-  const mockErrorRows = [
-    { row: 14, regionCode: "3302", error: "Format tanggal tidak valid ('2024/13/01')" },
-    { row: 28, regionCode: "3305", error: "Nilai nominal negatif atau mengandung teks" },
-    { row: 42, regionCode: "9900", error: "Kode wilayah BPS tidak terdaftar di database PostGIS" }
-  ];
+  const parsing = uploadMutation.isPending || (!confirmedLocally && !cancelledLocally && (status === "queued" || status === "processing" || status === "parsing" || status === "committing" || (Boolean(uploadId) && rowsQuery.isLoading && !hasRows)));
+  const confirmed = confirmedLocally || status === "persisted" || status === "confirmed";
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-12">
-      {/* Page Title Header Banner */}
-      <div className="rounded-[24px] border border-slate-100 bg-white p-6 shadow-xs transition hover:shadow-md">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto max-w-[1500px] space-y-5 pb-12">
+      <Card className="border-slate-200/80 bg-white shadow-sm">
+        <CardHeader className="gap-4 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
-              <UploadCloud className="h-6 w-6" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700">
+              <UploadCloud className="h-6 w-6" aria-hidden="true" />
             </div>
             <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 font-['Outfit']">Otomasi Validasi</span>
-              <h2 className="text-xl font-bold text-slate-900 font-['Outfit']">Unggah Berkas Laporan Keuangan (Excel / CSV)</h2>
-              <p className="mt-0.5 text-xs font-medium text-slate-500">
-                Sistem akan memvalidasi skema baris, mengecek kode wilayah PostGIS, dan menghitung potongan 15% secara otomatis.
-              </p>
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700">Otomasi validasi</p>
+              <CardTitle className="mt-1 text-xl text-slate-900">Unggah laporan keuangan</CardTitle>
+              <p className="mt-1 text-xs font-medium text-slate-500">Unggah → Parse → Tinjau → Koreksi → Konfirmasi. File asli tetap disimpan sebagai bukti audit.</p>
             </div>
           </div>
+          <Button type="button" variant="outline" onClick={() => void downloadTemplate()} className="gap-2">
+            <Download className="h-4 w-4 text-emerald-700" aria-hidden="true" />
+            Download template Excel
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <UploadSteps status={confirmed ? "confirmed" : status} hasRows={hasRows} />
 
-          <button
-            type="button"
-            onClick={() => {
-              const csvContent = "data:text/csv;charset=utf-8,kode_daerah,nama_daerah,periode,setoran\n3100,DKI Jakarta,2024-Q3,2150000000\n";
-              const encodedUri = encodeURI(csvContent);
-              const link = document.createElement("a");
-              link.setAttribute("href", encodedUri);
-              link.setAttribute("download", "template_laporan_petakeu.csv");
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}
-            className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50 transition shadow-xs shrink-0"
-          >
-            <FileDown className="h-4 w-4 text-emerald-700" />
-            <span>Download Template CSV</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Drag and Drop Upload Card */}
-      <section className="rounded-[24px] border border-slate-100 bg-white p-8 shadow-xs">
-        <div className="mx-auto max-w-3xl">
-          <label
-            htmlFor="file-upload"
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            className={`relative block cursor-pointer rounded-[24px] border-2 border-dashed p-10 text-center transition-all duration-300 ${
-              state.isDragging
-                ? "border-emerald-500 bg-emerald-50/50 shadow-md scale-[1.01]"
-                : "border-slate-300/80 bg-slate-50/60 hover:border-emerald-500 hover:bg-slate-50"
-            }`}
-          >
-            <div className="flex flex-col items-center gap-4">
-              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <FileSpreadsheet className="h-8 w-8 text-emerald-700" />
-                <Sparkles className="absolute -top-1.5 -right-1.5 h-4 w-4 text-amber-500 animate-pulse" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-lg font-bold tracking-tight text-slate-900 font-['Outfit']">
-                  Tarik berkas Excel / CSV ke area ini atau klik untuk mencari
-                </p>
-                <p className="text-xs font-medium text-slate-500">
-                  Ekstensi yang didukung: <span className="font-mono font-bold text-emerald-700">.xlsx, .xls, .csv</span> (Maksimal 25MB per file)
-                </p>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-[#044e3a] hover:bg-[#033b2c] px-6 py-2.5 text-xs font-bold text-white shadow-xs transition active:scale-95">
-                <UploadCloud className="h-4 w-4" />
-                Pilih Berkas Komputer
-              </div>
-            </div>
-            <input
-              id="file-upload"
-              name="file-upload"
-              data-testid="file-input"
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              className="sr-only"
-              onClick={(e) => {
-                (e.target as HTMLInputElement).value = "";
+          {!uploadId && (
+            <label
+              htmlFor="upload-file"
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragging(true);
               }}
-              onChange={handleInputChange}
-            />
-          </label>
+              onDragLeave={() => setDragging(false)}
+              onDrop={onDrop}
+              className={`block cursor-pointer rounded-3xl border-2 border-dashed p-10 text-center transition ${
+                dragging ? "border-emerald-500 bg-emerald-50" : "border-slate-200 bg-slate-50/70 hover:border-emerald-300 hover:bg-emerald-50/50"
+              }`}
+            >
+              <FileSpreadsheet className="mx-auto h-10 w-10 text-emerald-600" aria-hidden="true" />
+              <p className="mt-3 text-sm font-bold text-slate-800">Tarik berkas Excel ke area ini</p>
+              <p className="mt-1 text-xs text-slate-500">Gunakan .xlsx atau .xls, maksimal 10 MB.</p>
+              <span className="mt-4 inline-flex rounded-full bg-emerald-700 px-4 py-2 text-xs font-bold text-white">Pilih berkas</span>
+              <input ref={inputRef} id="upload-file" type="file" accept=".xlsx,.xls" onChange={onInputChange} className="sr-only" />
+            </label>
+          )}
 
-          {/* Active File Processing Bar */}
-          {state.file && (
-            <div className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-xs">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    <FileSpreadsheet className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-slate-900 font-bold text-xs">{state.file.name}</p>
-                    <p className="text-[11px] font-mono text-slate-400">Ukuran: {(state.file.size / 1024).toFixed(1)} KB</p>
-                  </div>
+          {uploadId && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold text-slate-500">Berkas aktif</p>
+                  <p className="mt-1 flex items-center gap-2 text-sm font-extrabold text-slate-900"><FileSpreadsheet className="h-4 w-4 text-emerald-600" aria-hidden="true" />{file?.name ?? uploadId}</p>
+                  <p className="mt-1 font-mono text-[10px] text-slate-400">ID: {uploadId}</p>
                 </div>
-                <span className="rounded-full border border-emerald-300 bg-emerald-100 px-3 py-0.5 text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
-                  {state.status === "success" ? "Validasi Selesai" : state.status === "uploading" ? `Proses: ${state.progress}%` : "Persiapan"}
-                </span>
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-600" role="status" aria-live="polite">
+                  {parsing && <Loader2 className="h-4 w-4 animate-spin text-emerald-600" aria-hidden="true" />}
+                  {statusLabel(confirmed ? "confirmed" : status)}
+                </div>
               </div>
-
-              {state.status === "uploading" && (
-                <div className="space-y-2">
-                  <div className="h-2.5 overflow-hidden rounded-full bg-slate-200 p-0.5">
-                    <div
-                      className="h-full rounded-full bg-emerald-600 transition-all duration-300"
-                      style={{ width: `${state.progress}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
-                    <span>Memeriksa koordinat BPS PostGIS...</span>
-                    <span>{state.progress}%</span>
-                  </div>
-                </div>
-              )}
+              {parsing && <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full w-2/3 animate-pulse rounded-full bg-emerald-500" /></div>}
+              {uploadQuery.isError && <p className="mt-3 text-xs text-amber-700">Detail status belum tersedia; menunggu tabel hasil parsing.</p>}
+              {rowsQuery.isError && !parsing && <p className="mt-3 text-xs text-rose-700" role="alert">Gagal memuat baris hasil parsing. Coba muat ulang.</p>}
             </div>
           )}
-        </div>
-      </section>
 
-      {/* Validation Result Summary Box */}
-      {state.summary && state.status === "success" && (
-        <section className="rounded-[24px] border border-emerald-200 bg-emerald-50/50 p-6 shadow-xs">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 border border-emerald-300">
-                <CheckCircle2 className="h-6 w-6" />
-              </div>
+          {message && <p className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700" role="status" aria-live="polite">{message}</p>}
+        </CardContent>
+      </Card>
+
+      {uploadId && !parsing && !confirmed && !cancelledLocally && status !== "cancelled" && (
+        <Card className="border-slate-200/80 bg-white shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 font-['Outfit']">Validasi Berkas Berhasil</h3>
-                <p className="mt-0.5 text-xs text-slate-600 leading-relaxed">
-                  <span className="font-bold text-emerald-700">{state.summary.validRows + state.summary.invalidRows} baris</span> ({state.summary.validRows} valid) berhasil diproses ke database PostGIS,{" "}
-                  <span className="font-bold text-amber-700">{state.summary.invalidRows} baris peringatan</span> terdeteksi.
-                </p>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-cyan-700">Review staging</p>
+                <CardTitle className="mt-1 text-lg text-slate-900">Tinjau dan koreksi baris</CardTitle>
+                <p className="mt-1 text-xs text-slate-500">Error harus diperbaiki. Warning perlu diakui sebelum commit atomik.</p>
+              </div>
+              <div className="flex gap-2 text-xs font-bold">
+                <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-rose-800">{blockingErrors.length} error</span>
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800">{warnings.length} warning</span>
               </div>
             </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowErrorTable(!showErrorTable)}
-                className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 transition"
-              >
-                <AlertCircle className="h-4 w-4" />
-                {showErrorTable ? "Sembunyikan Detail Error" : "Lihat Baris Error"}
-              </button>
-              <button
-                type="button"
-                onClick={onReset}
-                className="inline-flex items-center gap-2 rounded-full bg-[#044e3a] hover:bg-[#033b2c] px-5 py-2 text-xs font-bold text-white shadow-xs transition active:scale-95"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Unggah Berkas Baru
-              </button>
-            </div>
-          </div>
-
-          {/* Drilldown Error Rows Table */}
-          {showErrorTable && (
-            <div className="mt-6 border-t border-emerald-200 pt-5">
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3 font-['Outfit']">Rincian Baris Tidak Valid</h4>
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-slate-600 uppercase font-bold">
-                    <tr>
-                      <th className="px-5 py-3">No. Baris Excel</th>
-                      <th className="px-5 py-3">Kode Wilayah</th>
-                      <th className="px-5 py-3">Keterangan Error</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                    {mockErrorRows.map((err) => (
-                      <tr key={err.row} className="hover:bg-slate-50 transition">
-                        <td className="px-5 py-3 font-mono text-amber-800 font-bold">Baris #{err.row}</td>
-                        <td className="px-5 py-3 font-mono">{err.regionCode}</td>
-                        <td className="px-5 py-3 text-rose-700">{err.error}</td>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!hasRows && <p className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">Belum ada baris hasil parsing.</p>}
+            {hasRows && (
+              <>
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="w-full min-w-[1250px] text-left text-xs">
+                    <caption className="sr-only">Baris staging hasil parsing upload</caption>
+                    <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                      <tr>
+                        <th className="px-3 py-3">Baris</th>
+                        <th className="px-3 py-3">Kode / nama wilayah</th>
+                        <th className="px-3 py-3">Provinsi</th>
+                        <th className="px-3 py-3">Periode</th>
+                        <th className="px-3 py-3">Bruto</th>
+                        <th className="px-3 py-3">Share</th>
+                        <th className="px-3 py-3">Netto</th>
+                        <th className="px-3 py-3">Target</th>
+                        <th className="px-3 py-3">Validasi</th>
+                        <th className="px-3 py-3">Aksi</th>
                       </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {rows.map((row) => {
+                        const draft = draftFor(row);
+                        const rowHasError = row.findings.some((finding) => finding.severity === "error");
+                        return (
+                          <tr key={row.rowId} className={rowHasError ? "bg-rose-50/30 align-top" : "align-top"}>
+                            <td className="px-3 py-3 font-mono font-bold text-slate-500">{row.rowNumber}</td>
+                            <td className="px-3 py-3">
+                              <p className="font-mono text-[11px] text-slate-500">{row.regionCode ?? "—"}</p>
+                              <RowInput label={`Nama wilayah baris ${row.rowNumber}`} value={draft.regionName ?? row.regionName} onChange={(value) => patchDraft(row, "regionName", value)} />
+                              {row.findings.some((finding) => finding.column?.toLowerCase().includes("region") || finding.code?.toLowerCase().includes("region")) && (
+                                <button type="button" className="mt-1 text-[10px] font-bold text-cyan-700 underline" onClick={() => void saveAlias(row)}>
+                                  Simpan sebagai alias
+                                </button>
+                              )}
+                              {aliasStatus[row.rowId] && <p className="mt-1 text-[10px] text-slate-500">{aliasStatus[row.rowId]}</p>}
+                            </td>
+                            <td className="px-3 py-3"><RowInput label={`Provinsi baris ${row.rowNumber}`} value={draft.province ?? row.province} onChange={(value) => patchDraft(row, "province", value)} /></td>
+                            <td className="px-3 py-3"><RowInput label={`Periode baris ${row.rowNumber}`} type="month" value={draft.period ?? row.period} onChange={(value) => patchDraft(row, "period", value)} /></td>
+                            <td className="px-3 py-3"><RowInput label={`Nominal bruto baris ${row.rowNumber}`} type="number" value={draft.grossAmount ?? row.grossAmount} onChange={(value) => patchDraft(row, "grossAmount", value)} /></td>
+                            <td className="px-3 py-3"><RowInput label={`Share baris ${row.rowNumber}`} type="number" value={draft.shareAmount ?? row.shareAmount} onChange={(value) => patchDraft(row, "shareAmount", value)} /></td>
+                            <td className="px-3 py-3"><RowInput label={`Nominal netto baris ${row.rowNumber}`} type="number" value={draft.netAmount ?? row.netAmount} onChange={(value) => patchDraft(row, "netAmount", value)} /></td>
+                            <td className="px-3 py-3"><RowInput label={`Target baris ${row.rowNumber}`} type="number" value={draft.targetAmount ?? row.targetAmount} onChange={(value) => patchDraft(row, "targetAmount", value)} /></td>
+                            <td className="max-w-72 px-3 py-3">
+                              {row.findings.length === 0 ? <span className="text-emerald-700">Valid</span> : <div className="space-y-1">{row.findings.map((finding) => <p key={finding.findingId} className={`rounded-lg border px-2 py-1 text-[10px] ${findingClasses(finding.severity)}`}>{finding.message}</p>)}</div>}
+                            </td>
+                            <td className="px-3 py-3">
+                              <Button type="button" size="sm" variant="outline" className="gap-1" disabled={updateRowMutation.isPending || Object.keys(draft).length === 0} onClick={() => saveDraft(row)}>
+                                <Save className="h-3.5 w-3.5" aria-hidden="true" />Simpan
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">Menampilkan {rows.length} dari {rowsQuery.data?.meta.total ?? rows.length} baris.</p>
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" aria-label="Halaman sebelumnya" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft className="h-4 w-4" aria-hidden="true" /></Button>
+                    <span className="text-xs font-bold text-slate-600">Halaman {page} / {rowsQuery.data?.meta.totalPages ?? 1}</span>
+                    <Button type="button" variant="outline" size="sm" aria-label="Halaman berikutnya" disabled={page >= (rowsQuery.data?.meta.totalPages ?? 1)} onClick={() => setPage((value) => value + 1)}><ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
+                  </div>
+                </div>
+
+                {warnings.length > 0 && (
+                  <fieldset className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                    <legend className="px-1 text-xs font-extrabold text-amber-900">Akui warning sebelum konfirmasi</legend>
+                    {warnings.map((warning) => (
+                      <label key={warning.findingId} className="flex items-start gap-2 text-xs text-amber-900">
+                        <input type="checkbox" checked={warning.acknowledged || acknowledged.has(warning.findingId)} disabled={warning.acknowledged} onChange={(event) => setAcknowledged((current) => { const next = new Set(current); if (event.target.checked) next.add(warning.findingId); else next.delete(warning.findingId); return next; })} className="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500" />
+                        <span>{warning.message}</span>
+                      </label>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </section>
+                  </fieldset>
+                )}
+
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                  <button type="button" className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 underline" onClick={() => setShowFindings((value) => !value)}>
+                    <AlertCircle className="h-4 w-4" aria-hidden="true" />{showFindings ? "Sembunyikan rincian validasi" : "Lihat Baris Error"}
+                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" className="gap-2" disabled={cancelMutation.isPending || confirmMutation.isPending} onClick={() => cancelMutation.mutate()}><X className="h-4 w-4" aria-hidden="true" />Batalkan</Button>
+                    <Button type="button" className="gap-2 bg-emerald-700 hover:bg-emerald-800" disabled={!canConfirm} onClick={() => confirmMutation.mutate()}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Konfirmasi & simpan</Button>
+                  </div>
+                </div>
+                {showFindings && <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><h3 className="text-sm font-extrabold text-slate-900">Rincian Baris Tidak Valid</h3><ul className="mt-3 space-y-2">{allFindings.length ? allFindings.map((finding) => <li key={finding.findingId} className={`rounded-lg border px-3 py-2 text-xs ${findingClasses(finding.severity)}`}>{finding.message}</li>) : <li className="text-xs text-slate-500">Tidak ada temuan validasi.</li>}</ul></div>}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {confirmed && (
+        <Card className="border-emerald-200 bg-emerald-50/60 shadow-sm">
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-6">
+            <div className="flex items-center gap-3"><CheckCircle2 className="h-8 w-8 text-emerald-700" aria-hidden="true" /><div><h2 className="text-lg font-extrabold text-emerald-900">Validasi Berkas Berhasil</h2><p className="mt-1 text-xs text-emerald-800">Data sudah dikonfirmasi dan siap dipakai untuk analitik.</p></div></div>
+            <Button type="button" variant="outline" className="gap-2" onClick={reset}><RefreshCw className="h-4 w-4" aria-hidden="true" />Unggah Berkas Baru</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {(cancelledLocally || status === "cancelled") && (
+        <Card className="border-slate-200 bg-slate-50 shadow-sm"><CardContent className="flex items-center justify-between gap-4 p-6"><p className="flex items-center gap-2 text-sm font-bold text-slate-700"><X className="h-5 w-5" aria-hidden="true" />Unggahan dibatalkan.</p><Button type="button" variant="outline" onClick={reset}>Unggah Berkas Baru</Button></CardContent></Card>
       )}
     </div>
   );
 }
-

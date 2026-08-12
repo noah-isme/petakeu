@@ -32,12 +32,28 @@ interface UploadErrorDetail {
 interface UploadItem {
   id: string;
   filename: string;
-  status: "queued" | "processing" | "parsed" | "failed";
+  status: "queued" | "processing" | "parsing" | "awaiting_confirmation" | "parsed" | "persisted" | "cancelled" | "failed";
   errorCount: number;
   createdAt: string;
   objectUrl: string | null;
   shaKey: string;
   errors?: UploadErrorDetail[];
+}
+
+interface StagedMockRow {
+  id: string;
+  rowNumber: number;
+  revision: number;
+  regionCode: string;
+  regionName: string;
+  province: string;
+  period: string;
+  grossAmount: number;
+  shareAmount: number;
+  netAmount: number;
+  targetAmount: number | null;
+  source: string;
+  findings: Array<{ id: string; severity: "error" | "warning"; message: string; column?: string }>;
 }
 
 interface ReportJobItem {
@@ -56,6 +72,7 @@ interface ReportJobItem {
 
 const uploadsStore: UploadItem[] = [];
 const uploadHashes = new Map<string, string>();
+const stagedRowsStore = new Map<string, StagedMockRow[]>();
 const reportsStore: ReportJobItem[] = [];
 
 function nowIso() {
@@ -99,9 +116,12 @@ function updateUploadStatuses() {
     if (upload.status === "queued" && age > 1500) {
       upload.status = "processing";
     }
-    if (upload.status === "processing" && age > 3500) {
-      upload.status = upload.errorCount > 0 ? "failed" : "parsed";
-      if (upload.status === "parsed" && !upload.objectUrl) {
+    if (upload.status === "processing" && age > 3000) {
+      upload.status = "parsing";
+    }
+    if (upload.status === "parsing" && age > 4500) {
+      upload.status = "awaiting_confirmation";
+      if (upload.status === "awaiting_confirmation" && !upload.objectUrl) {
         upload.objectUrl = `https://storage.petakeu.local/uploads/${upload.id}.xlsx`;
       }
     }
@@ -389,6 +409,23 @@ export const handlers = [
       shaKey,
       errors
     });
+    stagedRowsStore.set(uploadId, [
+      {
+        id: `${uploadId}-row-1`,
+        rowNumber: 2,
+        revision: 0,
+        regionCode: "3301",
+        regionName: "Cilacap",
+        province: "Jawa Tengah",
+        period: "2024-09",
+        grossAmount: 1500000000,
+        shareAmount: 225000000,
+        netAmount: 1275000000,
+        targetAmount: 1600000000,
+        source: "PAD",
+        findings: hasErrors ? [{ id: `${uploadId}-finding-1`, severity: "error", column: "setoran", message: "Nilai negatif tidak diperbolehkan" }] : []
+      }
+    ]);
     uploadHashes.set(shaKey, uploadId);
 
     return res(ctx.status(202), ctx.json({ upload_id: uploadId }));
@@ -405,6 +442,71 @@ export const handlers = [
       errors: upload.errors
     }));
     return res(ctx.status(200), ctx.json({ data: enriched }));
+  }),
+  rest.get("/api/uploads/:id", (req, res, ctx) => {
+    updateUploadStatuses();
+    const { id } = req.params as { id: string };
+    if (id === "template") {
+      return res(ctx.status(200), ctx.set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), ctx.body("kode_bps,nama_wilayah,periode,nominal,sumber\n"));
+    }
+    const upload = uploadsStore.find((item) => item.id === id);
+    if (!upload) return res(ctx.status(404), ctx.json({ error: "Upload not found" }));
+    return res(ctx.status(200), ctx.json({ data: { uploadId: upload.id, filename: upload.filename, status: upload.status, createdAt: upload.createdAt, updatedAt: upload.createdAt, errorCount: upload.errorCount } }));
+  }),
+  rest.get("/api/uploads/:id/rows", (req, res, ctx) => {
+    const { id } = req.params as { id: string };
+    const rows = stagedRowsStore.get(id);
+    if (!rows) return res(ctx.status(404), ctx.json({ error: "Upload rows not found" }));
+    const page = Math.max(Number(req.url.searchParams.get("page") ?? "1"), 1);
+    const pageSize = Math.max(Number(req.url.searchParams.get("pageSize") ?? "25"), 1);
+    return res(ctx.status(200), ctx.json({ data: rows.slice((page - 1) * pageSize, page * pageSize), meta: { page, pageSize, total: rows.length, totalPages: Math.ceil(rows.length / pageSize) || 1 } }));
+  }),
+  rest.patch("/api/uploads/:id/rows/:rowId", async (req, res, ctx) => {
+    const { id, rowId } = req.params as { id: string; rowId: string };
+    const row = stagedRowsStore.get(id)?.find((item) => item.id === rowId);
+    if (!row) return res(ctx.status(404), ctx.json({ error: "Upload row not found" }));
+    const patch = await req.json() as Partial<StagedMockRow>;
+    Object.assign(row, patch, { revision: row.revision + 1, findings: [] });
+    return res(ctx.status(200), ctx.json({ data: row }));
+  }),
+  rest.post("/api/uploads/:id/confirm", (req, res, ctx) => {
+    const { id } = req.params as { id: string };
+    const upload = uploadsStore.find((item) => item.id === id);
+    if (!upload) return res(ctx.status(404), ctx.json({ error: "Upload not found" }));
+    upload.status = "persisted";
+    return res(ctx.status(200), ctx.json({ data: { uploadId: id, status: "persisted", persistedRows: stagedRowsStore.get(id)?.length ?? 0 } }));
+  }),
+  rest.post("/api/uploads/:id/cancel", (req, res, ctx) => {
+    const { id } = req.params as { id: string };
+    const upload = uploadsStore.find((item) => item.id === id);
+    if (!upload) return res(ctx.status(404), ctx.json({ error: "Upload not found" }));
+    upload.status = "cancelled";
+    return res(ctx.status(200), ctx.json({ data: { uploadId: id, status: "cancelled" } }));
+  }),
+  rest.get("/api/uploads/template", (_req, res, ctx) => res(ctx.status(200), ctx.set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), ctx.body("kode_bps,nama_wilayah,periode,nominal,sumber\n"))),
+  rest.get("/api/region-aliases", (_req, res, ctx) => res(ctx.status(200), ctx.json({ data: [] }))),
+  rest.post("/api/region-aliases", async (req, res, ctx) => res(ctx.status(201), ctx.json({ data: { aliasId: crypto.randomUUID(), ...(await req.json()) } }))),
+  rest.get("/api/analytics/reporting-matrix/:regionId/:period", (req, res, ctx) => {
+    const { regionId, period } = req.params as { regionId: string; period: string };
+    return res(ctx.status(200), ctx.json({ data: { regionId, period, grossAmount: 1500000000, shareAmount: 225000000, netAmount: 1275000000, targetAmount: 1600000000, importFilename: "laporan-demo.xlsx", importedBy: "Operator Demo", importedAt: nowIso(), validationFindings: [] } }));
+  }),
+  rest.post("/api/reports/export", async (req, res, ctx) => {
+    const body = await req.json() as { period?: string; from?: string; to?: string; regionIds?: string[]; format?: "pdf" | "excel" };
+    const jobId = crypto.randomUUID();
+    const period = body.period ?? body.to ?? nowIso().slice(0, 7);
+    const job: ReportJobItem = {
+      id: jobId,
+      regionId: body.regionIds?.[0] ?? "",
+      periodFrom: body.from ?? period,
+      periodTo: body.to ?? period,
+      type: body.format ?? "pdf",
+      status: "queued",
+      downloadUrl: null,
+      requestedAt: nowIso(),
+      updatedAt: nowIso()
+    };
+    reportsStore.unshift(job);
+    return res(ctx.status(202), ctx.json({ data: { jobId, period, regionIds: body.regionIds ?? [], format: body.format ?? "pdf", status: "queued", downloadUrl: null, requestedAt: job.requestedAt, updatedAt: job.updatedAt, summary: { totalsByRegion: [], topGainers: [], topDecliners: [], lastTwelveMonths: [] } } }));
   }),
   rest.post("/api/reports", async (req, res, ctx) => {
     const body = await req.json();

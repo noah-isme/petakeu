@@ -6,6 +6,7 @@ import { asyncHandler } from '../utils/async-handler';
 import { AppError } from '../utils/app-error';
 import {
   normalizeAnalyticsOverviewQuery,
+  normalizeAnalyticsRankingQuery,
   normalizeTargetListQuery,
   targetRegistrationSchema,
 } from '../validators/analytics';
@@ -24,6 +25,49 @@ const getOverview = asyncHandler(async (req: Request, res: Response) => {
   }
 
   const data = await analyticsService.getOverview(params);
+  res.json({ data });
+});
+
+const getRankings = asyncHandler(async (req: Request, res: Response) => {
+  let params;
+  try {
+    params = normalizeAnalyticsRankingQuery(req.query as Record<string, unknown>);
+  } catch (error) {
+    if (error instanceof z.ZodError) throw validationError(error);
+    throw error;
+  }
+
+  const data = await analyticsService.getRankings(params);
+  res.json({ data });
+});
+
+const getReportingMatrix = asyncHandler(async (req: Request, res: Response) => {
+  let params;
+  try {
+    params = normalizeAnalyticsRankingQuery(req.query as Record<string, unknown>);
+  } catch (error) {
+    if (error instanceof z.ZodError) throw validationError(error);
+    throw error;
+  }
+
+  const data = await analyticsService.getReportingMatrix({
+    ...params,
+    rankingCriterion: params.rankingCriterion,
+  });
+  res.json({ data });
+});
+
+const getReportingMatrixDetail = asyncHandler(async (req: Request, res: Response) => {
+  const period = String(req.params.period);
+  const regionId = String(req.params.regionId);
+  let parsed;
+  try {
+    parsed = normalizeAnalyticsRankingQuery({ period });
+  } catch (error) {
+    if (error instanceof z.ZodError) throw validationError(error);
+    throw error;
+  }
+  const data = await analyticsService.getReportingMatrixDetail(regionId, parsed.period);
   res.json({ data });
 });
 
@@ -55,6 +99,9 @@ const listTargets = asyncHandler(async (req: Request, res: Response) => {
 
 export const analyticsController = {
   getOverview,
+  getRankings,
+  getReportingMatrix,
+  getReportingMatrixDetail,
   registerTarget,
   listTargets,
 };

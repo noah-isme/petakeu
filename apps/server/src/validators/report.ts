@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { ReportBranding } from "../types/report";
+import type { ReportBranding, ReportRankingCriterion } from "../types/report";
 
 export const MAX_REPORT_BRANDING_TEXT_LENGTH = 240;
 export const MAX_REPORT_LOGO_BYTES = 128 * 1024;
@@ -53,6 +53,44 @@ const reportLogoInputSchema = z.union([
   z.object({ dataUri: logoDataUriSchema }).strict(),
 ]);
 
+const reportPeriodSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Period must use YYYY-MM format with a valid month");
+const amountBasisSchema = z.enum(["gross", "share", "net"]);
+const rankingCriterionSchema = z.enum([
+  "total",
+  "average_monthly",
+  "monthly_average",
+  "target_achievement",
+  "growth",
+  "surplus",
+  "deficit",
+]);
+const reportTypeSchema = z.enum(["executive-summary", "full", "missing-data"]);
+const reportTypeInputSchema = z.enum([
+  "executive-summary",
+  "executive_summary",
+  "full",
+  "missing-data",
+  "missing_data_audit",
+  "rankings",
+  "monthly_breakdown",
+  "target_achievement",
+]);
+const provinceIdsSchema = z.array(z.string().uuid()).max(100).optional();
+
+function normalizeReportType(value: z.infer<typeof reportTypeInputSchema>): z.infer<typeof reportTypeSchema> {
+  if (value === "executive_summary") return "executive-summary";
+  if (value === "missing_data_audit") return "missing-data";
+  // The full export already contains dedicated ranking, monthly, and target
+  // sheets. Keep those UI aliases compatible while preserving one worker
+  // contract for the generated artifact.
+  if (value === "rankings" || value === "monthly_breakdown" || value === "target_achievement") return "full";
+  return value;
+}
+
+function normalizeRankingCriterion(value: string): ReportRankingCriterion {
+  return (value === "monthly_average" ? "average_monthly" : value) as ReportRankingCriterion;
+}
+
 /**
  * Branding is deliberately data-only. It never accepts a URL or filesystem
  * path, and the logo is checked for both a size limit and a supported image
@@ -80,11 +118,30 @@ export const reportBrandingSchema = z
   }));
 
 export const reportRequestSchema = z.object({
-  period: z.string().regex(/^\d{4}-\d{2}$/),
-  regionIds: z.array(z.string().min(1)).min(1),
+  // `period` and `regionIds` are the original API contract. The range and
+  // single-region aliases keep the PRD contract compatible with existing UI
+  // clients and are normalized below.
+  period: reportPeriodSchema.optional(),
+  periodFrom: reportPeriodSchema.optional(),
+  periodTo: reportPeriodSchema.optional(),
+  // Frontend/reporting clients historically used `from` and `to`.
+  from: reportPeriodSchema.optional(),
+  to: reportPeriodSchema.optional(),
+  regionIds: z.array(z.string().min(1)).min(1).optional(),
+  regionId: z.string().min(1).optional(),
+  provinceIds: provinceIdsSchema,
   format: z.enum(["pdf", "excel"]),
   branding: reportBrandingSchema.optional(),
+  rankingCriterion: rankingCriterionSchema.optional(),
+  ranking: rankingCriterionSchema.optional(),
+  criterion: rankingCriterionSchema.optional(),
+  // `metric` is accepted as a wire alias for amountBasis.
+  amountBasis: amountBasisSchema.optional(),
+  metric: amountBasisSchema.optional(),
+  reportType: reportTypeInputSchema.optional(),
 }).superRefine((request, context) => {
+  const periodFrom = request.periodFrom ?? request.from;
+  const periodTo = request.periodTo ?? request.to;
   if (request.branding && request.format !== "pdf") {
     context.addIssue({
       code: z.ZodIssueCode.custom,
@@ -92,6 +149,55 @@ export const reportRequestSchema = z.object({
       message: "Branding is only supported for PDF reports",
     });
   }
+  if (!request.period && !periodFrom && !periodTo) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["period"],
+      message: "A period or periodFrom/periodTo range is required",
+    });
+  }
+  if (periodFrom && periodTo && periodFrom > periodTo) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["periodFrom"],
+      message: "periodFrom must be less than or equal to periodTo",
+    });
+  }
+  if (periodFrom && periodTo) {
+    const [fromYear, fromMonth] = periodFrom.split('-').map(Number);
+    const [toYear, toMonth] = periodTo.split('-').map(Number);
+    const monthCount = (toYear - fromYear) * 12 + toMonth - fromMonth + 1;
+    if (monthCount > 24) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["periodTo"],
+        message: "Report range cannot exceed 24 months",
+      });
+    }
+  }
+  if (!request.regionIds?.length && !request.regionId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["regionIds"],
+      message: "At least one regionId is required",
+    });
+  }
+}).transform((request) => {
+  const period = request.period ?? request.periodTo ?? request.to ?? request.periodFrom ?? request.from!;
+  const periodFrom = request.periodFrom ?? request.from ?? period;
+  const periodTo = request.periodTo ?? request.to ?? period;
+  const regionIds = request.regionIds?.length ? request.regionIds : [request.regionId!];
+  return {
+    ...request,
+    period,
+    periodFrom,
+    periodTo,
+    regionIds,
+    provinceIds: request.provinceIds ?? [],
+    rankingCriterion: normalizeRankingCriterion(request.rankingCriterion ?? request.ranking ?? request.criterion ?? "total"),
+    amountBasis: request.amountBasis ?? request.metric ?? "gross" as const,
+    reportType: request.reportType ? normalizeReportType(request.reportType) : "full" as const,
+  };
 });
 
 export type ReportRequestInput = z.infer<typeof reportRequestSchema>;

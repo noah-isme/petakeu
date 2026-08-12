@@ -19,6 +19,12 @@ function rowToJob(row: Record<string, unknown>): ReportJob {
     updatedAt: row.updated_at as string,
     expiresAt: row.expires_at as string,
     summary: (row.summary as ReportJob['summary']) ?? undefined,
+    periodFrom: (row.period_from as string | null) ?? (row.period as string),
+    periodTo: (row.period_to as string | null) ?? (row.period as string),
+    provinceIds: Array.isArray(row.province_ids) ? row.province_ids as string[] : [],
+    rankingCriterion: (row.ranking_criterion as ReportJob['rankingCriterion']) ?? 'total',
+    amountBasis: (row.amount_basis as ReportJob['amountBasis']) ?? 'gross',
+    reportType: (row.report_type as ReportJob['reportType']) ?? 'full',
   };
 }
 
@@ -26,10 +32,23 @@ export async function enqueueReport(request: ReportRequest): Promise<ReportJob> 
   const pool = getPgPool();
 
   const { rows } = await pool.query(
-    `INSERT INTO report_jobs(period, region_ids, format, status)
-     VALUES($1, $2, $3, 'queued')
+    `INSERT INTO report_jobs(
+       period, period_from, period_to, region_ids, province_ids, format,
+       ranking_criterion, amount_basis, report_type, status
+     )
+     VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued')
      RETURNING *`,
-    [request.period, request.regionIds, request.format]
+    [
+      request.period,
+      request.periodFrom ?? request.period,
+      request.periodTo ?? request.period,
+      request.regionIds,
+      request.provinceIds ?? [],
+      request.format,
+      request.rankingCriterion ?? 'total',
+      request.amountBasis ?? 'gross',
+      request.reportType ?? 'full',
+    ]
   );
   const job = rowToJob(rows[0]);
 
@@ -39,6 +58,12 @@ export async function enqueueReport(request: ReportRequest): Promise<ReportJob> 
     period: request.period,
     regionIds: request.regionIds,
     format: request.format,
+    periodFrom: request.periodFrom,
+    periodTo: request.periodTo,
+    provinceIds: request.provinceIds,
+    rankingCriterion: request.rankingCriterion,
+    amountBasis: request.amountBasis,
+    reportType: request.reportType,
   };
   if (request.format === 'pdf' && request.branding) {
     queueData.branding = request.branding;
@@ -49,7 +74,15 @@ export async function enqueueReport(request: ReportRequest): Promise<ReportJob> 
     backoff: { type: 'exponential', delay: 3000 },
   });
 
-  return job;
+  return {
+    ...job,
+    periodFrom: request.periodFrom,
+    periodTo: request.periodTo,
+    provinceIds: request.provinceIds,
+    rankingCriterion: request.rankingCriterion,
+    amountBasis: request.amountBasis,
+    reportType: request.reportType,
+  };
 }
 
 export async function listReports(): Promise<ReportJob[]> {

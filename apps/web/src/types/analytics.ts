@@ -2,6 +2,27 @@ export type AnalyticsNumber = number | null;
 
 export type ReportingStatus = "Reporting" | "Missing" | "Delayed";
 
+export type AnalyticsAmountBasis = "gross" | "share" | "net";
+
+export type AnalyticsRankingCriterion = "total" | "monthly_average" | "target_achievement" | "growth" | "surplus" | "deficit";
+
+export interface ReportingValidationFinding {
+  findingId?: string;
+  severity?: "error" | "warning" | "info";
+  message: string;
+}
+
+export interface ReportingMatrixDetail {
+  grossAmount: number | null;
+  shareAmount: number | null;
+  netAmount: number | null;
+  targetAmount: number | null;
+  importFilename: string | null;
+  importedBy: string | null;
+  importedAt: string | null;
+  validationFindings: ReportingValidationFinding[];
+}
+
 export interface AnalyticsOutlier {
   regionId: string | null;
   regionName: string;
@@ -64,6 +85,8 @@ export interface AnalyticsReportingCell {
   period: string;
   status: ReportingStatus;
   submittedAt: string | null;
+  actual?: number | null;
+  detail?: ReportingMatrixDetail;
 }
 
 export interface AnalyticsReportingRow {

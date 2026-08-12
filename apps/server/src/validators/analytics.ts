@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
+import type { AmountBasis, RankingCriterion } from '../types/analytics';
+
 export const MAX_ANALYTICS_MONTHS = 24;
 export const MAX_PROVINCE_FILTER_IDS = 100;
+export const MAX_RANKING_LIMIT = 100;
 
 const PERIOD_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -10,6 +13,17 @@ export const analyticsPeriodSchema = z
   .regex(PERIOD_PATTERN, 'Period must use YYYY-MM format with a valid month');
 
 const uuidSchema = z.string().uuid('Value must be a valid UUID');
+
+export const amountBasisSchema = z.enum(['gross', 'share', 'net']);
+export const rankingCriterionSchema = z.enum([
+  'total',
+  'average_monthly',
+  'monthly_average',
+  'target_achievement',
+  'growth',
+  'surplus',
+  'deficit',
+]);
 
 const nonNegativeNumericSchema = z
   .union([z.number(), z.string().trim().min(1)])
@@ -22,6 +36,26 @@ export const analyticsOverviewQuerySchema = z.object({
   from: analyticsPeriodSchema.optional(),
   to: analyticsPeriodSchema.optional(),
   provinceIds: z.array(uuidSchema).max(MAX_PROVINCE_FILTER_IDS).optional(),
+  amountBasis: amountBasisSchema.optional(),
+  rankingCriterion: rankingCriterionSchema.optional(),
+  // `ranking` and `metric` are accepted as aliases for clients that use the
+  // shorter query names. They are normalized before reaching the service.
+  ranking: rankingCriterionSchema.optional(),
+  criterion: rankingCriterionSchema.optional(),
+  metric: amountBasisSchema.optional(),
+});
+
+export const analyticsRankingQuerySchema = z.object({
+  period: analyticsPeriodSchema.optional(),
+  from: analyticsPeriodSchema.optional(),
+  to: analyticsPeriodSchema.optional(),
+  provinceIds: z.array(uuidSchema).max(MAX_PROVINCE_FILTER_IDS).optional(),
+  amountBasis: amountBasisSchema.optional(),
+  rankingCriterion: rankingCriterionSchema.optional(),
+  ranking: rankingCriterionSchema.optional(),
+  criterion: rankingCriterionSchema.optional(),
+  metric: amountBasisSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(MAX_RANKING_LIMIT).optional(),
 });
 
 export const targetRegistrationSchema = z
@@ -41,6 +75,7 @@ export const targetListQuerySchema = z.object({
 });
 
 export type AnalyticsOverviewQueryInput = z.infer<typeof analyticsOverviewQuerySchema>;
+export type AnalyticsRankingQueryInput = z.infer<typeof analyticsRankingQuerySchema>;
 export type TargetRegistrationInput = z.infer<typeof targetRegistrationSchema>;
 export type TargetListQueryInput = z.infer<typeof targetListQuerySchema>;
 
@@ -69,6 +104,12 @@ function normalizeQueryObject(input: Record<string, unknown>, includeRegionId: b
     from: getSingleQueryValue(input.from),
     to: getSingleQueryValue(input.to),
     provinceIds: parseProvinceIds(input.provinceIds),
+    amountBasis: getSingleQueryValue(input.amountBasis ?? input.metric),
+    rankingCriterion: getSingleQueryValue(input.rankingCriterion ?? input.ranking ?? input.criterion),
+    ranking: getSingleQueryValue(input.ranking),
+    criterion: getSingleQueryValue(input.criterion),
+    metric: getSingleQueryValue(input.metric),
+    limit: getSingleQueryValue(input.limit),
   };
 
   if (includeRegionId) {
@@ -98,10 +139,21 @@ function rangeIssue(message: string): z.ZodError {
   return new z.ZodError([{ code: z.ZodIssueCode.custom, path: ['from'], message }]);
 }
 
+function normalizeRankingCriterion(value: string): RankingCriterion {
+  return value === 'monthly_average' ? 'average_monthly' : value as RankingCriterion;
+}
+
 export function normalizeAnalyticsOverviewQuery(
   input: Record<string, unknown>,
   now: Date = new Date(),
-): AnalyticsOverviewQueryInput & { period: string; from: string; to: string; provinceIds: string[] } {
+): AnalyticsOverviewQueryInput & {
+  period: string;
+  from: string;
+  to: string;
+  provinceIds: string[];
+  amountBasis: AmountBasis;
+  rankingCriterion: RankingCriterion;
+} {
   const parsed = analyticsOverviewQuerySchema.parse(normalizeQueryObject(input, false));
   const period = parsed.period ?? parsed.to ?? currentPeriod(now);
   const to = parsed.to ?? period;
@@ -123,6 +175,48 @@ export function normalizeAnalyticsOverviewQuery(
     from,
     to,
     provinceIds: parsed.provinceIds ?? [],
+    amountBasis: parsed.amountBasis ?? parsed.metric ?? 'gross',
+    rankingCriterion: normalizeRankingCriterion(parsed.rankingCriterion ?? parsed.ranking ?? parsed.criterion ?? 'total'),
+  };
+}
+
+export function normalizeAnalyticsRankingQuery(
+  input: Record<string, unknown>,
+  now: Date = new Date(),
+): AnalyticsRankingQueryInput & {
+  period: string;
+  from: string;
+  to: string;
+  provinceIds: string[];
+  amountBasis: AmountBasis;
+  rankingCriterion: RankingCriterion;
+  limit: number;
+} {
+  const normalized = normalizeQueryObject(input, false);
+  const parsed = analyticsRankingQuerySchema.parse(normalized);
+  const period = parsed.period ?? parsed.to ?? currentPeriod(now);
+  const to = parsed.to ?? period;
+  const from = parsed.from ?? to;
+
+  if (comparePeriods(from, to) > 0) {
+    throw rangeIssue('from must be less than or equal to to');
+  }
+
+  const monthCount = Number(addMonths(to, 1).slice(0, 4)) * 12 + Number(addMonths(to, 1).slice(5))
+    - (Number(from.slice(0, 4)) * 12 + Number(from.slice(5)));
+  if (monthCount > MAX_ANALYTICS_MONTHS) {
+    throw rangeIssue(`Analytics range cannot exceed ${MAX_ANALYTICS_MONTHS} months`);
+  }
+
+  return {
+    ...parsed,
+    period,
+    from,
+    to,
+    provinceIds: parsed.provinceIds ?? [],
+    amountBasis: parsed.amountBasis ?? parsed.metric ?? 'gross',
+    rankingCriterion: normalizeRankingCriterion(parsed.rankingCriterion ?? parsed.ranking ?? parsed.criterion ?? 'total'),
+    limit: parsed.limit ?? MAX_RANKING_LIMIT,
   };
 }
 
