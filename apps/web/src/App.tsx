@@ -1,19 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  LayoutDashboard,
-  CheckSquare,
-  Calendar,
-  BarChart3,
-  Users,
-  UploadCloud,
-  Info,
-  Settings,
-  HelpCircle,
-  LogOut,
-  FileText,
-  Map as MapIcon,
-  ShieldCheck
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { AppLayout } from "./layouts/AppLayout";
 import { Sidebar, type SidebarItem } from "./components/dashboard/Sidebar";
@@ -28,26 +14,10 @@ import { AboutPage } from "./pages/AboutPage";
 import { AuditLogInspector } from "./components/admin/AuditLogInspector";
 import { BASE_REGIONS } from "./data/regions";
 import { formatCurrency } from "./lib/format";
-import { useAdminAccess } from "./lib/auth";
+import { useAdminAccess, type UserRole } from "./lib/auth";
+import { APP_ROUTES, canAccessRoute, getRouteByKey, getRouteByPath, type AppRouteDefinition, type AppRouteKey } from "./config/routes";
 
 import type { FeatureCollection } from "geojson";
-
-const NAVIGATION: SidebarItem[] = [
-  { key: "map", label: "Peta Heatmap", icon: MapIcon, section: "analysis" },
-  { key: "analytics", label: "Analitik Eksekutif", icon: BarChart3, section: "analysis" },
-  { key: "reports", label: "Ringkasan Laporan", icon: FileText, section: "analysis" },
-  { key: "upload", label: "Unggah Data Excel", icon: UploadCloud, section: "tools" },
-  { key: "about", label: "Tentang Petakeu", icon: Info, section: "tools" }
-];
-
-const PAGE_TITLE: Record<string, string> = {
-  map: "Peta Heatmap & Visualisasi Spasial",
-  analytics: "Analitik Eksekutif & Kepatuhan Pelaporan",
-  reports: "Ringkasan Laporan Revenue & Ekspor",
-  upload: "Unggah Data Excel (Validasi & Bulk Upsert)",
-  about: "Tentang Petakeu — Telemetri & PostGIS",
-  audit: "Audit Trail — Kepatuhan & Governance"
-};
 
 const MAP_PALETTE = ["#0f4c5c", "#10b981", "#06b6d4", "#f59e0b"] as const;
 
@@ -158,10 +128,49 @@ function buildLegend(featureCollection: FeatureCollection): LegendItem[] {
   }));
 }
 
+interface RouteGateProps {
+  route: AppRouteDefinition;
+  role: UserRole | null;
+  children: ReactNode;
+}
+
+function ForbiddenRoute({ route }: Pick<RouteGateProps, "route">) {
+  const location = useLocation();
+
+  return (
+    <section className="mx-auto flex max-w-2xl flex-col items-start justify-center gap-4 rounded-3xl border border-rose-200 bg-white p-8 shadow-sm" aria-labelledby="forbidden-route-title">
+      <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-rose-700">Akses terbatas</p>
+      <h1 id="forbidden-route-title" className="text-2xl font-bold tracking-tight text-slate-900">
+        Anda tidak memiliki akses ke halaman ini
+      </h1>
+      <p className="text-sm leading-6 text-slate-600">
+        Halaman <span className="font-semibold">{route.label}</span> membutuhkan peran {route.minimumRole} atau lebih tinggi. Minta akses dari administrator jika Anda perlu membuka halaman ini.
+      </p>
+      <Link to={{ pathname: "/map", search: location.search }} className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-800">
+        Kembali ke peta
+      </Link>
+    </section>
+  );
+}
+
+function RouteGate({ route, role, children }: RouteGateProps) {
+  return canAccessRoute(role, route) ? <>{children}</> : <ForbiddenRoute route={route} />;
+}
+
+function RootRedirect() {
+  const location = useLocation();
+  return <Navigate replace to={{ pathname: "/map", search: location.search }} />;
+}
+
 export default function App() {
-  const { isAdmin } = useAdminAccess();
-  const [activePage, setActivePage] = useState<string>("map");
-  const [selectedPeriod, setSelectedPeriod] = useState<string>(PERIOD_OPTIONS[0]);
+  const { role } = useAdminAccess();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedPeriod = useMemo(() => {
+    const period = searchParams.get("period");
+    return period && PERIOD_DATA[period] ? period : PERIOD_OPTIONS[0];
+  }, [searchParams]);
   const [mapStatus, setMapStatus] = useState<MapStatus>("loading");
   const [featureCollection, setFeatureCollection] = useState<FeatureCollection | null>(null);
   const [legendItems, setLegendItems] = useState<LegendItem[]>([]);
@@ -173,16 +182,79 @@ export default function App() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const mobileSidebarTriggerRef = useRef<HTMLElement | null>(null);
+  const previousRole = useRef<UserRole | null>(role);
+  const activeRoute = getRouteByPath(location.pathname);
+  const activePage: AppRouteKey = activeRoute?.key ?? "map";
   const navigation = useMemo<SidebarItem[]>(
-    () => (isAdmin ? [...NAVIGATION, { key: "audit", label: "Audit Trail", icon: ShieldCheck, section: "tools" }] : NAVIGATION),
-    [isAdmin]
+    () =>
+      APP_ROUTES.filter((route) => canAccessRoute(role, route)).map((route) => ({
+        key: route.key,
+        label: route.label,
+        icon: route.icon,
+        section: route.section
+      })),
+    [role]
   );
 
   useEffect(() => {
-    if (!isAdmin && activePage === "audit") {
-      setActivePage("map");
+    const period = searchParams.get("period");
+    if (period && !PERIOD_DATA[period]) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set("period", PERIOD_OPTIONS[0]);
+      setSearchParams(nextParams, { replace: true });
     }
-  }, [activePage, isAdmin]);
+  }, [searchParams, setSearchParams]);
+
+  const updatePeriod = useCallback(
+    (period: string) => {
+      if (!PERIOD_DATA[period]) return;
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set("period", period);
+      setSearchParams(nextParams);
+    },
+    [searchParams, setSearchParams]
+  );
+
+  const navigateToRoute = useCallback(
+    (key: string) => {
+      const route = APP_ROUTES.find((candidate) => candidate.key === key);
+      if (!route || !canAccessRoute(role, route)) return;
+      setMobileSidebarOpen(false);
+      navigate({ pathname: route.path, search: location.search });
+    },
+    [location.search, navigate, role]
+  );
+
+  useEffect(() => {
+    if (mobileSidebarOpen) {
+      const firstControl = document.querySelector<HTMLElement>(
+        '[data-testid="mobile-sidebar-drawer"] a, [data-testid="mobile-sidebar-drawer"] button'
+      );
+      firstControl?.focus();
+      return;
+    }
+
+    mobileSidebarTriggerRef.current?.focus();
+    mobileSidebarTriggerRef.current = null;
+  }, [mobileSidebarOpen]);
+
+  useEffect(() => {
+    if (!mobileSidebarOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileSidebarOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileSidebarOpen]);
+
+  useEffect(() => {
+    const roleChanged = previousRole.current !== role;
+    previousRole.current = role;
+    if (!roleChanged || !activeRoute || canAccessRoute(role, activeRoute)) return;
+
+    navigate({ pathname: "/map", search: location.search }, { replace: true });
+  }, [activeRoute, location.search, navigate, role]);
 
   const addToast = useCallback((kind: ToastKind, message: string) => {
     const id = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
@@ -286,60 +358,21 @@ export default function App() {
     [mapStatus, totalValue]
   );
 
-  const renderPage = () => {
-    switch (activePage) {
-      case "map":
-        return (
-          <MapPage
-            status={mapStatus}
-            featureCollection={featureCollection}
-            legend={legendItems}
-            legendHighlight={legendHighlight}
-            activeRegion={activeRegion}
-            onRegionFocus={handleRegionFocus}
-            onHoverLegend={setLegendHighlight}
-            onRetry={() => setSelectedPeriod("2024-Q3")}
-          />
-        );
-      case "analytics":
-        return <AnalyticsPage period={selectedPeriod} />;
-      case "upload":
-        return <UploadPage />;
-      case "reports":
-      case "calendar":
-      case "team":
-        return <ReportsPage metrics={reportsMetrics} />;
-      case "audit":
-        return isAdmin ? <AuditLogInspector /> : null;
-      case "about":
-      case "help":
-      case "settings":
-        return <AboutPage />;
-      default:
-        return (
-          <MapPage
-            status={mapStatus}
-            featureCollection={featureCollection}
-            legend={legendItems}
-            legendHighlight={legendHighlight}
-            activeRegion={activeRegion}
-            onRegionFocus={handleRegionFocus}
-            onHoverLegend={setLegendHighlight}
-            onRetry={() => setSelectedPeriod("2024-Q3")}
-          />
-        );
-    }
-  };
-
   return (
     <div className="min-h-dvh bg-slate-950 text-slate-100 transition-colors selection:bg-emerald-500/30 selection:text-emerald-300">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-emerald-700 focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-white"
+      >
+        Lewati ke konten utama
+      </a>
       <AppLayout
         sidebar={
           <div className="hidden lg:block h-full" data-testid="desktop-sidebar-wrapper">
             <Sidebar
               items={navigation}
               activeKey={activePage}
-              onSelect={setActivePage}
+              onSelect={navigateToRoute}
               collapsed={sidebarCollapsed}
               onCollapsedChange={setSidebarCollapsed}
             />
@@ -347,12 +380,17 @@ export default function App() {
         }
         topbar={
           <Topbar
-            title={PAGE_TITLE[activePage]}
+            title={activeRoute?.title ?? getRouteByKey("map").title}
             period={selectedPeriod}
             periods={PERIOD_OPTIONS}
-            onPeriodChange={setSelectedPeriod}
+            onPeriodChange={updatePeriod}
             onOpenSettings={() => addToast("info", "Panel pengaturan akan tersedia segera.")}
-            onToggleSidebar={() => setMobileSidebarOpen((prev) => !prev)}
+            onToggleSidebar={() => {
+              if (!mobileSidebarOpen && document.activeElement instanceof HTMLElement) {
+                mobileSidebarTriggerRef.current = document.activeElement;
+              }
+              setMobileSidebarOpen((prev) => !prev);
+            }}
             isMobileSidebarOpen={mobileSidebarOpen}
           />
         }
@@ -370,15 +408,72 @@ export default function App() {
             <Sidebar
               items={navigation}
               activeKey={activePage}
-              onSelect={(key) => {
-                setActivePage(key);
-                setMobileSidebarOpen(false);
-              }}
+              onSelect={navigateToRoute}
               collapsed={false}
               onCollapsedChange={() => setMobileSidebarOpen(false)}
             />
           </div>
-          {renderPage()}
+          <Routes>
+            <Route path="/" element={<RootRedirect />} />
+            <Route
+              path="/map"
+              element={
+                <RouteGate route={getRouteByKey("map")} role={role}>
+                  <MapPage
+                    status={mapStatus}
+                    featureCollection={featureCollection}
+                    legend={legendItems}
+                    legendHighlight={legendHighlight}
+                    activeRegion={activeRegion}
+                    onRegionFocus={handleRegionFocus}
+                    onHoverLegend={setLegendHighlight}
+                    onRetry={() => updatePeriod("2024-Q3")}
+                  />
+                </RouteGate>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <RouteGate route={getRouteByKey("analytics")} role={role}>
+                  <AnalyticsPage period={selectedPeriod} />
+                </RouteGate>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <RouteGate route={getRouteByKey("reports")} role={role}>
+                  <ReportsPage metrics={reportsMetrics} />
+                </RouteGate>
+              }
+            />
+            <Route
+              path="/uploads"
+              element={
+                <RouteGate route={getRouteByKey("upload")} role={role}>
+                  <UploadPage />
+                </RouteGate>
+              }
+            />
+            <Route
+              path="/about"
+              element={
+                <RouteGate route={getRouteByKey("about")} role={role}>
+                  <AboutPage />
+                </RouteGate>
+              }
+            />
+            <Route
+              path="/admin/audit"
+              element={
+                <RouteGate route={getRouteByKey("audit")} role={role}>
+                  <AuditLogInspector />
+                </RouteGate>
+              }
+            />
+            <Route path="*" element={<Navigate replace to={{ pathname: "/map", search: location.search }} />} />
+          </Routes>
         </div>
       </AppLayout>
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

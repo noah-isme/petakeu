@@ -168,7 +168,7 @@ export function Sidebar({ items, activeKey, onSelect, collapsed, onCollapsedChan
             <button
               type="button"
               onClick={() => onSelect("about")}
-              className="w-full rounded-xl bg-[#00a86b] py-2 px-3 text-center text-xs font-bold text-white shadow-xs transition hover:bg-[#008f5b] active:scale-95 flex items-center justify-center gap-1.5"
+              className="w-full rounded-xl bg-[#047857] py-2 px-3 text-center text-xs font-bold text-white shadow-xs transition hover:bg-[#065f46] active:scale-95 flex items-center justify-center gap-1.5"
             >
               <Activity className="h-3.5 w-3.5" />
               <span>Cek Status Sistem</span>
@@ -193,5 +193,4 @@ export function Sidebar({ items, activeKey, onSelect, collapsed, onCollapsedChan
     </aside>
   );
 }
-
 

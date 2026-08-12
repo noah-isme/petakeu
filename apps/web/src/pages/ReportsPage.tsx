@@ -158,7 +158,7 @@ export function ReportsPage({ metrics }: { metrics: MetricCardProps[] }) {
           </span>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50/50">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50/50" tabIndex={0} aria-label="Tabel ringkasan laporan">
           <table className="w-full text-left text-xs">
             <thead className="border-b border-slate-200 bg-slate-100/80 text-slate-500 uppercase font-bold">
               <tr>

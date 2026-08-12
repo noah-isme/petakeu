@@ -372,7 +372,7 @@ export function UploadPage() {
             {!hasRows && <p className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">Belum ada baris hasil parsing.</p>}
             {hasRows && (
               <>
-                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <div className="overflow-x-auto rounded-2xl border border-slate-200" tabIndex={0} aria-label="Tabel baris unggahan">
                   <table className="w-full min-w-[1250px] text-left text-xs">
                     <caption className="sr-only">Baris staging hasil parsing upload</caption>
                     <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">

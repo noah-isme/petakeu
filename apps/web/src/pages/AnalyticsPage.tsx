@@ -57,7 +57,7 @@ function ProvinceComparison({ data, publicMode }: { data: AnalyticsProvinceMetri
       {data.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-6 text-sm text-slate-500">Data provinsi belum tersedia.</p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200" tabIndex={0} aria-label="Tabel perbandingan analitik">
           <table className="w-full min-w-[680px] text-left text-xs">
             <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
               <tr>
@@ -131,7 +131,7 @@ function ReportingMatrix({ data, onSelect }: { data: AnalyticsOverview["reportin
       {data.regions.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-6 text-sm text-slate-500">Matriks pelaporan belum tersedia.</p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200" tabIndex={0} aria-label="Tabel matriks pelaporan">
           <table className="w-full min-w-[760px] text-left text-xs">
             <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
               <tr>

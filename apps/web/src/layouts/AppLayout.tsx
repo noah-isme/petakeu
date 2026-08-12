@@ -12,7 +12,9 @@ export function AppLayout({ sidebar, topbar, children }: AppLayoutProps) {
         {sidebar}
         <div className="flex h-full flex-1 flex-col min-w-0 overflow-hidden bg-[#fafbfc]">
           {topbar}
-          <main className="relative flex-1 overflow-y-auto min-w-0 p-4 sm:p-6 lg:p-7">{children}</main>
+          <main id="main-content" tabIndex={-1} className="relative flex-1 overflow-y-auto min-w-0 p-4 sm:p-6 lg:p-7">
+            {children}
+          </main>
         </div>
       </div>
     </div>

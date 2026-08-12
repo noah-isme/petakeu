@@ -326,7 +326,7 @@ export function AuditLogInspector() {
         </div>
       )}
 
-      <div className="overflow-x-auto" aria-busy={query.isFetching}>
+      <div className="overflow-x-auto" tabIndex={0} aria-label="Tabel log audit" aria-busy={query.isFetching}>
         <table className="min-w-[1100px] w-full border-collapse text-left">
           <caption className="sr-only">Daftar log audit yang dapat difilter berdasarkan event, aksi, resource, user, dan waktu</caption>
           <thead className="bg-white text-[11px] font-extrabold uppercase tracking-wider text-slate-400">

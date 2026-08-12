@@ -2,8 +2,8 @@ import { PropsWithChildren } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 const navLinks = [
-  { to: "/", label: "Peta Heatmap" },
-  { to: "/admin", label: "Dashboard Admin" }
+  { to: "/map", label: "Peta Heatmap" },
+  { to: "/admin/audit", label: "Audit Trail" }
 ];
 
 export function MainLayout({ children }: PropsWithChildren) {

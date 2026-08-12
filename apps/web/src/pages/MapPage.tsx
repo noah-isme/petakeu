@@ -17,6 +17,7 @@ import {
   Layers as LayersIcon
 } from "lucide-react";
 import { GeoJSON, MapContainer, TileLayer } from "react-leaflet";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { InfoCard } from "../components/dashboard/InfoCard";
 import { LegendCard, type LegendItem } from "../components/dashboard/LegendCard";
@@ -71,8 +72,14 @@ export function MapPage({
   onHoverLegend,
   onRetry
 }: MapPageProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const geoJsonRef = useRef<L.GeoJSON | null>(null);
   const [selectedQuickRegion, setSelectedQuickRegion] = useState<string | null>(null);
+
+  const navigateWithCurrentQuery = (pathname: string) => {
+    navigate({ pathname, search: location.search });
+  };
 
   const regionLookup = useMemo(() => {
     if (!featureCollection) return new Map<string, RegionStat>();
@@ -206,7 +213,7 @@ export function MapPage({
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => (window.location.hash = "#upload")}
+            onClick={() => navigateWithCurrentQuery("/uploads")}
             className="rounded-full bg-[#044e3a] hover:bg-[#033b2c] text-white px-5 py-2.5 text-sm font-semibold shadow-xs transition active:scale-95 flex items-center gap-2"
           >
             <UploadCloud className="h-4 w-4" />
@@ -214,7 +221,7 @@ export function MapPage({
           </button>
           <button
             type="button"
-            onClick={() => (window.location.hash = "#reports")}
+            onClick={() => navigateWithCurrentQuery("/reports")}
             className="rounded-full border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 px-5 py-2.5 text-sm font-semibold shadow-xs transition active:scale-95 flex items-center gap-2"
           >
             <Download className="h-4 w-4 text-slate-500" />
@@ -468,7 +475,7 @@ export function MapPage({
               </span>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" tabIndex={0} aria-label="Tabel ranking realisasi versus target">
               <table className="w-full text-left text-xs font-medium text-slate-600">
                 <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-y border-slate-100">
                   <tr>
@@ -663,5 +670,3 @@ export function MapPage({
     </div>
   );
 }
-
-

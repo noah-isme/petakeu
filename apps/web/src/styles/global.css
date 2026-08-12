@@ -16,6 +16,33 @@ body {
   overflow-x: hidden;
 }
 
+/* Muted copy is still body content, so it must meet the 4.5:1 AA threshold
+ * on the light dashboard surfaces. Icons using the same token remain legible
+ * and can still be overridden by a more specific semantic color. */
+:where(.text-slate-400) {
+  color: #475569 !important;
+}
+
+/* Keep keyboard focus visible even where a component's visual design removes
+ * the browser outline.  This is intentionally global so dynamically mounted
+ * route content and the mobile navigation drawer share the same indicator. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid #0f766e !important;
+  outline-offset: 3px;
+}
+
+/* A user preference must also win over decorative dashboard motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -130,4 +157,3 @@ body {
 .animate-pulse-glow {
   animation: pulseGlow 3s ease-in-out infinite;
 }
-

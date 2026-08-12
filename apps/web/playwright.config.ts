@@ -20,6 +20,26 @@ export default defineConfig({
         viewport: { width: 1440, height: 900 },
       },
     },
+    {
+      // Keep the existing (infrastructure-sensitive) suite on its original
+      // desktop project.  The responsive release gate below is deliberately
+      // selected for the two additional viewports so an unavailable API or
+      // browser service cannot multiply unrelated live-test failures.
+      name: "chromium-tablet",
+      testMatch: /accessibility-release\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 768, height: 1024 },
+      },
+    },
+    {
+      name: "chromium-mobile",
+      testMatch: /accessibility-release\.spec\.ts/,
+      use: {
+        ...devices["Pixel 5"],
+        viewport: { width: 360, height: 800 },
+      },
+    },
   ],
   webServer: {
     command: "pnpm dev",
