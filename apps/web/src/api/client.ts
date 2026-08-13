@@ -20,6 +20,55 @@ import type {
   RegionAlias
 } from "../types/upload";
 
+/**
+ * Error returned by an API request that received a non-2xx response.
+ *
+ * Keeping the HTTP status and the server supplied details on the error lets
+ * workflow callers distinguish a recoverable conflict (409) from a terminal
+ * upload failure without parsing a stringified response body.
+ */
+export class ApiHttpError extends Error {
+  readonly status: number;
+  readonly details: unknown;
+
+  constructor(status: number, message: string, details?: unknown) {
+    super(message);
+    this.name = "ApiHttpError";
+    this.status = status;
+    this.details = details;
+    Object.setPrototypeOf(this, ApiHttpError.prototype);
+  }
+}
+
+type ErrorPayload = Record<string, unknown>;
+
+function errorMessage(payload: unknown, fallback: string): string {
+  if (typeof payload === "string" && payload.trim() !== "") return payload;
+  const source = asObject(payload);
+  const nested = asObject(source.error);
+  const candidates = [source.message, source.error, source.detail, nested.message];
+  const message = candidates.find((candidate) => typeof candidate === "string" && candidate.trim() !== "");
+  return typeof message === "string" ? message : fallback;
+}
+
+/** Convert a JSON or text response body into the typed API error used by the UI. */
+export function createApiHttpError(status: number, payload: unknown): ApiHttpError {
+  return new ApiHttpError(status, errorMessage(payload, `Request failed with status ${status}`), asObject(payload).details ?? payload);
+}
+
+async function responseError(response: Response): Promise<ApiHttpError> {
+  const text = await response.text();
+  let payload: unknown = text;
+  if (text.trim() !== "") {
+    try {
+      payload = JSON.parse(text) as ErrorPayload;
+    } catch {
+      // Keep the original text as the details for plain-text proxy errors.
+    }
+  }
+  return createApiHttpError(response.status, payload);
+}
+
 async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   const token = getAccessToken();
@@ -29,8 +78,7 @@ async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promi
 
   const response = await fetch(input, { ...init, headers });
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed with status ${response.status}`);
+    throw await responseError(response);
   }
   return response.json() as Promise<T>;
 }
@@ -224,16 +272,12 @@ export const apiClient = {
       headers.set("Authorization", `Bearer ${token}`);
     }
 
-    const response = await fetch(url, {
+    const payload = await fetchJson<unknown>(url, {
       method: "POST",
       headers,
       body: formData
     });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || "Upload failed");
-    }
-    return normalizeUploadCreated(await response.json());
+    return normalizeUploadCreated(payload);
   },
   getUpload(uploadId: string) {
     const url = buildUrl(`/uploads/${encodeURIComponent(uploadId)}`);
@@ -295,8 +339,7 @@ export const apiClient = {
     if (token) headers.set("Authorization", `Bearer ${token}`);
     const response = await fetch(url, { headers });
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Request failed with status ${response.status}`);
+      throw await responseError(response);
     }
     return response.blob();
   },

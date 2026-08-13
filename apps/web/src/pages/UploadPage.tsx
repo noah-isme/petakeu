@@ -1,5 +1,6 @@
-import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   Check,
@@ -15,10 +16,12 @@ import {
   X
 } from "lucide-react";
 
-import { apiClient } from "../api/client";
-import { useUpload, useUploadRows } from "../hooks/useUploads";
+import { useAllUploadRows, useUpload, useUploadRows } from "../hooks/useUploads";
+import { ApiHttpError, apiClient } from "../api/client";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+
+import { readUploadLocation, writeUploadLocation } from "./upload-workflow";
 
 import type { StagedUploadRow, UploadRowPatch, UploadStatus } from "../types/upload";
 
@@ -73,6 +76,26 @@ function findingClasses(severity: "error" | "warning" | "info"): string {
   return "border-sky-200 bg-sky-50 text-sky-800";
 }
 
+function isProcessingStatus(status: UploadStatus | null): boolean {
+  return status === "queued" || status === "processing" || status === "parsing" || status === "committing";
+}
+
+function isReviewStatus(status: UploadStatus | null): boolean {
+  return status === "parsed" || status === "awaiting_confirmation";
+}
+
+function isTerminalStatus(status: UploadStatus | null): boolean {
+  return status === "persisted" || status === "confirmed" || status === "cancelled" || status === "failed";
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.trim() !== "" ? error.message : fallback;
+}
+
+function isStaleRevisionError(error: unknown): error is ApiHttpError {
+  return error instanceof ApiHttpError && error.status === 409;
+}
+
 function RowInput({
   label,
   value,
@@ -125,23 +148,58 @@ function UploadSteps({ status, hasRows }: { status: UploadStatus | "idle"; hasRo
 
 export function UploadPage() {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const liveStatusRef = useRef<HTMLParagraphElement | null>(null);
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [uploadId, setUploadId] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
   const [showFindings, setShowFindings] = useState(false);
   const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
   const [drafts, setDrafts] = useState<Record<string, UploadRowPatch>>({});
   const [aliasStatus, setAliasStatus] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [saveErrorRowId, setSaveErrorRowId] = useState<string | null>(null);
+  const [conflictRowId, setConflictRowId] = useState<string | null>(null);
+  const [retryUploadFile, setRetryUploadFile] = useState<File | null>(null);
   const [confirmedLocally, setConfirmedLocally] = useState(false);
   const [cancelledLocally, setCancelledLocally] = useState(false);
 
+  const location = readUploadLocation(searchParams);
+  const uploadId = location.uploadId;
+  const page = location.page;
   const uploadQuery = useUpload(uploadId);
-  const rowsQuery = useUploadRows(uploadId, page, PAGE_SIZE);
-  const status = uploadQuery.data?.status ?? "queued";
+  const status = uploadQuery.data?.status ?? null;
+  const pollRows = status === null || isProcessingStatus(status) || isReviewStatus(status);
+  const rowsQuery = useUploadRows(uploadId, page, PAGE_SIZE, pollRows);
+  const allRowsQuery = useAllUploadRows(uploadId, PAGE_SIZE, pollRows);
   const rows = useMemo(() => rowsQuery.data?.data ?? [], [rowsQuery.data?.data]);
+  const allRows = useMemo(() => allRowsQuery.data?.data ?? rows, [allRowsQuery.data?.data, rows]);
+  const allFindings = useMemo(() => allRows.flatMap((row) => row.findings), [allRows]);
+  const blockingErrors = allFindings.filter((finding) => finding.severity === "error");
+  const warnings = allFindings.filter((finding) => finding.severity === "warning");
+  const warningEntries = useMemo(
+    () => allRows.flatMap((row) => row.findings.filter((finding) => finding.severity === "warning").map((finding) => ({ row, finding }))),
+    [allRows]
+  );
+  const missingWarningAcknowledgements = warnings.filter((finding) => !finding.acknowledged && !acknowledged.has(finding.findingId));
+  const acknowledgedWarningIds = warnings
+    .filter((finding) => finding.acknowledged || acknowledged.has(finding.findingId))
+    .map((finding) => finding.findingId);
+  const allWarningsAcknowledged = warnings.length > 0 && missingWarningAcknowledgements.length === 0;
+
+  const setResumeLocation = (nextUploadId: string | null, nextPage = 1) => {
+    setSearchParams(writeUploadLocation(searchParams, nextUploadId, nextPage), { replace: true });
+  };
+
+  useEffect(() => {
+    if (message) liveStatusRef.current?.focus();
+  }, [message]);
+
+  useEffect(() => {
+    const totalPages = rowsQuery.data?.meta.totalPages;
+    if (!uploadId || !totalPages || page <= totalPages) return;
+    setSearchParams(writeUploadLocation(searchParams, uploadId, totalPages), { replace: true });
+  }, [page, rowsQuery.data?.meta.totalPages, searchParams, setSearchParams, uploadId]);
 
   const uploadMutation = useMutation({
     mutationFn: (selectedFile: File) => {
@@ -151,34 +209,64 @@ export function UploadPage() {
     },
     onSuccess: (result, selectedFile) => {
       setFile(selectedFile);
-      setUploadId(result.uploadId);
-      setPage(1);
+      setResumeLocation(result.uploadId, 1);
+      setRetryUploadFile(null);
       setMessage(`Berkas ${selectedFile.name} diterima. Menunggu hasil parsing…`);
       void queryClient.invalidateQueries({ queryKey: ["uploads"] });
     },
-    onError: (error) => setMessage(error instanceof Error ? error.message : "Gagal mengunggah berkas.")
+    onError: (error, selectedFile) => {
+      setRetryUploadFile(selectedFile);
+      setMessage(errorMessage(error, "Gagal mengunggah berkas."));
+    }
   });
 
   const updateRowMutation = useMutation({
     mutationFn: ({ row, patch }: { row: StagedUploadRow; patch: UploadRowPatch }) =>
       apiClient.updateUploadRow(uploadId as string, row.rowId, { ...patch, revision: row.revision }),
-    onSuccess: () => {
+    onSuccess: (_updated, variables) => {
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[variables.row.rowId];
+        return next;
+      });
+      setSaveErrorRowId(null);
+      setConflictRowId(null);
       setMessage("Perubahan baris disimpan dan validasi dijalankan ulang.");
       void queryClient.invalidateQueries({ queryKey: ["upload-rows", uploadId] });
+      void queryClient.invalidateQueries({ queryKey: ["upload-rows-all", uploadId] });
       void queryClient.invalidateQueries({ queryKey: ["upload", uploadId] });
     },
-    onError: (error) => setMessage(error instanceof Error ? error.message : "Gagal memperbarui baris.")
+    onError: (error, variables) => {
+      setSaveErrorRowId(variables.row.rowId);
+      if (isStaleRevisionError(error)) {
+        setConflictRowId(variables.row.rowId);
+        setMessage("Baris berubah di sesi lain. Draft Anda dipertahankan; muat baris terbaru lalu simpan ulang.");
+        void rowsQuery.refetch();
+        void allRowsQuery.refetch();
+      } else {
+        setConflictRowId(null);
+        setMessage(errorMessage(error, "Gagal memperbarui baris. Draft Anda dipertahankan; coba lagi."));
+      }
+    }
   });
 
   const confirmMutation = useMutation({
-    mutationFn: () => apiClient.confirmUpload(uploadId as string, { acknowledgedFindingIds: [...acknowledged] }),
+    mutationFn: () =>
+      apiClient.confirmUpload(uploadId as string, {
+        acknowledgedFindingIds: [...acknowledged],
+        acknowledgedWarningIds,
+        ...(allWarningsAcknowledged ? { acknowledgeWarnings: true } : {})
+      }),
     onSuccess: (result) => {
       setConfirmedLocally(true);
       setMessage(`Konfirmasi berhasil. ${result.persistedRows ?? rowsQuery.data?.meta.total ?? 0} baris tersimpan.`);
       void queryClient.invalidateQueries({ queryKey: ["upload", uploadId] });
       void queryClient.invalidateQueries({ queryKey: ["uploads"] });
     },
-    onError: (error) => setMessage(error instanceof Error ? error.message : "Gagal mengonfirmasi unggahan.")
+    onError: (error) => {
+      setMessage(errorMessage(error, "Gagal mengonfirmasi unggahan. Coba lagi."));
+      void uploadQuery.refetch();
+    }
   });
 
   const cancelMutation = useMutation({
@@ -189,15 +277,14 @@ export function UploadPage() {
       void queryClient.invalidateQueries({ queryKey: ["upload", uploadId] });
       void queryClient.invalidateQueries({ queryKey: ["uploads"] });
     },
-    onError: (error) => setMessage(error instanceof Error ? error.message : "Gagal membatalkan unggahan.")
+    onError: (error) => {
+      setMessage(errorMessage(error, "Gagal membatalkan unggahan. Coba lagi."));
+      void uploadQuery.refetch();
+    }
   });
 
-  const hasRows = rows.length > 0 || (rowsQuery.data?.meta.total ?? 0) > 0;
-  const allFindings = useMemo(() => rows.flatMap((row) => row.findings), [rows]);
-  const blockingErrors = allFindings.filter((finding) => finding.severity === "error");
-  const warnings = allFindings.filter((finding) => finding.severity === "warning");
-  const missingWarningAcknowledgements = warnings.filter((finding) => !finding.acknowledged && !acknowledged.has(finding.findingId));
-  const canConfirm = Boolean(uploadId) && hasRows && blockingErrors.length === 0 && missingWarningAcknowledgements.length === 0 && !confirmMutation.isPending;
+  const hasRows = allRows.length > 0 || (allRowsQuery.data?.meta.total ?? rowsQuery.data?.meta.total ?? 0) > 0;
+  const canConfirm = Boolean(uploadId) && isReviewStatus(status) && hasRows && !allRowsQuery.isError && Boolean(allRowsQuery.data) && blockingErrors.length === 0 && missingWarningAcknowledgements.length === 0 && !confirmMutation.isPending && !cancelMutation.isPending;
 
   const selectFile = (selectedFile: File | undefined) => {
     if (!selectedFile) return;
@@ -211,6 +298,7 @@ export function UploadPage() {
     }
     setMessage(null);
     setFile(selectedFile);
+    setRetryUploadFile(null);
     uploadMutation.mutate(selectedFile);
     if (inputRef.current) inputRef.current.value = "";
   };
@@ -224,11 +312,13 @@ export function UploadPage() {
 
   const reset = () => {
     setFile(null);
-    setUploadId(null);
-    setPage(1);
+    setResumeLocation(null, 1);
     setDrafts({});
     setAcknowledged(new Set());
     setShowFindings(false);
+    setSaveErrorRowId(null);
+    setConflictRowId(null);
+    setRetryUploadFile(null);
     setConfirmedLocally(false);
     setCancelledLocally(false);
     setMessage(null);
@@ -249,12 +339,17 @@ export function UploadPage() {
   const saveDraft = (row: StagedUploadRow) => {
     const patch = draftFor(row);
     if (Object.keys(patch).length === 0) return;
+    setSaveErrorRowId(null);
+    setConflictRowId(null);
     updateRowMutation.mutate({ row, patch });
-    setDrafts((current) => {
-      const next = { ...current };
-      delete next[row.rowId];
-      return next;
-    });
+  };
+
+  const retrySave = (row: StagedUploadRow) => {
+    const patch = draftFor(row);
+    if (Object.keys(patch).length === 0) return;
+    setSaveErrorRowId(null);
+    setConflictRowId(null);
+    updateRowMutation.mutate({ row, patch });
   };
 
   const downloadTemplate = async () => {
@@ -284,8 +379,12 @@ export function UploadPage() {
     }
   };
 
-  const parsing = uploadMutation.isPending || (!confirmedLocally && !cancelledLocally && (status === "queued" || status === "processing" || status === "parsing" || status === "committing" || (Boolean(uploadId) && rowsQuery.isLoading && !hasRows)));
+  const statusLoading = Boolean(uploadId) && uploadQuery.isLoading && !uploadQuery.data;
+  const parsing = uploadMutation.isPending || (!confirmedLocally && !cancelledLocally && (isProcessingStatus(status) || statusLoading || (Boolean(uploadId) && rowsQuery.isLoading && !hasRows)));
   const confirmed = confirmedLocally || status === "persisted" || status === "confirmed";
+  const failed = status === "failed";
+  const cancelled = cancelledLocally || status === "cancelled";
+  const reviewReady = Boolean(uploadId) && !uploadQuery.isError && !parsing && !confirmed && !cancelled && !isTerminalStatus(status) && (isReviewStatus(status) || Boolean(rowsQuery.data));
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5 pb-12">
@@ -307,7 +406,7 @@ export function UploadPage() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-5">
-          <UploadSteps status={confirmed ? "confirmed" : status} hasRows={hasRows} />
+          <UploadSteps status={confirmed ? "confirmed" : status ?? "idle"} hasRows={hasRows} />
 
           {!uploadId && (
             <label
@@ -335,25 +434,56 @@ export function UploadPage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold text-slate-500">Berkas aktif</p>
-                  <p className="mt-1 flex items-center gap-2 text-sm font-extrabold text-slate-900"><FileSpreadsheet className="h-4 w-4 text-emerald-600" aria-hidden="true" />{file?.name ?? uploadId}</p>
+                  <p className="mt-1 flex items-center gap-2 text-sm font-extrabold text-slate-900"><FileSpreadsheet className="h-4 w-4 text-emerald-600" aria-hidden="true" />{file?.name ?? uploadQuery.data?.filename ?? uploadId}</p>
                   <p className="mt-1 font-mono text-[10px] text-slate-400">ID: {uploadId}</p>
                 </div>
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-600" role="status" aria-live="polite">
                   {parsing && <Loader2 className="h-4 w-4 animate-spin text-emerald-600" aria-hidden="true" />}
-                  {statusLabel(confirmed ? "confirmed" : status)}
+                  {statusLabel(confirmed ? "confirmed" : status ?? "idle")}
                 </div>
               </div>
               {parsing && <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full w-2/3 animate-pulse rounded-full bg-emerald-500" /></div>}
-              {uploadQuery.isError && <p className="mt-3 text-xs text-amber-700">Detail status belum tersedia; menunggu tabel hasil parsing.</p>}
-              {rowsQuery.isError && !parsing && <p className="mt-3 text-xs text-rose-700" role="alert">Gagal memuat baris hasil parsing. Coba muat ulang.</p>}
+              {uploadQuery.isError && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-amber-700" role="alert">
+                  <span>Detail status belum tersedia.</span>
+                  <Button type="button" size="sm" variant="outline" disabled={uploadQuery.isFetching} onClick={() => void uploadQuery.refetch()}>
+                    <RefreshCw className={`mr-1 h-3.5 w-3.5 ${uploadQuery.isFetching ? "animate-spin" : ""}`} aria-hidden="true" />Muat ulang status
+                  </Button>
+                </div>
+              )}
+              {rowsQuery.isError && !parsing && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-rose-700" role="alert">
+                  <span>Gagal memuat baris hasil parsing.</span>
+                  <Button type="button" size="sm" variant="outline" disabled={rowsQuery.isFetching} onClick={() => void rowsQuery.refetch()}>
+                    <RefreshCw className={`mr-1 h-3.5 w-3.5 ${rowsQuery.isFetching ? "animate-spin" : ""}`} aria-hidden="true" />Muat ulang baris
+                  </Button>
+                </div>
+              )}
+              {allRowsQuery.isError && !parsing && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-rose-700" role="alert">
+                  <span>Validasi seluruh halaman belum tersedia; konfirmasi ditahan.</span>
+                  <Button type="button" size="sm" variant="outline" disabled={allRowsQuery.isFetching} onClick={() => void allRowsQuery.refetch()}>
+                    <RefreshCw className={`mr-1 h-3.5 w-3.5 ${allRowsQuery.isFetching ? "animate-spin" : ""}`} aria-hidden="true" />Muat ulang semua baris
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
-          {message && <p className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700" role="status" aria-live="polite">{message}</p>}
+          {message && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
+              <p ref={liveStatusRef} tabIndex={-1} className="outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" role="status" aria-live="polite">{message}</p>
+              {retryUploadFile && !uploadId && (
+                <Button type="button" size="sm" variant="outline" disabled={uploadMutation.isPending} onClick={() => uploadMutation.mutate(retryUploadFile)}>
+                  <RefreshCw className={`mr-1 h-3.5 w-3.5 ${uploadMutation.isPending ? "animate-spin" : ""}`} aria-hidden="true" />Coba unggah lagi
+                </Button>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {uploadId && !parsing && !confirmed && !cancelledLocally && status !== "cancelled" && (
+      {reviewReady && (
         <Card className="border-slate-200/80 bg-white shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -393,6 +523,8 @@ export function UploadPage() {
                       {rows.map((row) => {
                         const draft = draftFor(row);
                         const rowHasError = row.findings.some((finding) => finding.severity === "error");
+                        const rowHasConflict = conflictRowId === row.rowId;
+                        const rowSaveFailed = saveErrorRowId === row.rowId;
                         return (
                           <tr key={row.rowId} className={rowHasError ? "bg-rose-50/30 align-top" : "align-top"}>
                             <td className="px-3 py-3 font-mono font-bold text-slate-500">{row.rowNumber}</td>
@@ -416,9 +548,15 @@ export function UploadPage() {
                               {row.findings.length === 0 ? <span className="text-emerald-700">Valid</span> : <div className="space-y-1">{row.findings.map((finding) => <p key={finding.findingId} className={`rounded-lg border px-2 py-1 text-[10px] ${findingClasses(finding.severity)}`}>{finding.message}</p>)}</div>}
                             </td>
                             <td className="px-3 py-3">
-                              <Button type="button" size="sm" variant="outline" className="gap-1" disabled={updateRowMutation.isPending || Object.keys(draft).length === 0} onClick={() => saveDraft(row)}>
+                              <Button type="button" size="sm" variant="outline" className="gap-1" disabled={updateRowMutation.isPending || Object.keys(draft).length === 0} onClick={() => saveDraft(row)} aria-label={`Simpan perubahan baris ${row.rowNumber}`}>
                                 <Save className="h-3.5 w-3.5" aria-hidden="true" />Simpan
                               </Button>
+                              {rowSaveFailed && (
+                                <Button type="button" size="sm" variant="ghost" className="mt-1 gap-1 text-rose-700" disabled={updateRowMutation.isPending} onClick={() => retrySave(row)}>
+                                  <RefreshCw className={`h-3.5 w-3.5 ${updateRowMutation.isPending ? "animate-spin" : ""}`} aria-hidden="true" />Coba lagi
+                                </Button>
+                              )}
+                              {rowHasConflict && <p className="mt-1 max-w-40 text-[10px] text-amber-800" role="alert">Draft dipertahankan. Baris terbaru sudah dimuat; simpan ulang untuk menerapkan perubahan.</p>}
                             </td>
                           </tr>
                         );
@@ -430,21 +568,22 @@ export function UploadPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-xs text-slate-500">Menampilkan {rows.length} dari {rowsQuery.data?.meta.total ?? rows.length} baris.</p>
                   <div className="flex items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" aria-label="Halaman sebelumnya" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft className="h-4 w-4" aria-hidden="true" /></Button>
+                    <Button type="button" variant="outline" size="sm" aria-label="Halaman sebelumnya" disabled={page <= 1} onClick={() => setResumeLocation(uploadId, Math.max(1, page - 1))}><ChevronLeft className="h-4 w-4" aria-hidden="true" /></Button>
                     <span className="text-xs font-bold text-slate-600">Halaman {page} / {rowsQuery.data?.meta.totalPages ?? 1}</span>
-                    <Button type="button" variant="outline" size="sm" aria-label="Halaman berikutnya" disabled={page >= (rowsQuery.data?.meta.totalPages ?? 1)} onClick={() => setPage((value) => value + 1)}><ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
+                    <Button type="button" variant="outline" size="sm" aria-label="Halaman berikutnya" disabled={page >= (rowsQuery.data?.meta.totalPages ?? 1)} onClick={() => setResumeLocation(uploadId, page + 1)}><ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
                   </div>
                 </div>
 
                 {warnings.length > 0 && (
                   <fieldset className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                     <legend className="px-1 text-xs font-extrabold text-amber-900">Akui warning sebelum konfirmasi</legend>
-                    {warnings.map((warning) => (
-                      <label key={warning.findingId} className="flex items-start gap-2 text-xs text-amber-900">
-                        <input type="checkbox" checked={warning.acknowledged || acknowledged.has(warning.findingId)} disabled={warning.acknowledged} onChange={(event) => setAcknowledged((current) => { const next = new Set(current); if (event.target.checked) next.add(warning.findingId); else next.delete(warning.findingId); return next; })} className="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500" />
-                        <span>{warning.message}</span>
+                    {warningEntries.map(({ row, finding: warning }) => (
+                      <label key={`${row.rowId}-${warning.findingId}`} className="flex items-start gap-2 text-xs text-amber-900">
+                        <input type="checkbox" checked={warning.acknowledged || acknowledged.has(warning.findingId)} disabled={warning.acknowledged} aria-label={`Akui warning baris ${row.rowNumber}: ${warning.message}`} onChange={(event) => setAcknowledged((current) => { const next = new Set(current); if (event.target.checked) next.add(warning.findingId); else next.delete(warning.findingId); return next; })} className="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500" />
+                        <span><span className="font-bold">Baris {row.rowNumber}:</span> {warning.message}</span>
                       </label>
                     ))}
+                    {allRowsQuery.data?.meta.totalPages && allRowsQuery.data.meta.totalPages > 1 && <p className="pt-1 text-[10px] text-amber-800">Warning dari seluruh halaman sudah dipertimbangkan; halaman aktif {page}.</p>}
                   </fieldset>
                 )}
 
@@ -454,12 +593,29 @@ export function UploadPage() {
                   </button>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="outline" className="gap-2" disabled={cancelMutation.isPending || confirmMutation.isPending} onClick={() => cancelMutation.mutate()}><X className="h-4 w-4" aria-hidden="true" />Batalkan</Button>
-                    <Button type="button" className="gap-2 bg-emerald-700 hover:bg-emerald-800" disabled={!canConfirm} onClick={() => confirmMutation.mutate()}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Konfirmasi & simpan</Button>
+                    <Button type="button" className="gap-2 bg-emerald-700 hover:bg-emerald-800" disabled={!canConfirm} onClick={() => confirmMutation.mutate()}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{confirmMutation.isError ? "Coba konfirmasi lagi" : "Konfirmasi & simpan"}</Button>
                   </div>
                 </div>
+                {cancelMutation.isError && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">Pembatalan gagal. Status mungkin berubah di sesi lain; coba lagi setelah memuat status.</p>}
+                {confirmMutation.isError && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">Konfirmasi gagal. Periksa status terbaru lalu gunakan tombol coba lagi.</p>}
                 {showFindings && <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><h3 className="text-sm font-extrabold text-slate-900">Rincian Baris Tidak Valid</h3><ul className="mt-3 space-y-2">{allFindings.length ? allFindings.map((finding) => <li key={finding.findingId} className={`rounded-lg border px-3 py-2 text-xs ${findingClasses(finding.severity)}`}>{finding.message}</li>) : <li className="text-xs text-slate-500">Tidak ada temuan validasi.</li>}</ul></div>}
               </>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {failed && (
+        <Card className="border-rose-200 bg-rose-50/70 shadow-sm">
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-6">
+            <div className="flex items-center gap-3" role="alert" aria-live="assertive">
+              <AlertCircle className="h-8 w-8 text-rose-700" aria-hidden="true" />
+              <div>
+                <h2 className="text-lg font-extrabold text-rose-900">Pemrosesan unggahan gagal</h2>
+                <p className="mt-1 text-xs text-rose-800">File ini tidak dapat diproses. Unggah file yang sudah diperbaiki untuk memulai kembali.</p>
+              </div>
+            </div>
+            <Button type="button" variant="outline" className="gap-2" onClick={reset}><RefreshCw className="h-4 w-4" aria-hidden="true" />Unggah ulang file</Button>
           </CardContent>
         </Card>
       )}
@@ -473,7 +629,7 @@ export function UploadPage() {
         </Card>
       )}
 
-      {(cancelledLocally || status === "cancelled") && (
+      {cancelled && (
         <Card className="border-slate-200 bg-slate-50 shadow-sm"><CardContent className="flex items-center justify-between gap-4 p-6"><p className="flex items-center gap-2 text-sm font-bold text-slate-700"><X className="h-5 w-5" aria-hidden="true" />Unggahan dibatalkan.</p><Button type="button" variant="outline" onClick={reset}>Unggah Berkas Baru</Button></CardContent></Card>
       )}
     </div>

@@ -71,6 +71,8 @@ export interface UploadRowPatch {
 }
 
 export interface UploadConfirmationInput {
+  /** IDs of warning findings explicitly checked by the operator. */
+  acknowledgedWarningIds?: string[];
   acknowledgedFindingIds?: string[];
   acknowledgeWarnings?: boolean;
 }
