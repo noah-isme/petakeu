@@ -2,7 +2,7 @@
 
 This document serves as the master roadmap and remaining work tracker for Petakeu. It synthesizes the status from the [Implementation Checklist](file:///home/noah/project/petakeu/docs/implementation-checklist.md) and outlines the phased strategy for ongoing and future development.
 
-**Current Status Date:** 2026-08-12  
+**Current Status Date:** 2026-08-14
 **Target Architecture:** Monolithic Express API + React FE + PostGIS + Redis + BullMQ + MinIO
 
 ---
@@ -22,6 +22,10 @@ The overall implementation status across all technical domains as of **2026-08-1
 | **G. Observability** | 4 / 4 | 100% | `[██████████]` | ✅ Complete for application-level telemetry |
 | **H. Testing** | 8 / 8 | 100% | `[██████████]` | Integration, browser, load, and security suites added; live execution is infrastructure-gated |
 | **Overall MVP Total** | **54 / 54** | **100%** | `[██████████]` | **Phase 1 and release-hardening implementation complete; deployment verification remains** |
+
+Repository-side R4/R5 implementation and release automation are complete. The
+remaining unchecked items are staging acceptance gates that require live
+infrastructure, backup/restore evidence, and retained CI artifacts.
 
 ```mermaid
 flowchart LR
@@ -162,7 +166,7 @@ The original MVP, analytics, and enterprise milestones are implemented. R4 close
 - [x] **Analytics controls:** period ranges, province filters, six ranking criteria, gross/share/net basis, and reporting-matrix detail endpoints.
 - [x] **Report fidelity:** executive summary, rankings, monthly breakdown, target achievement, missing-data audit, and canonical re-import workbook sheets.
 - [x] **Frontend workflow:** accessible staged-upload review/correction and interactive analytics matrix/detail controls.
-- [ ] **Release verification:** apply migrations `007_staged_ingestion.sql` and `008_report_filters.sql` in staging, run live PostgreSQL/Redis/MinIO/BullMQ suites, and validate rollback/backup procedures.
+- [ ] **Release verification (staging acceptance pending):** use the checked-in runbook and protected workflow to apply migrations `007_staged_ingestion.sql` and `008_report_filters.sql`, run the live PostgreSQL/Redis/MinIO/BullMQ suites, and retain rollback/backup/restore evidence.
 
 The staged confirmation behavior is controlled by `UPLOAD_REQUIRE_CONFIRMATION=true`; enable it after the first-party frontend is deployed and the staging acceptance suite passes.
 
@@ -178,19 +182,24 @@ does not change the current REST contracts or database schema.
 - [x] **Role-aware shell:** centralize route metadata and minimum roles, hide
   unauthorized navigation, and expose a clear forbidden state while retaining
   backend RBAC as the authoritative guard.
-- [ ] **Workflow resilience:** make staged upload correction, warning
-  acknowledgement, confirmation, cancellation, retry, pagination, stale
-  revision, and refresh recovery explicit and testable in the UI.
+- [ ] **Workflow resilience (implementation complete; acceptance pending):** make
+  staged upload correction, warning acknowledgement, confirmation,
+  cancellation, retry, pagination, stale revision, and refresh recovery
+  explicit and testable in the UI; validate the complete journey against live
+  staging contracts.
 - [x] **Accessibility and responsive gates:** support keyboard completion,
   skip-to-content, focus restoration, semantic landmarks, reduced motion,
   readable chart/map alternatives, WCAG 2.1 AA serious/critical scanning, and
   360px/tablet/desktop layout checks.
-- [ ] **Release automation:** run route, browser, accessibility, and live
-  security contracts in CI; retain traces and failure artifacts for diagnosis.
+- [ ] **Release automation (implementation complete; acceptance pending):** run
+  route, browser, accessibility, integration, security, and performance
+  contracts through CI and the protected staging workflow; retain traces and
+  redacted failure evidence for diagnosis.
 
-The route, role, and accessibility tracks are implemented and covered by the
-desktop, tablet, and 360px mobile browser gates. Final R5 acceptance still
-depends on the live R4 contracts and CI artifact retention.
+The route, role, accessibility, workflow-resilience, and release-automation
+tracks are implemented and covered by deterministic browser/CI gates. Final R5
+acceptance still depends on the live R4 contracts, staging confirmation journey,
+and retained CI artifact evidence.
 
 R5 acceptance requires all primary routes to support direct entry and browser
 history, all core-role journeys to complete at supported viewports, no serious

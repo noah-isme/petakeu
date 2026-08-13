@@ -27,9 +27,10 @@ The release owner must have:
 Do not enable `AUTH_DISABLED=true`, print secrets, run `redis-cli FLUSH*`,
 delete buckets, prune images, or overwrite the staging database before the
 backup and restore evidence has been captured. The preflight script at
-`scripts/verify-r4-staging.mjs` is read-only: it reads migration files and
-performs HTTP `GET` probes only. It does not replace the live suites or the
-manual upload confirmation test.
+`scripts/verify-r4-staging.mjs` is read-only against staging: it reads migration
+files and performs HTTP `GET` probes only. When `--evidence-dir` is supplied it
+writes only a local, redacted preflight artifact. It does not replace the live
+suites or the manual upload confirmation test.
 
 ## 1. Set release variables
 
@@ -37,6 +38,8 @@ Use an API origin without `/api` for `STAGING_API_URL`. Keep the API and web
 origins separate because the live security contracts call the API directly.
 
 ```bash
+set -euo pipefail
+
 export RELEASE_ID="r4-$(date -u +%Y%m%d-%H%M%S)"
 export STAGING_API_URL="https://api.staging.example"
 export STAGING_WEB_URL="https://staging.example"
@@ -92,20 +95,59 @@ contents.
 
 ```bash
 R4_API_URL="$STAGING_API_URL" \
-  node scripts/verify-r4-staging.mjs --phase baseline --json \
-  | tee "$EVIDENCE_DIR/preflight-baseline.json"
+  node scripts/verify-r4-staging.mjs --phase baseline --evidence-dir "$EVIDENCE_DIR" --json \
+  | tee "$EVIDENCE_DIR/preflight-baseline-command.json"
 ```
 
 Do not continue when this command exits non-zero. A missing
 `UPLOAD_REQUIRE_CONFIRMATION` is not equivalent to an explicit `false` or
 `true` setting.
 
+The preflight writes its own mode-0600 JSON artifact in `EVIDENCE_DIR`; the
+`tee` copy is retained as the operator's command log. `--skip-http` is for
+local diagnostics only and is a failed release gate unless paired with the
+explicit `--allow-skipped` flag.
+
+### Deterministic live-suite gate
+
+The integration and security contracts intentionally skip when staging
+dependencies or role tokens are unavailable during ordinary local runs. For a
+release, run them through the strict wrapper below. It requires the live
+environment, creates mode-0700 evidence storage, redacts child output, and
+fails when a suite exits non-zero, produces no structured report, executes no
+tests, or reports any skipped test:
+
+```bash
+node scripts/run-r4-live-suite.mjs \
+  --suite integration \
+  --evidence-dir "$EVIDENCE_DIR" \
+  --period "$PETAKEU_E2E_PERIOD" \
+  --json \
+  | tee "$EVIDENCE_DIR/live-suite-integration.json"
+
+node scripts/run-r4-live-suite.mjs \
+  --suite security \
+  --api-url "$STAGING_API_URL" \
+  --evidence-dir "$EVIDENCE_DIR" \
+  --period "$PETAKEU_E2E_PERIOD" \
+  --json \
+  | tee "$EVIDENCE_DIR/live-suite-security.json"
+```
+
+The wrapper's `DRY_RUN` mode validates configuration and records the commands,
+but is never a release pass. Run deterministic wrapper checks without staging
+credentials with:
+
+```bash
+node --test scripts/r4-release-gate.test.mjs
+```
+
 ### Deployment configuration caveat
 
-`docker-compose.prod.yml` currently maps core storage/auth variables but does
-not map `UPLOAD_REQUIRE_CONFIRMATION`, `STORAGE_REPORTS_BUCKET`, or
-`AUTH_DISABLED` into the API service. The staging deployment layer must inject
-these values through its Compose override, secret manager, or orchestrator
+`docker-compose.prod.yml` maps `UPLOAD_REQUIRE_CONFIRMATION`,
+`STORAGE_REPORTS_BUCKET`, and `AUTH_DISABLED` from the deployment environment
+into the API service. The staging deployment layer must still provide
+non-empty, staging-only values through its secret manager or orchestrator
 configuration before this runbook can pass. Verify inside the running API
 container, not only in the operator shell:
 
@@ -274,8 +316,8 @@ Run the read-only preflight against the deployed API and save evidence:
 
 ```bash
 R4_API_URL="$STAGING_API_URL" \
-  node scripts/verify-r4-staging.mjs --phase baseline --json \
-  | tee "$EVIDENCE_DIR/preflight-baseline-after-deploy.json"
+  node scripts/verify-r4-staging.mjs --phase baseline --evidence-dir "$EVIDENCE_DIR" --json \
+  | tee "$EVIDENCE_DIR/preflight-baseline-after-deploy-command.json"
 
 for endpoint in live ready healthz metrics; do
   curl --fail-with-body --silent --show-error \
@@ -320,34 +362,39 @@ pnpm build | tee "$EVIDENCE_DIR/pnpm-build.txt"
 
 The integration tests are opt-in and use real PostgreSQL, Redis, MinIO, and
 BullMQ. They clean up uniquely generated test rows/objects after each run;
-execute them only against isolated staging and preserve the logs:
+execute them only against isolated staging and preserve the logs. Run the
+strict wrapper so an infrastructure skip cannot be mistaken for a pass:
 
 ```bash
-PETAKEU_INTEGRATION=1 \
-  pnpm --filter @petakeu/server exec vitest run \
-  src/integration/upload-pipeline.integration.test.ts \
-  src/integration/report-generation.integration.test.ts \
-  --reporter=verbose \
-  | tee "$EVIDENCE_DIR/server-live-integration-baseline.txt"
+node scripts/run-r4-live-suite.mjs \
+  --suite integration \
+  --evidence-dir "$EVIDENCE_DIR" \
+  --period "$PETAKEU_E2E_PERIOD" \
+  --json \
+  | tee "$EVIDENCE_DIR/live-suite-integration-baseline.json"
 ```
 
 The upload contract proves queued → processed/persisted, payment materialization,
 materialized-view refresh, and cache invalidation. The report contract proves
 BullMQ execution, MinIO persistence, workbook output, and presigned URL expiry.
 
-Run live RBAC/redaction and report-expiry contracts with all four role tokens:
+Run live RBAC/redaction and report-expiry contracts with all four role tokens
+through the same strict wrapper:
 
 ```bash
-PETAKEU_RUN_LIVE_E2E=1 \
-  PETAKEU_E2E_API_BASE_URL="$STAGING_API_URL/api" \
-  pnpm --filter @petakeu/web exec playwright test \
-  e2e/security-contracts.spec.ts --project=chromium-desktop \
-  | tee "$EVIDENCE_DIR/security-contracts-baseline.txt"
+node scripts/run-r4-live-suite.mjs \
+  --suite security \
+  --api-url "$STAGING_API_URL" \
+  --evidence-dir "$EVIDENCE_DIR" \
+  --period "$PETAKEU_E2E_PERIOD" \
+  --json \
+  | tee "$EVIDENCE_DIR/live-suite-security-baseline.json"
 ```
 
-A skipped test is not a production readiness result. If a test skips because a
-token, API URL, or dependency is unavailable, fix staging setup and rerun; do
-not count the skip as pass.
+The wrapper stores child stdout/stderr and structured JSON reports under the
+evidence directory. A skipped test is not a production readiness result. If a
+test skips because a token, API URL, or dependency is unavailable, fix staging
+setup and rerun; do not count the skip as pass.
 
 The browser journey suite (`release-hardening.spec.ts`) verifies the mounted
 map, legend, region detail, and upload-template controls. The checked-in
@@ -407,8 +454,8 @@ ssh "$STAGING_SSH_USER@$STAGING_HOST" \
   | tee "$EVIDENCE_DIR/container-env-confirmation.txt"
 
 R4_API_URL="$STAGING_API_URL" \
-  node scripts/verify-r4-staging.mjs --phase confirmation --json \
-  | tee "$EVIDENCE_DIR/preflight-confirmation.json"
+  node scripts/verify-r4-staging.mjs --phase confirmation --evidence-dir "$EVIDENCE_DIR" --json \
+  | tee "$EVIDENCE_DIR/preflight-confirmation-command.json"
 ```
 
 Use approved `.xlsx` fixtures. The first fixture must contain a valid row and a

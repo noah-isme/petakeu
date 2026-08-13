@@ -20,9 +20,9 @@ Complete guide for Continuous Integration and Continuous Deployment for Petakeu.
 │                          ┌─────────────────────────────────────┘          │
 │                          ▼                                                │
 │                 ┌───────────────┐    ┌──────────────┐    ┌────────────┐  │
-│                 │  Deploy to    │───▶│  Smoke Tests │───▶│  Deploy to │  │
-│                 │  Staging      │    │  (Health,    │    │  Production│  │
-│                 │  (Auto)       │    │   Smoke)     │    │  (Manual)  │  │
+│                 │  Release      │───▶│  Smoke Tests │───▶│  Deploy to │  │
+│                 │  Verification │    │  (Health,    │    │  Production│  │
+│                 │  (Manual)     │    │   Smoke)     │    │  (Manual)  │  │
 │                 └───────────────┘    └──────────────┘    └────────────┘  │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -428,16 +428,26 @@ jobs:
 
 ## CD Pipeline (Deployment)
 
-### Staging Deployment (Auto on `develop`)
+### Staging Release Verification (Manual, protected)
+
+The repository's protected staging gate is
+`.github/workflows/deploy-staging.yml`. It is intentionally triggered with
+`workflow_dispatch` so a release owner can select the candidate SHA/tag and
+the required baseline or confirmation phase after backups are captured.
 
 ```bash
-# Triggered automatically when:
-# - Push to `develop` branch
-# - All CI jobs pass
-
-# Manual trigger:
-gh workflow run deploy-staging.yml -f environment=staging
+gh workflow run deploy-staging.yml \
+  -f ref=<release-sha-or-tag> \
+  -f phase=baseline \
+  -f test_period=2026-08
 ```
+
+The workflow validates protected `staging` environment secrets, runs the
+read-only preflight, live integration/security/browser/performance contracts,
+fails when required tests are skipped, and uploads redacted evidence with
+14-day retention. Run `phase=confirmation` only after the baseline gate and
+manual upload confirmation/cancellation checks pass. The complete operator
+sequence is in [the R4 staging runbook](r4-staging-release-verification.md).
 
 ### Production Deployment (Manual)
 
@@ -517,7 +527,7 @@ jobs:
 
 | Environment | URL | Protection Rules |
 |-------------|-----|------------------|
-| `staging` | https://staging.petakeu.go.id | Auto-deploy from `develop` |
+| `staging` | https://staging.petakeu.go.id | Manual protected release verification |
 | `production` | https://petakeu.go.id | Manual approval, 2 reviewers |
 
 ### Required Secrets

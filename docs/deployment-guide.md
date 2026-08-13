@@ -59,10 +59,10 @@ R4_API_URL="https://api.staging.example" \
   node scripts/verify-r4-staging.mjs --phase baseline --json
 ```
 
-The production Compose file does not currently pass
-`UPLOAD_REQUIRE_CONFIRMATION`, `STORAGE_REPORTS_BUCKET`, or `AUTH_DISABLED` to
-the API service. Inject those values through the staging deployment's
-secret/configuration layer and verify them inside the API container before
+The production Compose file passes `UPLOAD_REQUIRE_CONFIRMATION`,
+`STORAGE_REPORTS_BUCKET`, and `AUTH_DISABLED` to the API service. Provide
+non-empty staging/production values through the deployment secret or
+configuration layer and verify them inside the API container before
 proceeding.
 
 ---
