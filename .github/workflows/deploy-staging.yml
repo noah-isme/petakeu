@@ -1,0 +1,454 @@
+name: Staging release verification
+
+run-name: Staging ${{ inputs.phase }} verification (${{ inputs.ref }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Release tag or commit SHA to verify"
+        required: true
+        default: main
+        type: string
+      phase:
+        description: "Run the baseline or confirmation release gate"
+        required: true
+        default: baseline
+        type: choice
+        options:
+          - baseline
+          - confirmation
+      api_url:
+        description: "Staging API origin (without /api); falls back to STAGING_API_URL"
+        required: false
+        type: string
+      web_url:
+        description: "Staging web origin; falls back to STAGING_WEB_URL"
+        required: false
+        type: string
+      test_period:
+        description: "Period used by live security and performance contracts"
+        required: false
+        default: 2026-08
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    name: R4 baseline release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: staging
+    env:
+      NODE_ENV: production
+      AUTH_DISABLED: "false"
+      UPLOAD_REQUIRE_CONFIRMATION: "false"
+      PETAKEU_INTEGRATION: "1"
+      PETAKEU_RUN_LIVE_E2E: "1"
+      R4_API_URL: ${{ inputs.api_url || secrets.STAGING_API_URL }}
+      PETAKEU_E2E_BASE_URL: ${{ inputs.web_url || secrets.STAGING_WEB_URL }}
+      PETAKEU_E2E_PERIOD: ${{ inputs.test_period || secrets.STAGING_E2E_PERIOD || '2026-08' }}
+      DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+      STORAGE_ENDPOINT: ${{ secrets.STAGING_STORAGE_ENDPOINT }}
+      STORAGE_ACCESS_KEY: ${{ secrets.STAGING_STORAGE_ACCESS_KEY }}
+      STORAGE_SECRET_KEY: ${{ secrets.STAGING_STORAGE_SECRET_KEY }}
+      STORAGE_BUCKET: ${{ secrets.STAGING_STORAGE_BUCKET || 'uploads' }}
+      STORAGE_REPORTS_BUCKET: ${{ secrets.STAGING_STORAGE_REPORTS_BUCKET || 'reports' }}
+      AUTH_SECRET: ${{ secrets.STAGING_AUTH_SECRET }}
+      PETAKEU_PUBLIC_TOKEN: ${{ secrets.STAGING_PUBLIC_TOKEN }}
+      PETAKEU_VIEWER_TOKEN: ${{ secrets.STAGING_VIEWER_TOKEN }}
+      PETAKEU_OPERATOR_TOKEN: ${{ secrets.STAGING_OPERATOR_TOKEN }}
+      PETAKEU_ADMIN_TOKEN: ${{ secrets.STAGING_ADMIN_TOKEN }}
+      R4_STORAGE_HEALTH_URL: ${{ secrets.STAGING_STORAGE_HEALTH_URL }}
+      EVIDENCE_DIR: ${{ github.workspace }}/staging-evidence/baseline
+      R4_EVIDENCE_DIR: ${{ github.workspace }}/staging-evidence/baseline
+      PLAYWRIGHT_OUTPUT_DIR: ${{ github.workspace }}/staging-evidence/baseline/test-results
+      PLAYWRIGHT_REPORT_DIR: ${{ github.workspace }}/staging-evidence/baseline/playwright-report
+      PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/staging-evidence/baseline/playwright-report/results.json
+    steps:
+      - name: Checkout release candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Validate and normalize staging URLs
+        id: staging_config
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            R4_API_URL PETAKEU_E2E_BASE_URL DATABASE_URL REDIS_URL
+            STORAGE_ENDPOINT STORAGE_ACCESS_KEY STORAGE_SECRET_KEY STORAGE_BUCKET
+            STORAGE_REPORTS_BUCKET AUTH_SECRET PETAKEU_PUBLIC_TOKEN
+            PETAKEU_VIEWER_TOKEN PETAKEU_OPERATOR_TOKEN PETAKEU_ADMIN_TOKEN
+          )
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error title=Missing staging configuration::${name} is required"
+              exit 1
+            fi
+          done
+          if (( ${#AUTH_SECRET} < 32 )); then
+            echo "::error title=Weak staging secret::AUTH_SECRET must be at least 32 characters"
+            exit 1
+          fi
+
+          api_url="${R4_API_URL%/}"
+          api_url="${api_url%/api}"
+          web_url="${PETAKEU_E2E_BASE_URL%/}"
+          if [[ ! "$api_url" =~ ^https?:// ]] || [[ ! "$web_url" =~ ^https?:// ]]; then
+            echo "::error title=Invalid staging URL::API and web URLs must use http:// or https://"
+            exit 1
+          fi
+          {
+            echo "R4_API_URL=$api_url"
+            echo "PETAKEU_E2E_API_BASE_URL=$api_url/api"
+            echo "PETAKEU_E2E_BASE_URL=$web_url"
+          } >> "$GITHUB_ENV"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run baseline preflight
+        id: preflight
+        continue-on-error: true
+        run: |
+          mkdir -p "$EVIDENCE_DIR"
+          chmod 700 "$EVIDENCE_DIR"
+          set -o pipefail
+          node scripts/verify-r4-staging.mjs \
+            --phase baseline \
+            --api-url "$R4_API_URL" \
+            --json 2>&1 | tee "$EVIDENCE_DIR/preflight.json"
+
+      - name: Install Chromium and system dependencies
+        if: always()
+        run: pnpm --filter @petakeu/web exec playwright install --with-deps chromium
+
+      - name: Run live PostgreSQL, Redis, MinIO, and BullMQ integration contracts
+        id: integration
+        if: always()
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm --filter @petakeu/server exec vitest run \
+            src/integration/upload-pipeline.integration.test.ts \
+            src/integration/report-generation.integration.test.ts \
+            --reporter=json \
+            --outputFile="$EVIDENCE_DIR/server-integration.json" \
+            2>&1 | tee "$EVIDENCE_DIR/server-integration.log"
+
+      - name: Fail when integration contracts are skipped
+        id: integration_skips
+        if: always()
+        run: node scripts/assert-vitest-no-skips.mjs "$EVIDENCE_DIR/server-integration.json"
+
+      - name: Run live browser smoke contracts
+        id: browser
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p "$PLAYWRIGHT_OUTPUT_DIR" "$PLAYWRIGHT_REPORT_DIR"
+          set -o pipefail
+          pnpm --filter @petakeu/web exec playwright test \
+            e2e/release-hardening.spec.ts \
+            e2e/accessibility-release.spec.ts \
+            --project=chromium-desktop \
+            --grep-invert 'standalone dashboard|role-aware UI|admin audit route remains|mobile navigation drawer' \
+            2>&1 | tee "$PLAYWRIGHT_OUTPUT_DIR/browser-smoke.log"
+
+      - name: Fail when browser smoke contracts are skipped
+        id: browser_skips
+        if: always()
+        run: node scripts/assert-playwright-no-skips.mjs "$PLAYWRIGHT_JSON_OUTPUT_FILE"
+
+      - name: Run live RBAC and payload-redaction contracts
+        id: security
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p "$EVIDENCE_DIR/security-test-results" "$EVIDENCE_DIR/security-playwright-report"
+          set -o pipefail
+          PLAYWRIGHT_OUTPUT_DIR="$EVIDENCE_DIR/security-test-results" \
+          PLAYWRIGHT_REPORT_DIR="$EVIDENCE_DIR/security-playwright-report" \
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$EVIDENCE_DIR/security-playwright-report/results.json" \
+            pnpm --filter @petakeu/web exec playwright test \
+              e2e/security-contracts.spec.ts \
+              --project=chromium-desktop \
+              2>&1 | tee "$EVIDENCE_DIR/security-contracts.log"
+
+      - name: Fail when security contracts are skipped
+        id: security_skips
+        if: always()
+        run: node scripts/assert-playwright-no-skips.mjs "$EVIDENCE_DIR/security-playwright-report/results.json"
+
+      - name: Run warm/cold performance gate
+        id: performance
+        if: always()
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm benchmark -- \
+            --url="$R4_API_URL" \
+            --period="$PETAKEU_E2E_PERIOD" \
+            --token="$PETAKEU_OPERATOR_TOKEN" \
+            --concurrency=10 \
+            --requests=50 \
+            --hit-sla=300 \
+            --cold-sla=2000 \
+            --json 2>&1 | tee "$EVIDENCE_DIR/choropleth-benchmark.json"
+
+      - name: Enforce baseline release gate
+        if: always()
+        run: |
+          set -euo pipefail
+          failed=0
+          for outcome in \
+            "preflight=${{ steps.preflight.outcome }}" \
+            "integration=${{ steps.integration.outcome }}" \
+            "integration_skips=${{ steps.integration_skips.outcome }}" \
+            "browser=${{ steps.browser.outcome }}" \
+            "browser_skips=${{ steps.browser_skips.outcome }}" \
+            "security=${{ steps.security.outcome }}" \
+            "security_skips=${{ steps.security_skips.outcome }}" \
+            "performance=${{ steps.performance.outcome }}"; do
+            name="${outcome%%=*}"
+            value="${outcome#*=}"
+            if [[ "$value" != success ]]; then
+              echo "::error title=Baseline gate failed::$name step outcome: $value"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+      - name: Upload baseline evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-baseline-evidence-${{ github.run_id }}
+          path: staging-evidence/baseline
+          if-no-files-found: warn
+          retention-days: 14
+
+  confirmation:
+    name: R4 confirmation release gate
+    if: ${{ inputs.phase == 'confirmation' && needs.baseline.result == 'success' }}
+    needs: baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: staging
+    env:
+      NODE_ENV: production
+      AUTH_DISABLED: "false"
+      UPLOAD_REQUIRE_CONFIRMATION: "true"
+      PETAKEU_INTEGRATION: "1"
+      PETAKEU_RUN_LIVE_E2E: "1"
+      R4_API_URL: ${{ inputs.api_url || secrets.STAGING_API_URL }}
+      PETAKEU_E2E_BASE_URL: ${{ inputs.web_url || secrets.STAGING_WEB_URL }}
+      PETAKEU_E2E_PERIOD: ${{ inputs.test_period || secrets.STAGING_E2E_PERIOD || '2026-08' }}
+      DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+      STORAGE_ENDPOINT: ${{ secrets.STAGING_STORAGE_ENDPOINT }}
+      STORAGE_ACCESS_KEY: ${{ secrets.STAGING_STORAGE_ACCESS_KEY }}
+      STORAGE_SECRET_KEY: ${{ secrets.STAGING_STORAGE_SECRET_KEY }}
+      STORAGE_BUCKET: ${{ secrets.STAGING_STORAGE_BUCKET || 'uploads' }}
+      STORAGE_REPORTS_BUCKET: ${{ secrets.STAGING_STORAGE_REPORTS_BUCKET || 'reports' }}
+      AUTH_SECRET: ${{ secrets.STAGING_AUTH_SECRET }}
+      PETAKEU_PUBLIC_TOKEN: ${{ secrets.STAGING_PUBLIC_TOKEN }}
+      PETAKEU_VIEWER_TOKEN: ${{ secrets.STAGING_VIEWER_TOKEN }}
+      PETAKEU_OPERATOR_TOKEN: ${{ secrets.STAGING_OPERATOR_TOKEN }}
+      PETAKEU_ADMIN_TOKEN: ${{ secrets.STAGING_ADMIN_TOKEN }}
+      R4_STORAGE_HEALTH_URL: ${{ secrets.STAGING_STORAGE_HEALTH_URL }}
+      EVIDENCE_DIR: ${{ github.workspace }}/staging-evidence/confirmation
+      R4_EVIDENCE_DIR: ${{ github.workspace }}/staging-evidence/confirmation
+      PLAYWRIGHT_OUTPUT_DIR: ${{ github.workspace }}/staging-evidence/confirmation/test-results
+      PLAYWRIGHT_REPORT_DIR: ${{ github.workspace }}/staging-evidence/confirmation/playwright-report
+      PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/staging-evidence/confirmation/playwright-report/results.json
+    steps:
+      - name: Checkout release candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Validate and normalize staging URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            R4_API_URL PETAKEU_E2E_BASE_URL DATABASE_URL REDIS_URL
+            STORAGE_ENDPOINT STORAGE_ACCESS_KEY STORAGE_SECRET_KEY STORAGE_BUCKET
+            STORAGE_REPORTS_BUCKET AUTH_SECRET PETAKEU_PUBLIC_TOKEN
+            PETAKEU_VIEWER_TOKEN PETAKEU_OPERATOR_TOKEN PETAKEU_ADMIN_TOKEN
+          )
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error title=Missing staging configuration::${name} is required"
+              exit 1
+            fi
+          done
+          if (( ${#AUTH_SECRET} < 32 )); then
+            echo "::error title=Weak staging secret::AUTH_SECRET must be at least 32 characters"
+            exit 1
+          fi
+          api_url="${R4_API_URL%/}"
+          api_url="${api_url%/api}"
+          web_url="${PETAKEU_E2E_BASE_URL%/}"
+          if [[ ! "$api_url" =~ ^https?:// ]] || [[ ! "$web_url" =~ ^https?:// ]]; then
+            echo "::error title=Invalid staging URL::API and web URLs must use http:// or https://"
+            exit 1
+          fi
+          {
+            echo "R4_API_URL=$api_url"
+            echo "PETAKEU_E2E_API_BASE_URL=$api_url/api"
+            echo "PETAKEU_E2E_BASE_URL=$web_url"
+          } >> "$GITHUB_ENV"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run confirmation preflight
+        id: preflight
+        continue-on-error: true
+        run: |
+          mkdir -p "$EVIDENCE_DIR"
+          chmod 700 "$EVIDENCE_DIR"
+          set -o pipefail
+          node scripts/verify-r4-staging.mjs \
+            --phase confirmation \
+            --api-url "$R4_API_URL" \
+            --json 2>&1 | tee "$EVIDENCE_DIR/preflight.json"
+
+      - name: Install Chromium and system dependencies
+        if: always()
+        run: pnpm --filter @petakeu/web exec playwright install --with-deps chromium
+
+      - name: Run live report integration contract with confirmation enabled
+        id: integration
+        if: always()
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm --filter @petakeu/server exec vitest run \
+            src/integration/report-generation.integration.test.ts \
+            --reporter=json \
+            --outputFile="$EVIDENCE_DIR/server-integration.json" \
+            2>&1 | tee "$EVIDENCE_DIR/server-integration.log"
+
+      - name: Fail when confirmation integration is skipped
+        id: integration_skips
+        if: always()
+        run: node scripts/assert-vitest-no-skips.mjs "$EVIDENCE_DIR/server-integration.json"
+
+      - name: Run confirmation browser smoke contracts
+        id: browser
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p "$PLAYWRIGHT_OUTPUT_DIR" "$PLAYWRIGHT_REPORT_DIR"
+          set -o pipefail
+          pnpm --filter @petakeu/web exec playwright test \
+            e2e/release-hardening.spec.ts \
+            e2e/accessibility-release.spec.ts \
+            --project=chromium-desktop \
+            --grep-invert 'standalone dashboard|role-aware UI|admin audit route remains|mobile navigation drawer' \
+            2>&1 | tee "$PLAYWRIGHT_OUTPUT_DIR/browser-smoke.log"
+
+      - name: Fail when confirmation browser smoke is skipped
+        id: browser_skips
+        if: always()
+        run: node scripts/assert-playwright-no-skips.mjs "$PLAYWRIGHT_JSON_OUTPUT_FILE"
+
+      - name: Run confirmation RBAC and payload-redaction contracts
+        id: security
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p "$EVIDENCE_DIR/security-test-results" "$EVIDENCE_DIR/security-playwright-report"
+          set -o pipefail
+          PLAYWRIGHT_OUTPUT_DIR="$EVIDENCE_DIR/security-test-results" \
+          PLAYWRIGHT_REPORT_DIR="$EVIDENCE_DIR/security-playwright-report" \
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$EVIDENCE_DIR/security-playwright-report/results.json" \
+            pnpm --filter @petakeu/web exec playwright test \
+              e2e/security-contracts.spec.ts \
+              --project=chromium-desktop \
+              2>&1 | tee "$EVIDENCE_DIR/security-contracts.log"
+
+      - name: Fail when confirmation security contracts are skipped
+        id: security_skips
+        if: always()
+        run: node scripts/assert-playwright-no-skips.mjs "$EVIDENCE_DIR/security-playwright-report/results.json"
+
+      - name: Run confirmation warm/cold performance gate
+        id: performance
+        if: always()
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm benchmark -- \
+            --url="$R4_API_URL" \
+            --period="$PETAKEU_E2E_PERIOD" \
+            --token="$PETAKEU_OPERATOR_TOKEN" \
+            --concurrency=10 \
+            --requests=50 \
+            --hit-sla=300 \
+            --cold-sla=2000 \
+            --json 2>&1 | tee "$EVIDENCE_DIR/choropleth-benchmark.json"
+
+      - name: Enforce confirmation release gate
+        if: always()
+        run: |
+          set -euo pipefail
+          failed=0
+          for outcome in \
+            "preflight=${{ steps.preflight.outcome }}" \
+            "integration=${{ steps.integration.outcome }}" \
+            "integration_skips=${{ steps.integration_skips.outcome }}" \
+            "browser=${{ steps.browser.outcome }}" \
+            "browser_skips=${{ steps.browser_skips.outcome }}" \
+            "security=${{ steps.security.outcome }}" \
+            "security_skips=${{ steps.security_skips.outcome }}" \
+            "performance=${{ steps.performance.outcome }}"; do
+            name="${outcome%%=*}"
+            value="${outcome#*=}"
+            if [[ "$value" != success ]]; then
+              echo "::error title=Confirmation gate failed::$name step outcome: $value"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+      - name: Upload confirmation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-confirmation-evidence-${{ github.run_id }}
+          path: staging-evidence/confirmation
+          if-no-files-found: warn
+          retention-days: 14

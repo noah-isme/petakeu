@@ -68,3 +68,64 @@ jobs:
         with:
           name: server-dist
           path: apps/server/dist
+
+  browser-contracts:
+    name: Browser route, responsive, and accessibility contracts
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 30
+    env:
+      CI: true
+      VITE_USE_MSW: true
+      PLAYWRIGHT_OUTPUT_DIR: ${{ github.workspace }}/apps/web/test-results
+      PLAYWRIGHT_REPORT_DIR: ${{ github.workspace }}/apps/web/playwright-report
+      PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/apps/web/playwright-report/results.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium and system dependencies
+        run: pnpm --filter @petakeu/web exec playwright install --with-deps chromium
+
+      - name: Run deterministic route, responsive, and accessibility gates
+        id: playwright
+        run: |
+          mkdir -p "$PLAYWRIGHT_OUTPUT_DIR" "$PLAYWRIGHT_REPORT_DIR"
+          set -o pipefail
+          pnpm --filter @petakeu/web exec playwright test \
+            e2e/accessibility-release.spec.ts \
+            e2e/release-hardening.spec.ts \
+            --project=chromium-desktop \
+            --project=chromium-tablet \
+            --project=chromium-mobile \
+            --grep-invert 'admin audit route remains|mobile navigation drawer' \
+            2>&1 | tee "$PLAYWRIGHT_OUTPUT_DIR/ci-playwright.log"
+
+      - name: Fail when browser contracts are skipped
+        if: always()
+        run: node scripts/assert-playwright-no-skips.mjs "$PLAYWRIGHT_JSON_OUTPUT_FILE"
+
+      - name: Upload Playwright reports and failure artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-contracts-${{ github.run_id }}
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: warn
+          retention-days: 14

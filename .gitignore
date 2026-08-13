@@ -12,3 +12,4 @@ reports
 *.tsbuildinfo
 playwright-report
 test-results
+.r4-evidence/
