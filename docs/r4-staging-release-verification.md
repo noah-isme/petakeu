@@ -224,7 +224,11 @@ PostgreSQL or object-storage backup.
 
 ## 3. Deploy the candidate with confirmation disabled
 
-Use the existing staging pipeline where possible:
+Deploy the candidate through the normal staging deployment mechanism first.
+The protected workflow is a verification gate; it does not pull images,
+restart services, or apply migrations on the remote environment. After the
+candidate is deployed with confirmation disabled, dispatch the verification
+workflow with the immutable ref:
 
 ```bash
 gh workflow run deploy-staging.yml \
