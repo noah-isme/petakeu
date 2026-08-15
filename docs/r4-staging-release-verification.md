@@ -227,7 +227,10 @@ PostgreSQL or object-storage backup.
 Use the existing staging pipeline where possible:
 
 ```bash
-gh workflow run deploy-staging.yml -f environment=staging
+gh workflow run deploy-staging.yml \
+  -f ref=<release-sha-or-tag> \
+  -f phase=baseline \
+  -f test_period="$PETAKEU_E2E_PERIOD"
 ```
 
 If the deployment owner uses SSH/Compose, the equivalent staging-only action

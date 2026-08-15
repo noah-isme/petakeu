@@ -443,9 +443,12 @@ gh workflow run deploy-staging.yml \
 ```
 
 The workflow validates protected `staging` environment secrets, runs the
-read-only preflight, live integration/security/browser/performance contracts,
-fails when required tests are skipped, and uploads redacted evidence with
-14-day retention. Run `phase=confirmation` only after the baseline gate and
+read-only preflight, live integration/security/browser/performance contracts
+across the configured desktop, tablet, and mobile browser projects, fails when
+required tests are skipped, and uploads redacted evidence with 90-day
+retention. It is a verification gate; the runbook's backup, deployment,
+migration, remote confirmation-flag, restore, and manual staged-upload steps
+remain required operator actions. Run `phase=confirmation` only after the baseline gate and
 manual upload confirmation/cancellation checks pass. The complete operator
 sequence is in [the R4 staging runbook](r4-staging-release-verification.md).
 

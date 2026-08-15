@@ -137,12 +137,12 @@ jobs:
             --json 2>&1 | tee "$EVIDENCE_DIR/preflight.json"
 
       - name: Install Chromium and system dependencies
-        if: always()
+        if: steps.preflight.outcome == 'success'
         run: pnpm --filter @petakeu/web exec playwright install --with-deps chromium
 
       - name: Run live PostgreSQL, Redis, MinIO, and BullMQ integration contracts
         id: integration
-        if: always()
+        if: steps.preflight.outcome == 'success'
         continue-on-error: true
         run: |
           set -o pipefail
@@ -155,12 +155,12 @@ jobs:
 
       - name: Fail when integration contracts are skipped
         id: integration_skips
-        if: always()
+        if: steps.preflight.outcome == 'success'
         run: node scripts/assert-vitest-no-skips.mjs "$EVIDENCE_DIR/server-integration.json"
 
       - name: Run live browser smoke contracts
         id: browser
-        if: always()
+        if: steps.preflight.outcome == 'success'
         continue-on-error: true
         run: |
           mkdir -p "$PLAYWRIGHT_OUTPUT_DIR" "$PLAYWRIGHT_REPORT_DIR"
@@ -168,18 +168,17 @@ jobs:
           pnpm --filter @petakeu/web exec playwright test \
             e2e/release-hardening.spec.ts \
             e2e/accessibility-release.spec.ts \
-            --project=chromium-desktop \
-            --grep-invert 'standalone dashboard|role-aware UI|admin audit route remains|mobile navigation drawer' \
+            --grep-invert 'standalone dashboard|role-aware UI' \
             2>&1 | tee "$PLAYWRIGHT_OUTPUT_DIR/browser-smoke.log"
 
       - name: Fail when browser smoke contracts are skipped
         id: browser_skips
-        if: always()
+        if: steps.preflight.outcome == 'success'
         run: node scripts/assert-playwright-no-skips.mjs "$PLAYWRIGHT_JSON_OUTPUT_FILE"
 
       - name: Run live RBAC and payload-redaction contracts
         id: security
-        if: always()
+        if: steps.preflight.outcome == 'success'
         continue-on-error: true
         run: |
           mkdir -p "$EVIDENCE_DIR/security-test-results" "$EVIDENCE_DIR/security-playwright-report"
@@ -194,12 +193,12 @@ jobs:
 
       - name: Fail when security contracts are skipped
         id: security_skips
-        if: always()
+        if: steps.preflight.outcome == 'success'
         run: node scripts/assert-playwright-no-skips.mjs "$EVIDENCE_DIR/security-playwright-report/results.json"
 
       - name: Run warm/cold performance gate
         id: performance
-        if: always()
+        if: steps.preflight.outcome == 'success'
         continue-on-error: true
         run: |
           set -o pipefail
@@ -243,7 +242,7 @@ jobs:
           name: staging-baseline-evidence-${{ github.run_id }}
           path: staging-evidence/baseline
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 90
 
   confirmation:
     name: R4 confirmation release gate
@@ -346,12 +345,12 @@ jobs:
             --json 2>&1 | tee "$EVIDENCE_DIR/preflight.json"
 
       - name: Install Chromium and system dependencies
-        if: always()
+        if: steps.preflight.outcome == 'success'
         run: pnpm --filter @petakeu/web exec playwright install --with-deps chromium
 
       - name: Run live report integration contract with confirmation enabled
         id: integration
-        if: always()
+        if: steps.preflight.outcome == 'success'
         continue-on-error: true
         run: |
           set -o pipefail
@@ -363,12 +362,12 @@ jobs:
 
       - name: Fail when confirmation integration is skipped
         id: integration_skips
-        if: always()
+        if: steps.preflight.outcome == 'success'
         run: node scripts/assert-vitest-no-skips.mjs "$EVIDENCE_DIR/server-integration.json"
 
       - name: Run confirmation browser smoke contracts
         id: browser
-        if: always()
+        if: steps.preflight.outcome == 'success'
         continue-on-error: true
         run: |
           mkdir -p "$PLAYWRIGHT_OUTPUT_DIR" "$PLAYWRIGHT_REPORT_DIR"
@@ -376,18 +375,17 @@ jobs:
           pnpm --filter @petakeu/web exec playwright test \
             e2e/release-hardening.spec.ts \
             e2e/accessibility-release.spec.ts \
-            --project=chromium-desktop \
-            --grep-invert 'standalone dashboard|role-aware UI|admin audit route remains|mobile navigation drawer' \
+            --grep-invert 'standalone dashboard|role-aware UI' \
             2>&1 | tee "$PLAYWRIGHT_OUTPUT_DIR/browser-smoke.log"
 
       - name: Fail when confirmation browser smoke is skipped
         id: browser_skips
-        if: always()
+        if: steps.preflight.outcome == 'success'
         run: node scripts/assert-playwright-no-skips.mjs "$PLAYWRIGHT_JSON_OUTPUT_FILE"
 
       - name: Run confirmation RBAC and payload-redaction contracts
         id: security
-        if: always()
+        if: steps.preflight.outcome == 'success'
         continue-on-error: true
         run: |
           mkdir -p "$EVIDENCE_DIR/security-test-results" "$EVIDENCE_DIR/security-playwright-report"
@@ -402,12 +400,12 @@ jobs:
 
       - name: Fail when confirmation security contracts are skipped
         id: security_skips
-        if: always()
+        if: steps.preflight.outcome == 'success'
         run: node scripts/assert-playwright-no-skips.mjs "$EVIDENCE_DIR/security-playwright-report/results.json"
 
       - name: Run confirmation warm/cold performance gate
         id: performance
-        if: always()
+        if: steps.preflight.outcome == 'success'
         continue-on-error: true
         run: |
           set -o pipefail
@@ -451,4 +449,4 @@ jobs:
           name: staging-confirmation-evidence-${{ github.run_id }}
           path: staging-evidence/confirmation
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 90
