@@ -1,4 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+
+import { getPgPool } from '../db/postgres';
+import { getRedisClient } from '../db/redis';
+import { getUploadQueue } from '../jobs/upload-worker';
+import { getReportQueue } from '../jobs/report-worker';
+import { createApp } from '../server';
+import { checkStorageHealth } from '../services/storage-service';
+
 import {
   checkDatabase,
   checkRedis,
@@ -9,13 +17,16 @@ import {
   performLivenessCheck,
   withTimeout,
 } from './health';
-import { getPgPool } from '../db/postgres';
-import { getRedisClient } from '../db/redis';
-import { checkStorageHealth } from '../services/storage-service';
-import { getUploadQueue } from '../jobs/upload-worker';
-import { getReportQueue } from '../jobs/report-worker';
-import { createApp } from '../server';
+
 import type { Server } from 'http';
+
+type MockPool = { query: ReturnType<typeof vi.fn> };
+type MockRedis = { ping: ReturnType<typeof vi.fn> };
+type MockQueue = { getJobCounts: ReturnType<typeof vi.fn> };
+type HealthResponse = {
+  status: string;
+  checks: Record<string, { status: string }>;
+};
 
 vi.mock('../db/postgres', () => {
   const mockPool = {
@@ -62,24 +73,24 @@ vi.mock('../jobs/report-worker', () => {
 });
 
 describe('Health Probes Unit & Integration Tests', () => {
-  let mockPgPool: any;
-  let mockRedisClient: any;
-  let mockUploadQueue: any;
-  let mockReportQueue: any;
+  let mockPgPool: MockPool;
+  let mockRedisClient: MockRedis;
+  let mockUploadQueue: MockQueue;
+  let mockReportQueue: MockQueue;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPgPool = getPgPool();
-    mockRedisClient = getRedisClient();
-    mockUploadQueue = getUploadQueue();
-    mockReportQueue = getReportQueue();
+    mockPgPool = getPgPool() as unknown as MockPool;
+    mockRedisClient = getRedisClient() as unknown as MockRedis;
+    mockUploadQueue = getUploadQueue() as unknown as MockQueue;
+    mockReportQueue = getReportQueue() as unknown as MockQueue;
 
     // Default healthy mock implementations
     mockPgPool.query.mockResolvedValue({
       rows: [{ alive: 1, postgis_version: '3.4.0' }],
     });
     mockRedisClient.ping.mockResolvedValue('PONG');
-    (checkStorageHealth as any).mockResolvedValue(true);
+    vi.mocked(checkStorageHealth).mockResolvedValue(true);
     mockUploadQueue.getJobCounts.mockResolvedValue({ active: 0, waiting: 0, completed: 10, failed: 0 });
     mockReportQueue.getJobCounts.mockResolvedValue({ active: 0, waiting: 0, completed: 5, failed: 0 });
   });
@@ -129,14 +140,14 @@ describe('Health Probes Unit & Integration Tests', () => {
     });
 
     it('returns degraded status when storage check returns false', async () => {
-      (checkStorageHealth as any).mockResolvedValue(false);
+      vi.mocked(checkStorageHealth).mockResolvedValue(false);
       const result = await checkStorage();
       expect(result.status).toBe('degraded');
       expect(result.error).toBe('Storage health check failed');
     });
 
     it('returns degraded status when storage check throws error', async () => {
-      (checkStorageHealth as any).mockRejectedValue(new Error('S3 Unreachable'));
+      vi.mocked(checkStorageHealth).mockRejectedValue(new Error('S3 Unreachable'));
       const result = await checkStorage();
       expect(result.status).toBe('degraded');
       expect(result.error).toBe('S3 Unreachable');
@@ -174,7 +185,7 @@ describe('Health Probes Unit & Integration Tests', () => {
     });
 
     it('returns degraded when DB and Redis are healthy but storage is degraded', async () => {
-      (checkStorageHealth as any).mockResolvedValue(false);
+      vi.mocked(checkStorageHealth).mockResolvedValue(false);
       const result = await performHealthChecks();
       expect(result.status).toBe('degraded');
       expect(result.checks.database.status).toBe('healthy');
@@ -262,7 +273,7 @@ describe('Health Probes Unit & Integration Tests', () => {
     it('GET /healthz returns 200 when overall status is healthy', async () => {
       const res = await fetch(`${baseUrl}/healthz`);
       expect(res.status).toBe(200);
-      const data = (await res.json()) as any;
+      const data = (await res.json()) as HealthResponse;
       expect(data.status).toBe('healthy');
       expect(data.checks.database.status).toBe('healthy');
       expect(data.checks.redis.status).toBe('healthy');
@@ -271,10 +282,10 @@ describe('Health Probes Unit & Integration Tests', () => {
     });
 
     it('GET /healthz returns 200 when overall status is degraded', async () => {
-      (checkStorageHealth as any).mockResolvedValue(false);
+      vi.mocked(checkStorageHealth).mockResolvedValue(false);
       const res = await fetch(`${baseUrl}/healthz`);
       expect(res.status).toBe(200);
-      const data = (await res.json()) as any;
+      const data = (await res.json()) as HealthResponse;
       expect(data.status).toBe('degraded');
     });
 
@@ -282,7 +293,7 @@ describe('Health Probes Unit & Integration Tests', () => {
       mockPgPool.query.mockRejectedValue(new Error('DB Down'));
       const res = await fetch(`${baseUrl}/healthz`);
       expect(res.status).toBe(503);
-      const data = (await res.json()) as any;
+      const data = (await res.json()) as HealthResponse;
       expect(data.status).toBe('unhealthy');
     });
 
@@ -290,14 +301,14 @@ describe('Health Probes Unit & Integration Tests', () => {
       mockRedisClient.ping.mockRejectedValue(new Error('Redis Down'));
       const res = await fetch(`${baseUrl}/healthz`);
       expect(res.status).toBe(503);
-      const data = (await res.json()) as any;
+      const data = (await res.json()) as HealthResponse;
       expect(data.status).toBe('unhealthy');
     });
 
     it('GET /health returns 200 when healthy', async () => {
       const res = await fetch(`${baseUrl}/health`);
       expect(res.status).toBe(200);
-      const data = (await res.json()) as any;
+      const data = (await res.json()) as HealthResponse;
       expect(data.status).toBe('healthy');
     });
   });

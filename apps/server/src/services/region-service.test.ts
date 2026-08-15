@@ -1,7 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-import { getRegionSummary, invalidateRegionCache } from './region-service';
 import { getCached, invalidateCacheByPrefix } from '../db/redis';
+
+import { getRegionSummary, invalidateRegionCache } from './region-service';
 
 vi.mock('../db/postgres', () => {
   const mockRegionRow = {

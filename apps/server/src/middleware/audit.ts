@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+
 import { logAudit } from '../services/audit-service';
 
 export function auditMiddleware(

@@ -1,8 +1,8 @@
+import * as nodemailer from 'nodemailer';
+
 import { getPgPool } from '../db/postgres';
-import { AppError } from '../utils/app-error';
 import { logger } from '../utils/logger';
 import { alertsSent } from '../utils/metrics';
-import * as nodemailer from 'nodemailer';
 
 export interface AlertPayload {
   regionId: string;
@@ -31,8 +31,6 @@ export interface NotificationConfig {
 }
 
 export async function evaluateIrfAndSendAlerts(period: string): Promise<void> {
-  const pool = getPgPool();
-
   // Get current watchlist with advanced rules
   const watchlist = await getWatchlistWithAdvancedRules(period);
 
@@ -122,7 +120,7 @@ export async function sendAlert(payload: AlertPayload, channel: 'email' | 'whats
   }
 }
 
-async function sendEmailAlert(payload: AlertPayload, config: any): Promise<void> {
+async function sendEmailAlert(payload: AlertPayload, config: NotificationConfig['email']): Promise<void> {
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: Number(process.env.SMTP_PORT || 465),
@@ -150,7 +148,7 @@ async function sendEmailAlert(payload: AlertPayload, config: any): Promise<void>
   alertsSent.inc({ channel: 'email', level: payload.level });
 }
 
-async function sendWhatsAppAlert(payload: AlertPayload, config: any): Promise<void> {
+async function sendWhatsAppAlert(payload: AlertPayload, config: NotificationConfig['whatsapp']): Promise<void> {
   // WhatsApp Business API implementation
   // This is a placeholder - actual implementation would use WhatsApp Business API
   logger.info({ payload, config }, 'WhatsApp alert would be sent');

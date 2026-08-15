@@ -1,9 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { utils, write } from 'xlsx';
-import type { Job } from 'bullmq';
+
+import { getPgPool } from '../db/postgres';
 
 import { isFuturePeriod, processUpload } from './upload-worker';
-import { getPgPool } from '../db/postgres';
+
+import type { Job } from 'bullmq';
+
 
 vi.mock('../db/postgres', () => {
   const mockPool = {
@@ -99,11 +102,12 @@ describe('upload-worker', () => {
   });
 
   describe('processUpload warning tagging', () => {
-    let mockPgPool: any;
+    type MockPool = { query: ReturnType<typeof vi.fn> };
+    let mockPgPool: MockPool;
 
     beforeEach(() => {
       vi.clearAllMocks();
-      mockPgPool = getPgPool();
+      mockPgPool = getPgPool() as unknown as MockPool;
     });
 
     it('tags future period payment rows with meta: { forecast: false } and valid past/current with meta: {} during bulk UPSERT', async () => {
@@ -119,7 +123,7 @@ describe('upload-worker', () => {
         },
       } as unknown as Job;
 
-      mockPgPool.query.mockImplementation((sql: string, params?: any[]) => {
+      mockPgPool.query.mockImplementation((sql: string, params?: unknown[]) => {
         if (sql.includes('SELECT id::text FROM regions')) {
           const code = params?.[0];
           return Promise.resolve({
@@ -141,26 +145,26 @@ describe('upload-worker', () => {
       await processUpload(mockJob);
 
       // Verify INSERT INTO payments queries
-      const insertCalls = mockPgPool.query.mock.calls.filter((call: any[]) =>
+      const insertCalls = mockPgPool.query.mock.calls.filter((call) =>
         call[0].includes('INSERT INTO payments')
       );
       expect(insertCalls).toHaveLength(2);
 
       // First row (future period 2099-01)
-      const firstCallParams = insertCalls[0][1];
+      const firstCallParams = insertCalls[0]?.[1] as unknown[];
       expect(firstCallParams[0]).toBe('region-uuid-3171');
       expect(firstCallParams[1]).toBe('2099-01');
       expect(firstCallParams[2]).toBe(1000000);
       expect(firstCallParams[3]).toBe('PAD');
-      expect(JSON.parse(firstCallParams[4])).toEqual({ forecast: false });
+      expect(JSON.parse(String(firstCallParams[4]))).toEqual({ forecast: false });
 
       // Second row (past period 2020-05)
-      const secondCallParams = insertCalls[1][1];
+      const secondCallParams = insertCalls[1]?.[1] as unknown[];
       expect(secondCallParams[0]).toBe('region-uuid-3172');
       expect(secondCallParams[1]).toBe('2020-05');
       expect(secondCallParams[2]).toBe(500000);
       expect(secondCallParams[3]).toBe('DAU');
-      expect(JSON.parse(secondCallParams[4])).toEqual({});
+      expect(JSON.parse(String(secondCallParams[4]))).toEqual({});
 
       // Verify SQL contains meta column and EXCLUDED.meta
       const insertSql = insertCalls[0][0];
