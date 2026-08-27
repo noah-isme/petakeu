@@ -20,6 +20,25 @@ import type {
   RegionAlias
 } from "../types/upload";
 
+export const DEFAULT_API_TIMEOUT_MS = 30_000;
+
+export interface RequestOptions extends Omit<RequestInit, "signal"> {
+  timeout?: number;
+  signal?: AbortSignal | null;
+}
+
+export class ApiTimeoutError extends Error {
+  readonly status: number = 408;
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number, message?: string) {
+    super(message ?? `Permintaan melebihi batas waktu ${timeoutMs / 1000} detik.`);
+    this.name = "ApiTimeoutError";
+    this.timeoutMs = timeoutMs;
+    Object.setPrototypeOf(this, ApiTimeoutError.prototype);
+  }
+}
+
 /**
  * Error returned by an API request that received a non-2xx response.
  *
@@ -69,14 +88,63 @@ async function responseError(response: Response): Promise<ApiHttpError> {
   return createApiHttpError(response.status, payload);
 }
 
-async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers);
+export async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestOptions
+): Promise<Response> {
+  const { timeout = DEFAULT_API_TIMEOUT_MS, signal: callerSignal, ...restInit } = init ?? {};
+  const headers = new Headers(restInit.headers);
   const token = getAccessToken();
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(input, { ...init, headers });
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let isTimedOut = false;
+
+  const onCallerAbort = () => {
+    controller.abort(callerSignal?.reason);
+  };
+
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      controller.abort(callerSignal.reason);
+    } else {
+      callerSignal.addEventListener("abort", onCallerAbort, { once: true });
+    }
+  }
+
+  if (timeout > 0 && Number.isFinite(timeout)) {
+    timeoutId = setTimeout(() => {
+      isTimedOut = true;
+      controller.abort(new Error(`Timeout of ${timeout}ms exceeded`));
+    }, timeout);
+  }
+
+  try {
+    return await fetch(input, {
+      ...restInit,
+      headers,
+      signal: controller.signal
+    });
+  } catch (err: unknown) {
+    if (isTimedOut) {
+      throw new ApiTimeoutError(timeout, `Permintaan waktu habis setelah ${timeout / 1000} detik.`);
+    }
+    throw err;
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+    if (callerSignal) {
+      callerSignal.removeEventListener("abort", onCallerAbort);
+    }
+  }
+}
+
+async function fetchJson<T>(input: RequestInfo | URL, init?: RequestOptions): Promise<T> {
+  const response = await fetchWithTimeout(input, init);
   if (!response.ok) {
     throw await responseError(response);
   }
@@ -231,82 +299,92 @@ function normalizeReportingDetail(payload: unknown): ReportingMatrixDetail {
 }
 
 export const apiClient = {
-  getRegions(params: { level?: "province" | "regency"; parent?: string } = {}) {
+  getRegions(params: { level?: "province" | "regency"; parent?: string } = {}, options?: RequestOptions) {
     const url = buildUrl("/regions", params);
-    return fetchJson<{ data: Region[]; meta: { page: number; pageSize: number; total: number; totalPages: number } }>(url).then(
-      (res) => res.data
-    );
+    return fetchJson<{ data: Region[]; meta: { page: number; pageSize: number; total: number; totalPages: number } }>(
+      url,
+      options
+    ).then((res) => res.data);
   },
-  getRegionSummary(regionId: string, params: { from?: string; to?: string } = {}) {
+  getRegionSummary(regionId: string, params: { from?: string; to?: string } = {}, options?: RequestOptions) {
     const url = buildUrl(`/regions/${regionId}/summary`, params);
-    return fetchJson<RegionSummary>(url);
+    return fetchJson<RegionSummary>(url, options);
   },
-  getChoropleth(period: string) {
+  getChoropleth(period: string, options?: RequestOptions) {
     const url = buildUrl("/geo/choropleth", { period });
-    return fetchJson<ChoroplethResponse>(url);
+    return fetchJson<ChoroplethResponse>(url, options);
   },
-  getReportingMatrixDetail(regionId: string, period: string) {
+  getReportingMatrixDetail(regionId: string, period: string, options?: RequestOptions) {
     const url = buildUrl(`/analytics/reporting-matrix/${encodeURIComponent(regionId)}/${encodeURIComponent(period)}`);
-    return fetchJson<unknown>(url).then(normalizeReportingDetail);
+    return fetchJson<unknown>(url, options).then(normalizeReportingDetail);
   },
-  listRegionAliases(params: { query?: string; regionId?: string; provinceId?: string } = {}) {
+  listRegionAliases(params: { query?: string; regionId?: string; provinceId?: string } = {}, options?: RequestOptions) {
     const url = buildUrl("/region-aliases", params);
-    return fetchJson<{ data?: RegionAlias[] } | RegionAlias[]>(url).then((payload) => {
+    return fetchJson<{ data?: RegionAlias[] } | RegionAlias[]>(url, options).then((payload) => {
       if (Array.isArray(payload)) return payload;
       return payload.data ?? [];
     });
   },
-  createRegionAlias(input: { alias: string; regionId: string; provinceId?: string }) {
+  createRegionAlias(input: { alias: string; regionId: string; provinceId?: string }, options?: RequestOptions) {
     const url = buildUrl("/region-aliases");
+    const headers = new Headers(options?.headers);
+    if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     return fetchJson<{ data?: RegionAlias } | RegionAlias>(url, {
+      ...options,
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(input)
     }).then((payload) => (asObject(payload).data ?? payload) as RegionAlias);
   },
-  async uploadFile(formData: FormData) {
+  async uploadFile(formData: FormData, options?: RequestOptions) {
     const url = buildUrl("/uploads");
-    const headers = new Headers();
-    const token = getAccessToken();
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-
     const payload = await fetchJson<unknown>(url, {
+      ...options,
       method: "POST",
-      headers,
       body: formData
     });
     return normalizeUploadCreated(payload);
   },
-  getUpload(uploadId: string) {
+  getUpload(uploadId: string, options?: RequestOptions) {
     const url = buildUrl(`/uploads/${encodeURIComponent(uploadId)}`);
-    return fetchJson<{ data?: UploadRecord } | UploadRecord>(url).then((payload) => {
+    return fetchJson<{ data?: UploadRecord } | UploadRecord>(url, options).then((payload) => {
       const source = asObject(payload);
       const data = asObject(source.data);
       return data.uploadId ? (data as unknown as UploadRecord) : (payload as UploadRecord);
     });
   },
-  getUploadRows(uploadId: string, params: { page?: number; pageSize?: number } = {}) {
+  getUploadRows(uploadId: string, params: { page?: number; pageSize?: number } = {}, options?: RequestOptions) {
     const url = buildUrl(`/uploads/${encodeURIComponent(uploadId)}/rows`, {
       page: params.page,
       pageSize: params.pageSize
     });
-    return fetchJson<unknown>(url).then(normalizeUploadRows);
+    return fetchJson<unknown>(url, options).then(normalizeUploadRows);
   },
-  updateUploadRow(uploadId: string, rowId: string, patch: UploadRowPatch) {
+  updateUploadRow(uploadId: string, rowId: string, patch: UploadRowPatch, options?: RequestOptions) {
     const url = buildUrl(`/uploads/${encodeURIComponent(uploadId)}/rows/${encodeURIComponent(rowId)}`);
+    const headers = new Headers(options?.headers);
+    if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     return fetchJson<unknown>(url, {
+      ...options,
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(patch)
     }).then((payload) => normalizeStagedRow(asObject(payload).data ?? payload, 0));
   },
-  confirmUpload(uploadId: string, input: UploadConfirmationInput = {}) {
+  confirmUpload(uploadId: string, input: UploadConfirmationInput = {}, options?: RequestOptions) {
     const url = buildUrl(`/uploads/${encodeURIComponent(uploadId)}/confirm`);
+    const headers = new Headers(options?.headers);
+    if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     return fetchJson<unknown>(url, {
+      ...options,
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(input)
     }).then((payload) => {
       const source = asObject(payload);
@@ -320,9 +398,9 @@ export const apiClient = {
       } satisfies UploadConfirmationResult;
     });
   },
-  cancelUpload(uploadId: string) {
+  cancelUpload(uploadId: string, options?: RequestOptions) {
     const url = buildUrl(`/uploads/${encodeURIComponent(uploadId)}/cancel`);
-    return fetchJson<unknown>(url, { method: "POST" }).then((payload) => {
+    return fetchJson<unknown>(url, { ...options, method: "POST" }).then((payload) => {
       const source = asObject(payload);
       const data = asObject(source.data);
       const value = Object.keys(data).length > 0 ? data : source;
@@ -332,37 +410,37 @@ export const apiClient = {
       };
     });
   },
-  async downloadUploadTemplate() {
+  async downloadUploadTemplate(options?: RequestOptions) {
     const url = buildUrl("/uploads/template");
-    const headers = new Headers();
-    const token = getAccessToken();
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-    const response = await fetch(url, { headers });
+    const response = await fetchWithTimeout(url, options);
     if (!response.ok) {
       throw await responseError(response);
     }
     return response.blob();
   },
-  createReport(payload: ReportRequest) {
+  createReport(payload: ReportRequest, options?: RequestOptions) {
     const url = buildUrl("/reports/export");
+    const headers = new Headers(options?.headers);
+    if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     return fetchJson<{ data: ReportJob }>(url, {
+      ...options,
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers,
       body: JSON.stringify(payload)
     }).then((res) => res.data);
   },
-  listUploads() {
+  listUploads(options?: RequestOptions) {
     const url = buildUrl("/uploads");
-    return fetchJson<{ data: UploadRecord[] }>(url).then((res) => res.data);
+    return fetchJson<{ data: UploadRecord[] }>(url, options).then((res) => res.data);
   },
-  listReportJobs() {
+  listReportJobs(options?: RequestOptions) {
     const url = buildUrl("/reports");
-    return fetchJson<{ data: ReportJob[] }>(url).then((res) => res.data);
+    return fetchJson<{ data: ReportJob[] }>(url, options).then((res) => res.data);
   },
-  listAuditLogs(params: AuditLogQuery) {
+  listAuditLogs(params: AuditLogQuery, options?: RequestOptions) {
     const url = buildUrl("/audit-logs", { ...params });
-    return fetchJson<AuditLogResponse>(url);
+    return fetchJson<AuditLogResponse>(url, options);
   }
 };

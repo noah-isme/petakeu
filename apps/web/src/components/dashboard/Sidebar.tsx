@@ -38,7 +38,7 @@ export function Sidebar({ items, activeKey, onSelect, collapsed, onCollapsedChan
     <aside
       className={classNames(
         "group/sidebar relative z-40 flex h-full flex-col border-r border-slate-200/80 bg-white text-slate-700 shadow-xs transition-all duration-300 select-none",
-        collapsed ? "w-20" : "w-64"
+        collapsed ? "w-20" : "w-72"
       )}
     >
       {/* Petakeu Brand Header */}

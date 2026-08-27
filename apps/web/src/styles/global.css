@@ -157,3 +157,77 @@ body {
 .animate-pulse-glow {
   animation: pulseGlow 3s ease-in-out infinite;
 }
+
+.dark body {
+  background-color: rgb(7 10 15);
+  color: rgb(241 245 249);
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.8);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(52, 211, 153, 0.5);
+}
+
+.dark .bg-ambient-grid {
+  background-color: rgb(7 10 15);
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(52, 211, 153, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(15, 23, 42, 0.08) 0%, transparent 40%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+}
+
+.dark .glass-panel-glow {
+  background: rgb(15 23 42);
+  border-color: rgb(30 41 59);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+}
+.dark .glass-panel-glow:hover {
+  border-color: rgba(52, 211, 153, 0.4);
+  box-shadow: 0 10px 30px -4px rgba(52, 211, 153, 0.08);
+}
+
+.dark .leaflet-container {
+  background: rgb(15 23 42) !important;
+}
+.dark .leaflet-popup-content-wrapper {
+  background: rgb(15 23 42) !important;
+  color: rgb(241 245 249) !important;
+  border-color: rgb(52 211 153) !important;
+}
+.dark .leaflet-popup-tip {
+  background: rgb(15 23 42) !important;
+  border-color: rgb(52 211 153) !important;
+}
+.dark .leaflet-tooltip {
+  background: rgb(15 23 42) !important;
+  color: rgb(241 245 249) !important;
+  border-color: rgb(52 211 153) !important;
+}
+.dark .leaflet-tooltip-top:before {
+  border-top-color: rgb(52 211 153) !important;
+}
+
+.dark :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline-color: #34d399 !important;
+}
+
+.dark .bg-striped-pattern {
+  background: repeating-linear-gradient(
+    45deg,
+    rgb(30 41 59),
+    rgb(30 41 59) 4px,
+    rgb(15 23 42) 4px,
+    rgb(15 23 42) 8px
+  );
+}
+
+html {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
