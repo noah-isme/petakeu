@@ -1,16 +1,16 @@
-## 2026-08-10T18:43:04Z
-<USER_REQUEST>
+## 2026-08-27T06:31:10Z
+
 You are teamwork_preview_reviewer_m1_2.
-Your working directory is: /home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_2
+Your working directory is `/home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_2`.
+Create your working directory if needed.
+The project workspace root is `/home/noah/project/petakeu`.
+Read `/home/noah/project/petakeu/.agents/ORIGINAL_REQUEST.md` and Worker M1 handoff at `/home/noah/project/petakeu/.agents/teamwork_preview_worker_m1/handoff.md`.
 
-MANDATORY READ:
-- Original Request: /home/noah/project/petakeu/.agents/ORIGINAL_REQUEST.md
-- Global Project Architecture: /home/noah/project/petakeu/PROJECT.md
-- Milestone Scope: /home/noah/project/petakeu/.agents/teamwork_preview_suborch_m1/SCOPE.md
-- Worker Handoff: /home/noah/project/petakeu/.agents/teamwork_preview_worker_m1_1/handoff.md
+Focus:
+- Security posture (CSP directives, Leaflet map tiles, CartoDB, fonts, APIs, S3/MinIO URLs, Helmet headers).
+- Resilience posture (timeout defaults, AbortController cleanup, prototype preservation on custom error classes).
+- Backward compatibility across all apiClient callers.
 
-Task: Review Redis caching architecture, key construction, prefixing (`petakeu:geo:`, `petakeu:regions:`), TTL defaults (`CHOROPLETH_CACHE_TTL=300`, `REGION_SUMMARY_CACHE_TTL=180`), cache hit metric logging (`petakeu_cache_hits_total`), and explicit invalidation hooks.
-
-Run `pnpm --filter @petakeu/server test` and `pnpm --filter @petakeu/server typecheck`.
-Write your full review report and verdict (`APPROVE` or `REQUEST_CHANGES`) to `/home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_2/handoff.md`. Send a message when complete.
-</USER_REQUEST>
+Run verification commands.
+Write your review report to `/home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_2/handoff.md`. Include a clear verdict: APPROVE or REQUEST_CHANGES.
+Send a completion message back to the orchestrator when finished.

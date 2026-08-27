@@ -1,80 +1,105 @@
-# Handoff Report — Milestone M2 (Health Check Review)
+# Milestone 2 Review & Adversarial Challenge Report
 
-## Verdict
-**APPROVE**
+## Review Summary
+
+**Verdict**: **APPROVE**  
+**Integrity Status**: **CLEAN (0 Violations)**  
+**Overall Risk Assessment**: **LOW**
 
 ---
 
 ## 1. Observation
-Directly observed code and verification command outputs across the target files:
 
-- **Files Examined**:
-  1. `apps/server/src/utils/health.ts` (193 lines):
-     - `checkDatabase()` (lines 23-43): Executes SQL query `'SELECT 1 AS alive, PostGIS_Version() AS postgis_version'`, captures `postgisVersion` from `rows[0]?.postgis_version ?? '3.4.0'`, measures `latencyMs`, logs errors, and returns `status: 'healthy'` or `'unhealthy'`.
-     - `checkRedis()` (lines 45-63): Executes `getRedisClient().ping()`, measures `latencyMs`, logs errors, and returns `status: 'healthy'` or `'unhealthy'`.
-     - `checkStorage()` (lines 65-95): Calls `checkStorageHealth()`, queries `STORAGE_BUCKET` (default `'uploads'`) and `STORAGE_REPORTS_BUCKET` (default `'reports'`), returns `status: 'healthy'` or `'degraded'`.
-     - `checkQueue()` (lines 97-134): Calls `uploadQ.getJobCounts(...)` and `reportQ.getJobCounts(...)` concurrently via `Promise.all`, returns active/waiting/completed/failed job metrics per queue, and handles errors with `status: 'degraded'`.
-     - `performHealthChecks()` (lines 136-162): Aggregates all 4 component checks. Returns `status: 'unhealthy'` if DB or Redis is unhealthy, `'degraded'` if Storage or Queue is degraded, and `'healthy'` otherwise.
-  2. `apps/server/src/server.ts` (95 lines):
-     - `app.get("/health", ...)` and `app.get("/healthz", ...)` (lines 58-68): Computes `statusCode = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 200 : 503`. Returns HTTP 200 for healthy/degraded, HTTP 503 for unhealthy.
-     - `app.get("/ready", ...)` (lines 75-78): Uses `readiness.ready ? 200 : 503`.
-  3. `apps/server/src/utils/health.test.ts` (289 lines):
-     - Contains 22 test cases covering unit checks for `checkDatabase`, `checkRedis`, `checkStorage`, `checkQueue`, `performHealthChecks`, `performReadinessChecks`, `performLivenessCheck`, and integration HTTP tests for `GET /healthz` & `GET /health`.
+### 1.1 Independent Test Suite Verification
+- Executed the full backend test suite with `PETAKEU_INTEGRATION=1` against live Docker backing services (PostgreSQL 16 with PostGIS 3.4, Redis 7, MinIO S3):
+  ```bash
+  PETAKEU_INTEGRATION=1 \
+  DATABASE_URL="postgresql://petakeu:petakeu@localhost:5432/petakeu" \
+  REDIS_URL="redis://localhost:6379" \
+  STORAGE_ENDPOINT="http://localhost:9000" \
+  STORAGE_ACCESS_KEY="admin" \
+  STORAGE_SECRET_KEY="password123" \
+  STORAGE_BUCKET="uploads" \
+  STORAGE_REPORTS_BUCKET="reports" \
+  AUTH_SECRET="development-secret-for-jwt-signing-minimum-32-chars-long" \
+  AUTH_DISABLED="false" \
+  pnpm --filter @petakeu/server test
+  ```
+- **Test Results**:
+  - `Test Files: 15 passed (15)`
+  - `Tests: 71 passed (71)`
+  - `Skipped: 0`
+  - Duration: `7.88s`
+  - Integration suites verified:
+    - `apps/server/src/integration/upload-pipeline.integration.test.ts` (2/2 passed in 1552ms)
+    - `apps/server/src/integration/report-generation.integration.test.ts` (2/2 passed in 1628ms)
 
-- **Command Outputs**:
-  - `pnpm --filter @petakeu/server build`: Completed with exit code 0 (`tsc -p tsconfig.json`).
-  - `pnpm --filter @petakeu/server test src/utils/health.test.ts`: Completed with exit code 0 (22 passed out of 22 tests in 1.82s).
+### 1.2 Typecheck & Build Validation
+- Executed `tsc --noEmit -p tsconfig.json` via `pnpm --filter @petakeu/server typecheck`:
+  - Completed with exit code 0 and 0 errors.
+
+### 1.3 Streaming MinIO Upload Implementation (`apps/server/src/db/minio.ts`)
+- Inspected `apps/server/src/db/minio.ts`:
+  - `@aws-sdk/lib-storage` `Upload` is used in `uploadStreamToS3` to handle unbounded/chunked streaming uploads (`Body: stream`) directly to MinIO.
+  - `uploadToS3` inspects `body`: if `Buffer.isBuffer(body)`, uses `PutObjectCommand`; if `Readable`, delegates to `uploadStreamToS3`.
+  - Presigned URL generation uses `@aws-sdk/s3-request-presigner` `getSignedUrl` with `GetObjectCommand`.
+
+### 1.4 Connection Teardown and Resource Cleanup
+- Inspected `apps/server/src/integration/report-generation.integration.test.ts` and `apps/server/src/integration/upload-pipeline.integration.test.ts`:
+  - `afterAll` hooks invoke `closeServer(appServer.server)`, `worker.close()`, `cleanupBullMqJobs()`, `queue.close()`, S3 `DeleteObjectCommand` for test artifacts, DB cleanup queries for test records and materialized view refresh, Redis cache key deletion, and `closeIntegrationClients()` (`shutdownRedis()`, `shutdownPg()`).
+  - No hanging sockets, memory leaks, or unhandled promise rejections were observed.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Database Probe Verification**:
-   - The requirement calls for `SELECT 1 AS alive, PostGIS_Version() AS postgis_version` and details parsing.
-   - Code observation in `health.ts` line 25 confirms exact SQL match. Line 29 safely parses `postgisVersion` with fallbacks. Line 33 includes `{ query, postgisVersion }` in return details.
-2. **Redis Probe Verification**:
-   - Code observation in `health.ts` line 49 calls `redis.ping()`, capturing latency and returning healthy status on success, unhealthy status on exception.
-3. **Storage Probe Verification**:
-   - Code observation in `health.ts` line 72 calls `checkStorageHealth()` (which issues `ListBucketsCommand` to MinIO/S3). On failure, marks component as `degraded`, preventing full service 503 outage for non-critical storage glitches.
-4. **Queue Probe Verification**:
-   - Code observation in `health.ts` lines 103-106 fetches BullMQ job counts (`active`, `waiting`, `completed`, `failed`) for both `uploadQueue` and `reportQueue`. Details accurately report counts for both queues. On failure, returns `status: 'degraded'`.
-5. **HTTP Status Rules Verification**:
-   - Code observation in `server.ts` lines 58-68 handles `/health` and `/healthz`. If DB or Redis is down, `health.status` is `'unhealthy'`, leading to status code `503`. If Storage or Queue is down, `health.status` is `'degraded'`, leading to status code `200`. If all pass, status is `'healthy'` (200).
-6. **Integrity & Code Quality Verification**:
-   - Code was checked for hardcoded test results, facade shortcuts, or dummy mocks inside production code (`health.ts` / `server.ts`). None were found; real connections are queried via database pool, redis client, S3 client, and BullMQ queues.
-7. **Test Suite Verification**:
-   - Execution of `pnpm --filter @petakeu/server test src/utils/health.test.ts` passed 100% of 22 tests without errors.
+1. **Active Service Detection**: The preflight utility `probeIntegrationInfrastructure()` verifies that PostgreSQL, PostGIS schema (`regions`, `payments`, `uploads`, `report_jobs`, `mv_payments_with_cut`), level-2 region geometries, Redis (`redis.ping()`), and MinIO (`ListBucketsCommand`) are operational before executing integration tests.
+2. **Streaming Protocol Compatibility**: In `report-worker.ts`, ExcelJS (`stream.xlsx.WorkbookWriter`) and PDFKit streams pipe into a `PassThrough` stream. Without `@aws-sdk/lib-storage` `Upload`, raw S3 `PutObjectCommand` fails with missing/invalid `x-amz-decoded-content-length` (HTTP 411). The integration of `@aws-sdk/lib-storage` dynamically chunks the stream into multipart uploads without buffering the full document in Node.js heap memory.
+3. **End-to-End Test Integrity**:
+   - The upload pipeline test creates a real dynamic Excel workbook, posts it through the multipart HTTP endpoint with an operator JWT, waits for the BullMQ background worker to stage and persist the upload, checks database tables for rows, validates materialized view recalculation, checks cache invalidation on Redis, and queries choropleth GeoJSON.
+   - The report generation test enqueues an export request, waits for BullMQ background processing, fetches the resulting file via presigned S3 URL, parses the binary Excel payload using `ExcelJS`, and asserts against sheet names and structure.
+4. **Adversarial & Fault Tolerance Verification**:
+   - Stream error propagation: `report-worker.ts` destroys `passThrough` if report generation throws, properly terminating the S3 upload promise.
+   - Role authorization gates: Both integration suites test and assert that unauthorized roles (viewer on upload, public on report export) receive HTTP 403 Forbidden.
+   - Cleanup idempotence: Cleanup hooks use `bestEffort()` wrappers to ensure all resources (Redis, PostgreSQL, BullMQ, MinIO, Express server) are cleanly released even if a test assertion fails.
 
 ---
 
 ## 3. Caveats
-- `src/services/geo-service.test.ts` requires a running live PostgreSQL PostGIS instance for full execution (times out when run without containerized DB). However, unit tests for `health.test.ts` use isolated Vitest mocks and pass 100% cleanly.
-- Storage probe bucket checking relies on `checkStorageHealth()` from `storage-service.ts` which performs a `ListBucketsCommand`.
+
+1. **Local Docker Environment**: Tests require Docker services (`postgres`, `redis`, `minio`) to be running on standard host ports (5432, 6379, 9000). If other host processes bind to these ports, they must be stopped prior to running `PETAKEU_INTEGRATION=1`.
+2. **AUTH_SECRET Requirement**: `AUTH_SECRET` must be at least 32 characters to satisfy JWT signing and validation requirements in integration test helpers.
 
 ---
 
 ## 4. Conclusion
-The implementation of Milestone M2 (Comprehensive Readiness Health Checks `GET /healthz`) in `apps/server/src/utils/health.ts`, `apps/server/src/server.ts`, and `apps/server/src/utils/health.test.ts` fully satisfies all functional, architectural, and quality requirements.
 
-**Verdict**: **APPROVE**
+Worker M2's implementation of live service integration tests, MinIO streaming upload via `@aws-sdk/lib-storage`, and connection teardowns is **fully verified, correct, and architecturally sound**.
+- 0 skipped tests across the entire `@petakeu/server` test suite (71/71 tests passing).
+- Zero integrity violations, fake mocks, or hardcoded shortcuts.
+- Clean process exit and socket teardowns.
+- **Verdict: APPROVE**.
 
 ---
 
 ## 5. Verification Method
-To independently verify this review:
 
-1. **Build Verification**:
-   ```bash
-   pnpm --filter @petakeu/server build
-   ```
-   *Expected result*: Exit code 0 with clean TypeScript compilation.
+To independently reproduce and verify this review:
 
-2. **Test Suite Verification**:
-   ```bash
-   pnpm --filter @petakeu/server test src/utils/health.test.ts
-   ```
-   *Expected result*: All 22 test cases pass cleanly.
+```bash
+# 1. Run full integration test suite against live services
+PETAKEU_INTEGRATION=1 \
+DATABASE_URL="postgresql://petakeu:petakeu@localhost:5432/petakeu" \
+REDIS_URL="redis://localhost:6379" \
+STORAGE_ENDPOINT="http://localhost:9000" \
+STORAGE_ACCESS_KEY="admin" \
+STORAGE_SECRET_KEY="password123" \
+STORAGE_BUCKET="uploads" \
+STORAGE_REPORTS_BUCKET="reports" \
+AUTH_SECRET="development-secret-for-jwt-signing-minimum-32-chars-long" \
+AUTH_DISABLED="false" \
+pnpm --filter @petakeu/server test
 
-3. **File Inspection**:
-   - Inspect `apps/server/src/utils/health.ts` for database query, redis ping, storage bucket check, queue job count retrieval, and overall status aggregation.
-   - Inspect `apps/server/src/server.ts` lines 58-68 for status code mapping (`200` for healthy/degraded, `503` for unhealthy).
+# 2. Run TypeScript type checking
+pnpm --filter @petakeu/server typecheck
+```

@@ -1,22 +1,17 @@
-## 2026-08-11T01:13:15Z
-<USER_REQUEST>
+## 2026-08-27T06:17:59Z
 You are teamwork_preview_explorer_survey_1.
-Your working directory is: /home/noah/project/petakeu/.agents/teamwork_preview_explorer_survey_1
+Your working directory is `/home/noah/project/petakeu/.agents/teamwork_preview_explorer_survey_1`.
+Create your working directory if needed.
+The project workspace root is `/home/noah/project/petakeu`.
+Read `/home/noah/project/petakeu/.agents/ORIGINAL_REQUEST.md` and `/home/noah/project/petakeu/.agents/teamwork_preview_orchestrator_5/PROJECT.md`.
 
-MANDATORY: Read the original user request at: /home/noah/project/petakeu/.agents/ORIGINAL_REQUEST.md
-
-Task: Survey the codebase regarding item 1 of the roadmap requirements:
-1. Redis Caching for Choropleth GeoJSON (`choropleth:{period}:{level}:{parent}`) & Region Summaries (`/api/v1/regions/:id/summary`) with configurable TTLs, cache hits metric logging (`petakeu_cache_hits_total`), and explicit cache invalidation when new uploads are processed or materialized views refresh.
-
+Focus: Backend Integration Tests & Docker Services
 Investigate:
-- Existing route files and controllers for choropleth GeoJSON and region summaries (`apps/server/src/routes/`, `apps/server/src/controllers/`, `apps/server/src/services/`).
-- Existing Redis connection/client configuration (e.g. `apps/server/src/lib/redis.ts` or similar).
-- Existing metrics/Prometheus setup (how metrics like counters are created and registered).
-- Upload processing flow and materialized view (`mv_payments_with_cut`) refresh triggers/jobs (e.g. `apps/server/src/jobs/`, `apps/server/src/services/upload.service.ts` or similar) to see where explicit cache invalidation must be inserted.
-- Relevant data structures, TTL configurations, environment variable conventions, and existing tests.
+1. Docker Compose setup (`docker-compose.yml`, containers, ports, environment variables). Check if Postgres (PostGIS), Redis, MinIO are running or need to be started.
+2. Server integration test suite in `@petakeu/server` (where tests live, how `PETAKEU_INTEGRATION=1` enables them, what tests are currently skipped or failing).
+3. Report worker & upload worker integration pipelines (`apps/server/src/jobs/`, `apps/server/src/services/`, etc.).
+4. Database migrations, seeding (`pnpm seed:regions`), and clean connection teardowns in tests (`pool.end()`, Redis disconnect, worker teardown).
+5. Document exact commands needed to run and verify live backend integration tests.
 
-Deliverables:
-1. Create `progress.md` in your working directory to report status.
-2. Write comprehensive analysis to `/home/noah/project/petakeu/.agents/teamwork_preview_explorer_survey_1/analysis.md`.
-3. Write standard handoff report to `/home/noah/project/petakeu/.agents/teamwork_preview_explorer_survey_1/handoff.md` with findings, exact file locations, signatures, and recommendations.
-</USER_REQUEST>
+Write your findings and comprehensive report to `/home/noah/project/petakeu/.agents/teamwork_preview_explorer_survey_1/handoff.md`.
+Send a completion message back to the orchestrator when finished.

@@ -1,50 +1,54 @@
-# BRIEFING — 2026-08-11T01:00:30Z
+# BRIEFING — 2026-08-27T06:53:00Z
 
 ## Mission
-Empirically stress-test health readiness HTTP status codes: 200 (healthy), 200 (degraded storage/queue), and 503 (unhealthy DB or Redis).
+Empirically challenge M2 integration tests (live PostgreSQL, Redis, MinIO), verify upload pipeline & report generation tests, verify 0 skipped tests across all test files.
 
 ## 🔒 My Identity
-- Archetype: EMPIRICAL CHALLENGER
+- Archetype: Empirical Challenger
 - Roles: critic, specialist
 - Working directory: /home/noah/project/petakeu/.agents/teamwork_preview_challenger_m2_1
-- Original parent: b5498e98-dd96-4165-ad51-b7c590614691
+- Original parent: a6110b4e-1e73-4377-a3cd-d5df07b846d3
 - Milestone: M2
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review & stress-test only — write test scripts in workspace or test files, do NOT break base production implementation unless verifying tests.
-- Must run verification code empirically (do NOT trust worker claims).
-- Report explicit verdict APPROVE or REJECT in handoff.md.
+- Review-only — do NOT modify implementation code
+- Empirical Challenger: MUST run verification code ourselves, do NOT trust claims or logs without empirical reproduction
+- Output handoff.md with 5 sections: Observation, Logic Chain, Caveats, Conclusion, Verification Method
+- Verdict: APPROVE or REJECT
 
 ## Current Parent
-- Conversation ID: b5498e98-dd96-4165-ad51-b7c590614691
-- Updated: 2026-08-11T01:00:30Z
+- Conversation ID: a6110b4e-1e73-4377-a3cd-d5df07b846d3
+- Updated: 2026-08-27T06:45:13Z
 
 ## Review Scope
-- **Files to review**: `apps/server/src/utils/health.ts`, `apps/server/src/server.ts`, `apps/server/src/utils/health.test.ts`
-- **Interface contracts**: Health probe endpoints (`GET /health`, `GET /healthz`) returning HTTP 200 (healthy), HTTP 200 (degraded), HTTP 503 (unhealthy)
-- **Review criteria**: Empirical correctness under all 3 health states
+- **Files to review**: apps/server test files, upload pipeline and report generation integration tests, docker services, test configs
+- **Interface contracts**: ORIGINAL_REQUEST.md, Worker M2 handoff.md
+- **Review criteria**: 100% pass rate with PETAKEU_INTEGRATION=1 against live PostgreSQL (PostGIS), Redis, MinIO; 0 tests skipped across all test files; rigorous verification of test assertions and test harness.
+
+## Key Decisions Made
+- Initialized challenger workspace and briefing.
+- Executed `PETAKEU_INTEGRATION=1` server test suite against live PostgreSQL (PostGIS), Redis, and MinIO.
+- Verified both integration test suites (`upload-pipeline.integration.test.ts` and `report-generation.integration.test.ts`) execute against live services and pass 100%.
+- Verified lifecycle teardown, socket release, and idempotent connection management under `lifecycle.integration.test.ts`.
+- Verified typecheck (0 errors) and ESLint (0 errors, 4 warnings).
+- Confirmed verdict: APPROVE.
+
+## Artifact Index
+- /home/noah/project/petakeu/.agents/teamwork_preview_challenger_m2_1/DISPATCH.md — Dispatch log
+- /home/noah/project/petakeu/.agents/teamwork_preview_challenger_m2_1/BRIEFING.md — Situational awareness
+- /home/noah/project/petakeu/.agents/teamwork_preview_challenger_m2_1/progress.md — Liveness heartbeat
+- /home/noah/project/petakeu/.agents/teamwork_preview_challenger_m2_1/handoff.md — Final handoff report
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - H1: DB failure produces status 'unhealthy' and HTTP 503 (CONFIRMED)
-  - H2: Redis failure produces status 'unhealthy' and HTTP 503 (CONFIRMED)
-  - H3: Storage failure (MinIO false or exception) produces status 'degraded' and HTTP 200 (CONFIRMED)
-  - H4: Queue failure (BullMQ exception) produces status 'degraded' and HTTP 200 (CONFIRMED)
-  - H5: Storage + Queue simultaneous failure produces status 'degraded' and HTTP 200 (CONFIRMED)
-  - H6: Unhealthy DB overrides degraded Storage/Queue to produce status 'unhealthy' and HTTP 503 (CONFIRMED)
-- **Vulnerabilities found**: None. Health probe mapping handles failures correctly.
-- **Untested angles**: None.
+  - H1: Live integration tests bypass actual Postgres/Redis/MinIO or silently mock them -> FALSE. Real TCP sockets, real PostGIS spatial queries, real Redis caching/invalidation, and real S3 object storage / presigned URL generation and downloading are executed and validated.
+  - H2: Integration tests contain hidden test skips (`test.skip`) -> FALSE. When `PETAKEU_INTEGRATION=1` is provided, `gate.available` is true and 0 tests are skipped.
+  - H3: Connection teardown leaks sockets, processes, or worker listeners -> FALSE. `lifecycle.integration.test.ts` confirmed idempotent pool/redis shutdown, HTTP socket release, and 0 active TCP socket leaks.
+- **Vulnerabilities found**: None in integration execution.
+- **Untested angles**: E2E browser verification (Milestone 3 scope).
 
 ## Loaded Skills
-- None explicitly loaded.
-
-## Key Decisions Made
-- Executed server TypeScript compilation (`pnpm --filter @petakeu/server build`) -> PASSED.
-- Executed unit tests (`vitest run src/utils/health.test.ts`) -> 22/22 PASSED.
-- Created and executed empirical test harness (`empirical_test.ts`) -> 9/9 scenarios PASSED.
-- Final Verdict: APPROVE.
-
-## Artifact Index
-- empirical_test.ts — Empirical stress-testing harness with 9 test cases
-- handoff.md — Final handoff report with verdict APPROVE
+- **Source**: /home/noah/.gemini/config/skills/ci-workflows/SKILL.md
+- **Local copy**: none
+- **Core methodology**: CI verification and test suite validation

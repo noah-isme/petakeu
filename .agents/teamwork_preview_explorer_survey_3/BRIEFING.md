@@ -1,32 +1,46 @@
-# BRIEFING — 2026-08-11T01:13:16Z
+# BRIEFING — 2026-08-27T06:27:00Z
 
 ## Mission
-Survey overall architecture, testing infrastructure, build setup, database/Redis test environment, frontend E2E setup, and database migrations in Petakeu with focus on Redis Caching and Extended Report Generation features.
+Investigate Playwright E2E verification, test specs, setup prerequisites, and monorepo build gates (pnpm lint, typecheck, build, test) to produce a structured findings and verification plan report.
 
 ## 🔒 My Identity
-- Archetype: Teamwork Explorer Survey
-- Roles: Read-only investigator, architecture & test environment surveyor
+- Archetype: explorer
+- Roles: investigator, reporter
 - Working directory: /home/noah/project/petakeu/.agents/teamwork_preview_explorer_survey_3
-- Original parent: 0e517fb7-b85a-432d-a227-1faf5465d198
-- Milestone: Redis Caching & Extended Report Generation Survey
+- Original parent: a6110b4e-1e73-4377-a3cd-d5df07b846d3
+- Milestone: survey
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement code modifications outside agent workspace directory.
-- Deliverables: progress.md, analysis.md, handoff.md in working directory.
+- Read-only investigation — do NOT implement / modify source code
+- Investigate Playwright E2E test setup in apps/web/e2e/
+- Check prerequisites for running E2E tests
+- Check current status of monorepo quality scripts: pnpm lint, pnpm typecheck, pnpm build, pnpm test
+- Identify failures, missing dependencies, or adjustments needed
+- Write handoff.md and report back to parent agent via send_message
 
 ## Current Parent
-- Conversation ID: 0e517fb7-b85a-432d-a227-1faf5465d198
-- Updated: 2026-08-11T01:13:16Z
+- Conversation ID: a6110b4e-1e73-4377-a3cd-d5df07b846d3
+- Updated: 2026-08-27T06:27:00Z
 
 ## Investigation State
-- **Explored paths**: ORIGINAL_REQUEST.md
-- **Key findings**: Task focused on architecture, build, Vitest server tests, Playwright E2E tests, Redis/DB environment, migrations, materialized views, caching, and report generation infrastructure.
-- **Unexplored areas**: Root configuration files, apps/server files, apps/web files, database migrations, test configurations, graphify graph.
+- **Explored paths**:
+  - `apps/web/playwright.config.ts`
+  - `apps/web/e2e/*.spec.ts` (all 13 spec files)
+  - `apps/web/src/mocks/*` (browser.ts, handlers.ts, scenarios.ts)
+  - `apps/web/src/App.tsx`, `Sidebar.tsx`, `Topbar.tsx`, `UploadPage.tsx`, `MapPage.tsx`
+  - `apps/server/src/test-utils/integration.ts`, `report-generation.integration.test.ts`, `upload-pipeline.integration.test.ts`
+  - Root `package.json`, `turbo.json`, `apps/web/package.json`, `apps/server/package.json`
+  - CI workflows `.github/workflows/ci.yml` and `scripts/assert-playwright-no-skips.mjs`
+- **Key findings**:
+  - `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test` all exit with code 0.
+  - Server unit tests pass (67 passed, 4 skipped because `PETAKEU_INTEGRATION=1` is not set).
+  - Playwright config `webServer` only launches `apps/web` with MSW (`VITE_USE_MSW="true"`), not backend services.
+  - Live E2E tests require Docker Compose backing services (PostGIS, Redis, MinIO) and Express backend.
+  - Key spec vs implementation mismatches identified (CSV support in upload page, button/text label differences, `/api/v1` routes in MSW vs backend).
+- **Unexplored areas**: Live Docker compose startup and live migration execution (assigned to implementation milestones).
 
 ## Key Decisions Made
-- Initiated systematic investigation across monorepo structure, server testing setup, web frontend E2E setup, database migration system, and code layout/lint rules.
+- Fully documented all 4 investigation areas with precise file paths, line numbers, command outputs, and step-by-step verification plan in `handoff.md`.
 
 ## Artifact Index
-- `/home/noah/project/petakeu/.agents/teamwork_preview_explorer_survey_3/DISPATCH.md` — Dispatch history log
-- `/home/noah/project/petakeu/.agents/teamwork_preview_explorer_survey_3/BRIEFING.md` — Persistent briefing memory
-- `/home/noah/project/petakeu/.agents/teamwork_preview_explorer_survey_3/progress.md` — Liveness and progress tracker
+- handoff.md — 5-component handoff report and step-by-step verification plan

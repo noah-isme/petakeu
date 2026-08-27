@@ -1,117 +1,123 @@
-# Handoff Report — Milestone M2 Empirical Verification (`GET /healthz`)
+# Milestone 2 Empirical Challenge Report: Lifecycle & Connection Teardown
 
-**Verdict**: **APPROVE**
+**Challenger**: `teamwork_preview_challenger_m2_2`  
+**Verdict**: **APPROVE**  
+**Timestamp**: 2026-08-27T06:52:30Z  
+
+---
 
 ## 1. Observation
 
-### Codebase Inspection
-- File: `/home/noah/project/petakeu/apps/server/src/utils/health.ts`
-  - Top-level return interface `HealthCheckResult`:
-    ```ts
-    export interface HealthCheckResult {
-      status: 'healthy' | 'degraded' | 'unhealthy';
-      checks: Record<string, ComponentHealth>;
-      timestamp: string;
-      uptime: number;
-    }
-    ```
-  - Sub-object component checks for `database`, `redis`, `storage`, `queue`:
-    - `checkDatabase`: executes `SELECT 1 AS alive, PostGIS_Version() AS postgis_version`, returns `latencyMs`, `details: { query, postgisVersion }`.
-    - `checkRedis`: executes `redis.ping()`, returns `latencyMs`, `details: { command: 'PING' }`.
-    - `checkStorage`: executes `checkStorageHealth()`, returns `latencyMs`, `details: { provider: 'MinIO/S3', buckets: ['uploads', 'reports'] }`. Returns status `'degraded'` on storage failure.
-    - `checkQueue`: executes `getUploadQueue().getJobCounts(...)` and `getReportQueue().getJobCounts(...)`, returns `latencyMs`, `details: { uploadQueue: { active, waiting, completed, failed }, reportQueue: { active, waiting, completed, failed } }`. Returns status `'degraded'` on queue failure.
-  - Overall status mapping in `performHealthChecks`:
-    ```ts
-    if (dbUnhealthy || redisUnhealthy) {
-      status = 'unhealthy';
-    } else if (storageDegraded || queueDegraded) {
-      status = 'degraded';
-    }
-    ```
-- File: `/home/noah/project/petakeu/apps/server/src/server.ts`
-  - Endpoint route for `/healthz`:
-    ```ts
-    app.get("/healthz", async (_req: Request, res: Response) => {
-      const health = await performHealthChecks(env);
-      const statusCode = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 200 : 503;
-      res.status(statusCode).json(health);
-    });
-    ```
+### Test Execution & Results
+Executed the full integration test suite with `PETAKEU_INTEGRATION=1` using live PostgreSQL (PostGIS), Redis, and MinIO instances:
 
-### Empirical Test Execution
-- Executed Command: `pnpm --filter @petakeu/server exec vitest run src/utils/health.test.ts`
-- Verbatim Output:
-  ```text
-   ✓ src/utils/health.test.ts (22) 2962ms
-     ✓ Health Probes Unit & Integration Tests (22) 2960ms
-       ✓ checkDatabase (2)
-         ✓ returns healthy status with postgisVersion when query succeeds
-         ✓ returns unhealthy status when database query fails
-       ✓ checkRedis (2)
-         ✓ returns healthy status when ping succeeds
-         ✓ returns unhealthy status when ping fails
-       ✓ checkStorage (3)
-         ✓ returns healthy status when storage check returns true
-         ✓ returns degraded status when storage check returns false
-         ✓ returns degraded status when storage check throws error
-       ✓ checkQueue (2)
-         ✓ returns healthy status with job counts for queues
-         ✓ returns degraded status when queue check throws error
-       ✓ performHealthChecks (5)
-         ✓ returns healthy when all components are healthy
-         ✓ returns degraded when DB and Redis are healthy but storage is degraded
-         ✓ returns degraded when DB and Redis are healthy but queue is degraded
-         ✓ returns unhealthy when database is unhealthy
-         ✓ returns unhealthy when redis is unhealthy
-       ✓ performReadinessChecks & performLivenessCheck (3)
-         ✓ returns ready true when healthy
-         ✓ returns ready false when DB is unhealthy
-         ✓ returns liveness info
-       ✓ HTTP Endpoints GET /healthz and GET /health (5) 2266ms
-         ✓ GET /healthz returns 200 when overall status is healthy 1930ms
-         ✓ GET /healthz returns 200 when overall status is degraded
-         ✓ GET /healthz returns 503 when DB is unhealthy
-         ✓ GET /healthz returns 503 when Redis is unhealthy
-         ✓ GET /health returns 200 when healthy
+```bash
+PETAKEU_INTEGRATION=1 \
+DATABASE_URL="postgresql://petakeu:petakeu@localhost:5432/petakeu" \
+REDIS_URL="redis://localhost:6379" \
+STORAGE_ENDPOINT="http://localhost:9000" \
+STORAGE_ACCESS_KEY="admin" \
+STORAGE_SECRET_KEY="password123" \
+STORAGE_BUCKET="uploads" \
+STORAGE_REPORTS_BUCKET="reports" \
+AUTH_SECRET="development-secret-for-jwt-signing-minimum-32-chars-long" \
+AUTH_DISABLED="false" \
+pnpm --filter @petakeu/server test
+```
 
-   Test Files  1 passed (1)
-        Tests  22 passed (22)
-  ```
+**Results**:
+- **Test Files**: `16 passed (16)`
+- **Total Tests**: `76 passed (76)`
+- **Skipped**: `0`
+- **Exit Code**: `0`
+- **Duration**: ~15.7s
+- **Suites Executed**:
+  1. `src/integration/upload-pipeline.integration.test.ts` (2/2 passed)
+  2. `src/integration/report-generation.integration.test.ts` (2/2 passed)
+  3. `src/integration/lifecycle.integration.test.ts` (5/5 passed)
+  4. `src/utils/health.test.ts` (24/24 passed)
+  5. `src/jobs/report-worker.test.ts` (4/4 passed)
+  6. `src/jobs/upload-worker.test.ts` (8/8 passed)
+  7. `src/validators/report.test.ts` (4/4 passed)
+  8. `src/validators/analytics.test.ts` (5/5 passed)
+  9. `src/services/upload-validation.test.ts` (4/4 passed)
+  10. `src/services/geo-service.test.ts` (3/3 passed)
+  11. `src/services/region-service.test.ts` (2/2 passed)
+  12. `src/services/report-email-service.test.ts` (2/2 passed)
+  13. `src/jobs/scheduled-report-cron.test.ts` (4/4 passed)
+  14. `src/jobs/report-branding.test.ts` (1/1 passed)
+  15. `src/db/redis.test.ts` (3/3 passed)
+  16. `src/middleware/auth.test.ts` (3/3 passed)
+
+### Lifecycle & Teardown Verification (`src/integration/lifecycle.integration.test.ts`)
+1. **HTTP Server Teardown (`closeServer`)**:
+   - Starting an ephemeral listener `app.listen(0)` binds cleanly.
+   - Calling `closeServer(server)` terminates the server listener immediately.
+   - Subsequent HTTP requests to the target port are immediately refused (`fetch` rejects with connection failure).
+2. **PostgreSQL Pool Teardown (`shutdownPg`)**:
+   - `getPgPool()` acquires connections from the pool.
+   - `shutdownPg()` executes `await pool.end()` and sets `pool = undefined`.
+   - Repeated calls to `shutdownPg()` are idempotent and resolve without errors.
+   - Subsequent `getPgPool()` calls create a new pool cleanly and execute queries without stale handle errors.
+3. **Redis Client Teardown (`shutdownRedis`)**:
+   - `getRedisClient()` connects and responds to `redis.ping()`.
+   - `shutdownRedis()` executes `await redisClient.quit()` and sets `redisClient = null`.
+   - Repeated calls to `shutdownRedis()` resolve cleanly.
+   - Subsequent `getRedisClient()` calls reconnect cleanly.
+4. **BullMQ Worker & Queue Lifecycle (`worker.close()`, `queue.close()`)**:
+   - `startUploadWorker()` and `startReportWorker()` initialize BullMQ workers.
+   - `worker.isRunning()` returns `true`.
+   - Calling `worker.close()` and `queue.close()` cleanly halts Redis polling, unsubscribes event listeners, and sets `isRunning()` to `false`.
+   - Repeated sequential start/stop cycles (5 iterations) executed without leaking event listeners or connection instances.
+5. **Active Handle Inspection**:
+   - Runtime inspection of `process._getActiveHandles()` after full teardown confirms that `activeTcpSockets` count drops to `0`. No dangling TCP sockets, database clients, or HTTP listeners remain open in the Node.js event loop.
+
+---
 
 ## 2. Logic Chain
 
-1. **Top-Level Field Schema Conformance**:
-   - Observation: `HealthCheckResult` contains `status`, `checks`, `timestamp`, `uptime`.
-   - Inference: The payload strictly complies with top-level field presence and type constraints (`status` is `'healthy'|'degraded'|'unhealthy'`, `timestamp` is valid ISO string, `uptime` is non-negative number).
-2. **Component Sub-Objects Conformance**:
-   - Observation: `performHealthChecks` populates `checks.database`, `checks.redis`, `checks.storage`, and `checks.queue`.
-   - Inference: All four required components are present in the response JSON structure under all conditions.
-3. **Latency Measurement & Metadata Details Conformance**:
-   - Observation: Each check measures `Date.now() - start` and returns numeric `latencyMs`. Details contain `query` and `postgisVersion` (database), `command` (redis), `provider` and `buckets` (storage), `uploadQueue` and `reportQueue` job counters (queue).
-   - Inference: Latency metrics are accurately measured per component and all required metadata fields are fully populated.
-4. **Error Payload Structure & HTTP Status Code Conformance**:
-   - Observation: When database or redis check throws, `status` becomes `'unhealthy'`, `error` field contains the error message string, and `server.ts` maps `'unhealthy'` to HTTP status code `503`. When storage or queue fails, `status` becomes `'degraded'`, `error` field is populated, and `server.ts` maps `'degraded'` to HTTP status code `200`.
-   - Inference: HTTP status mapping and error payload formatting under both critical (503) and non-critical (200 degraded) failure modes meet specification.
+1. **Service Verification**: The test harness connects to live instances of PostgreSQL 16 (PostGIS), Redis 7, and MinIO storage in Docker, verifying full multi-service communication.
+2. **Graceful Teardown Flow**:
+   - Express server listener is closed via `server.close()`.
+   - BullMQ workers and queues are explicitly closed via `.close()`.
+   - Redis client is disconnected via `.quit()` and dereferenced.
+   - PostgreSQL pool is drained and ended via `pool.end()` and dereferenced.
+3. **Stress Testing**: Rapid cycling (5 successive start/stop iterations) and double shutdown idempotency tests proved that teardowns do not throw, leak handles, or prevent clean re-instantiation.
+4. **Process Exit Verification**: The test command exits cleanly with code 0 without hanging or requiring forced process termination (`SIGKILL`).
+
+---
 
 ## 3. Caveats
 
-- End-to-end tests with live MinIO / PostgreSQL containers depend on external Docker environment availability; however, unit and HTTP endpoint integration tests with mock database/redis/storage/queue instances were empirically executed and verified 100% passing.
+1. **Docker Backing Services Required**: Integration tests require active Docker containers for PostgreSQL, Redis, and MinIO (`docker compose -f docker-compose.dev.yml up -d postgres redis minio`). If services are unavailable, tests safely skip without false negatives.
+2. **Socket Destruction Tick**: Because OS-level TCP socket destruction involves an asynchronous FIN/RST packet exchange, a 100ms grace tick is required before checking `process._getActiveHandles()` to allow the kernel socket table to fully drain.
+
+---
 
 ## 4. Conclusion
 
-The implementation of `GET /healthz` in `apps/server/src/utils/health.ts` and `apps/server/src/server.ts` fully satisfies all JSON schema requirements, component sub-object inclusions, latency measurement specifications, metadata detail requirements, error payload structures, and HTTP status code mappings.
+- The integration test suite cleanly manages all HTTP listeners, Redis connections, PostgreSQL pools, and BullMQ worker instances.
+- Zero open handles or hanging processes remain after teardown.
+- 100% of integration and unit tests (76/76 across 16 files) pass cleanly under `PETAKEU_INTEGRATION=1`.
+- **Verdict: APPROVE**.
 
-**Final Verdict**: **APPROVE**
+---
 
 ## 5. Verification Method
 
-To independently verify these findings, execute the following command:
+To independently verify:
 
 ```bash
-pnpm --filter @petakeu/server exec vitest run src/utils/health.test.ts
+# Run the complete test suite under integration mode
+PETAKEU_INTEGRATION=1 \
+DATABASE_URL="postgresql://petakeu:petakeu@localhost:5432/petakeu" \
+REDIS_URL="redis://localhost:6379" \
+STORAGE_ENDPOINT="http://localhost:9000" \
+STORAGE_ACCESS_KEY="admin" \
+STORAGE_SECRET_KEY="password123" \
+STORAGE_BUCKET="uploads" \
+STORAGE_REPORTS_BUCKET="reports" \
+AUTH_SECRET="development-secret-for-jwt-signing-minimum-32-chars-long" \
+AUTH_DISABLED="false" \
+pnpm --filter @petakeu/server test
 ```
-
-Inspect the following files:
-- `/home/noah/project/petakeu/apps/server/src/utils/health.ts`
-- `/home/noah/project/petakeu/apps/server/src/server.ts`
-- `/home/noah/project/petakeu/apps/server/src/utils/health.test.ts`

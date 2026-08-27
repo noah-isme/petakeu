@@ -1,51 +1,54 @@
-# BRIEFING — 2026-08-10T18:45:00Z
+# BRIEFING — 2026-08-27T06:33:00Z
 
 ## Mission
-Perform empirical edge-case and stress verification of cache key generation, key prefix matching, and cache hit metric counter behavior, then issue an evaluation report and verdict (APPROVE or REJECT).
+Empirically challenge and stress-test `apps/web/src/api/client.ts` timeout behavior, caller aborts, concurrency isolation, and memory cleanup.
 
 ## 🔒 My Identity
-- Archetype: Empirical Challenger
+- Archetype: empirical_challenger
 - Roles: critic, specialist
 - Working directory: /home/noah/project/petakeu/.agents/teamwork_preview_challenger_m1_1
-- Original parent: 1e7e7b75-720d-4f33-ba82-d56f812c5213
-- Milestone: m1
+- Original parent: a6110b4e-1e73-4377-a3cd-d5df07b846d3
+- Milestone: M1
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code
-- Empirical verification required (run verification code yourself, do not trust claims)
+- Review-only — do NOT modify implementation code (do not fix worker code)
+- EMPIRICAL CHALLENGER: Must write and execute verification/stress tests independently.
+- .agents/ holds only agent metadata — no source code or tests in .agents/
 
 ## Current Parent
-- Conversation ID: 1e7e7b75-720d-4f33-ba82-d56f812c5213
-- Updated: 2026-08-10T18:45:00Z
+- Conversation ID: a6110b4e-1e73-4377-a3cd-d5df07b846d3
+- Updated: not yet
 
 ## Review Scope
-- **Files to review**: apps/server redis cache middleware, cache key generation, invalidation, metrics counter
-- **Interface contracts**: PROJECT.md, SCOPE.md
-- **Review criteria**: cache key generation (undefined, level/parent query params), key prefix matching, cache hit metric counter behavior on JSON parse failure
+- **Files to review**: apps/web/src/api/client.ts, apps/web/src/api/__tests__/client.test.ts
+- **Interface contracts**: PROJECT.md / ORIGINAL_REQUEST.md / Worker M1 handoff
+- **Review criteria**: Timeout behavior under rapid concurrent requests, zero/negative timeouts, already-aborted signals, caller abort vs timeout differentiation, memory cleanup (dangling listeners/timers), options propagation.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. Cache key generation produces correct Redis keys for default and optional params (`level`, `parent`, `from`, `to`, `publicMode`, `undefined`). PASSED.
-  2. Cache prefix invalidation (`petakeu:geo:choropleth*` and `petakeu:regions*`) correctly matches generated Redis keys. PASSED.
-  3. `cacheHits.inc` is strictly guarded by `JSON.parse` success; corrupt JSON, empty string, or `undefined` string triggers `cacheMisses.inc` and falls back to DB fetch without false metric increments. PASSED.
-  4. TTL values default to 300s (choropleth) and 180s (region summary) and load from environment variables. PASSED.
-  5. High concurrency (100 parallel reads) causes no race conditions or unhandled rejections. PASSED.
-- **Vulnerabilities found**: None in implementation. Minor observation: `listRegions` uses prefix `regions` (10-min catalog TTL) while `getRegionSummary` uses prefix `petakeu:regions` (180s summary TTL), which correctly isolates payment invalidations.
-- **Untested angles**: E2E integration with live Redis server container (mocked unit/integration test level verified).
+  1. Concurrency cross-talk under rapid burst requests -> PASSED (independent closures, no shared mutable state).
+  2. Zero / negative / non-finite timeout handling -> PASSED (disabled safely via `timeout > 0 && Number.isFinite(timeout)`).
+  3. Pre-aborted caller signal -> PASSED (short-circuits synchronously, passes caller reason, skips listener attachment).
+  4. Caller abort vs timeout race and differentiation -> PASSED (deterministic discrimination; `isTimedOut` flag gates `ApiTimeoutError`, caller abort preserves standard AbortError).
+  5. Memory leak / dangling timers / listener leak -> PASSED (guaranteed cleanup in `finally` clears timeout handle and removes event listener).
+  6. All 17 apiClient methods options propagation -> PASSED (all accept and forward `options?: RequestOptions`).
+- **Vulnerabilities found**: 0 vulnerabilities found.
+- **Untested angles**: Full end-to-end live server network timeouts with packet drop proxy (out of scope for unit client layer).
 
 ## Loaded Skills
-- None
+- **Source**: /home/noah/.gemini/config/skills/code-review/SKILL.md
+- **Local copy**: /home/noah/project/petakeu/.agents/teamwork_preview_challenger_m1_1/skills/code-review/SKILL.md
+- **Core methodology**: Deep change-oriented code review and adversarial failure mode analysis
+- **Source**: /home/noah/.gemini/config/skills/js-ts-lint-typecheck/SKILL.md
+- **Local copy**: /home/noah/project/petakeu/.agents/teamwork_preview_challenger_m1_1/skills/js-ts-lint-typecheck/SKILL.md
+- **Core methodology**: Linting and typechecking verification
 
 ## Key Decisions Made
-- Executed 26 empirical verification tests across two test suites (`m1_empirical_verifier.test.ts` and `m1_stress_and_controller.test.ts`). All passed.
-- Verified TypeScript compilation (`pnpm --filter @petakeu/server typecheck`) and full backend test suite (`pnpm --filter @petakeu/server test`). All passed (40/40 tests).
-- Determined verdict: APPROVE.
+- Confirmed implementation in `apps/web/src/api/client.ts` is robust, memory-safe, concurrency-isolated, and fully backwards-compatible.
+- Verdict: APPROVE.
 
 ## Artifact Index
-- DISPATCH.md — Input dispatch record
-- BRIEFING.md — Context memory
-- progress.md — Heartbeat progress log
-- m1_empirical_verifier.test.ts — Unit & edge-case empirical test suite (21 tests)
-- m1_stress_and_controller.test.ts — Controller & concurrency stress empirical test suite (5 tests)
-- handoff.md — Final evaluation report and verdict
+- handoff.md — Final handoff report with APPROVE verdict
+- progress.md — Liveness and task progress
+- BRIEFING.md — Working memory index

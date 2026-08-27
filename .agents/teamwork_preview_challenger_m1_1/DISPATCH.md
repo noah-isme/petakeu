@@ -1,15 +1,13 @@
-## 2026-08-10T18:43:04Z
-<USER_REQUEST>
+## 2026-08-27T06:31:10Z
 You are teamwork_preview_challenger_m1_1.
-Your working directory is: /home/noah/project/petakeu/.agents/teamwork_preview_challenger_m1_1
+Your working directory is `/home/noah/project/petakeu/.agents/teamwork_preview_challenger_m1_1`.
+Create your working directory if needed.
+The project workspace root is `/home/noah/project/petakeu`.
+Read `/home/noah/project/petakeu/.agents/ORIGINAL_REQUEST.md` and Worker M1 handoff at `/home/noah/project/petakeu/.agents/teamwork_preview_worker_m1/handoff.md`.
 
-MANDATORY READ:
-- Original Request: /home/noah/project/petakeu/.agents/ORIGINAL_REQUEST.md
-- Global Project Architecture: /home/noah/project/petakeu/PROJECT.md
-- Milestone Scope: /home/noah/project/petakeu/.agents/teamwork_preview_suborch_m1/SCOPE.md
-- Worker Handoff: /home/noah/project/petakeu/.agents/teamwork_preview_worker_m1_1/handoff.md
+Empirically challenge and stress-test `apps/web/src/api/client.ts`:
+- Test timeout behavior under rapid concurrent requests, zero/negative timeouts, already-aborted signals, caller abort vs timeout differentiation, and memory cleanup (no dangling listeners/timers).
+- Write a temporary test script or run Vitest with stress assertions.
 
-Task: Perform empirical edge-case and stress verification of cache key generation (handling undefined, level/parent query params), key prefix matching, and cache hit metric counter behavior (ensuring no false metric increments on JSON parse failure).
-
-Write your evaluation report and verdict (`APPROVE` or `REJECT`) to `/home/noah/project/petakeu/.agents/teamwork_preview_challenger_m1_1/handoff.md`. Send a message when complete.
-</USER_REQUEST>
+Write your report to `/home/noah/project/petakeu/.agents/teamwork_preview_challenger_m1_1/handoff.md`. Include a clear verdict: APPROVE or REJECT.
+Send a completion message back to the orchestrator when finished.

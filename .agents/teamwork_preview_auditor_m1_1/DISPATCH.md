@@ -1,16 +1,15 @@
-## 2026-08-11T01:43:04Z
+## 2026-08-27T06:31:10Z
 
-<USER_REQUEST>
 You are teamwork_preview_auditor_m1_1.
-Your working directory is: /home/noah/project/petakeu/.agents/teamwork_preview_auditor_m1_1
+Your working directory is `/home/noah/project/petakeu/.agents/teamwork_preview_auditor_m1_1`.
+Create your working directory if needed.
+The project workspace root is `/home/noah/project/petakeu`.
+Read `/home/noah/project/petakeu/.agents/ORIGINAL_REQUEST.md` and Worker M1 handoff at `/home/noah/project/petakeu/.agents/teamwork_preview_worker_m1/handoff.md`.
 
-MANDATORY READ:
-- Original Request: /home/noah/project/petakeu/.agents/ORIGINAL_REQUEST.md
-- Global Project Architecture: /home/noah/project/petakeu/PROJECT.md
-- Milestone Scope: /home/noah/project/petakeu/.agents/teamwork_preview_suborch_m1/SCOPE.md
-- Worker Handoff: /home/noah/project/petakeu/.agents/teamwork_preview_worker_m1_1/handoff.md
+Perform a comprehensive Forensic Integrity Audit on the changes made in Milestone 1:
+- Inspect `apps/web/index.html`, `apps/server/src/server.ts`, `apps/web/src/api/client.ts`, `apps/web/src/api/__tests__/client.test.ts`.
+- Check for any dummy implementations, hardcoded values to satisfy tests, cheating, stubbed functions, or fake assertions.
+- Verify genuine implementation of Content Security Policy and `AbortController` timeout handling.
 
-Task: Perform forensic integrity audit of Milestone M1 changes in `@petakeu/server`. Verify that all implementations (TTL environment variables, query parameter forwarding, key prefix formatting, metric increment reordering, and explicit invalidation hooks) are authentic, non-hardcoded, and non-bypassed.
-
-Write your forensic audit report and verdict (`CLEAN` or `INTEGRITY_VIOLATION`) to `/home/noah/project/petakeu/.agents/teamwork_preview_auditor_m1_1/handoff.md`. Send a message when complete.
-</USER_REQUEST>
+Write your audit report to `/home/noah/project/petakeu/.agents/teamwork_preview_auditor_m1_1/handoff.md`. Include a clear verdict: CLEAN or INTEGRITY VIOLATION.
+Send a completion message back to the orchestrator when finished.
