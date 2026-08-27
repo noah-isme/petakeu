@@ -2676,7 +2676,7 @@
   },
   ".codex/hooks.json": {
     "mtime": 1786381146.6091833,
-    "ast_hash": "",
+    "ast_hash": "4de1c6448c3cd0fdb16c21c8691b00ed",
     "semantic_hash": ""
   },
   ".agents/challenger_m2_3/BRIEFING.md": {
@@ -2936,7 +2936,7 @@
   },
   "monitoring/grafana-dashboard.json": {
     "mtime": 1786473874.7588797,
-    "ast_hash": "",
+    "ast_hash": "90686ba6f8460df9b273fc1e2f8043c0",
     "semantic_hash": ""
   },
   "apps/server/migrations/007_staged_ingestion.sql": {
