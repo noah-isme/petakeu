@@ -35,31 +35,35 @@ export async function evaluateIrfAndSendAlerts(period: string): Promise<void> {
   const watchlist = await getWatchlistWithAdvancedRules(period);
 
   for (const item of watchlist) {
-    if (item.category === 'red') {
-      // Send high-priority alert
-      await sendAlert({
-        regionId: item.regionId,
-        regionName: item.regionName,
-        irf: item.irf,
-        category: 'red',
-        reasons: item.reasons,
-        message: `IRF ${item.irf} - Daerah ${item.regionName} berisiko defisit tinggi!`,
-        threshold: 50,
-        level: 'merah',
-        action: 'Intervensi segera'
-      }, 'email');
-    } else if (item.category === 'orange') {
-      await sendAlert({
-        regionId: item.regionId,
-        regionName: item.regionName,
-        irf: item.irf,
-        category: 'orange',
-        reasons: item.reasons,
-        message: `IRF ${item.irf} - Daerah ${item.regionName} perlu perhatian.`,
-        threshold: 25,
-        level: 'oranye',
-        action: 'Monitoring mingguan'
-      }, 'email');
+    try {
+      if (item.category === 'red') {
+        // Send high-priority alert
+        await sendAlert({
+          regionId: item.regionId,
+          regionName: item.regionName,
+          irf: item.irf,
+          category: 'red',
+          reasons: item.reasons,
+          message: `IRF ${item.irf} - Daerah ${item.regionName} berisiko defisit tinggi!`,
+          threshold: 50,
+          level: 'merah',
+          action: 'Intervensi segera'
+        }, 'email');
+      } else if (item.category === 'orange') {
+        await sendAlert({
+          regionId: item.regionId,
+          regionName: item.regionName,
+          irf: item.irf,
+          category: 'orange',
+          reasons: item.reasons,
+          message: `IRF ${item.irf} - Daerah ${item.regionName} perlu perhatian.`,
+          threshold: 25,
+          level: 'oranye',
+          action: 'Monitoring mingguan'
+        }, 'email');
+      }
+    } catch (err) {
+      logger.error({ err, regionId: item.regionId, regionName: item.regionName }, 'Failed to send alert, continuing to next region');
     }
   }
 }
@@ -125,27 +129,34 @@ async function sendEmailAlert(payload: AlertPayload, config: NotificationConfig[
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: Number(process.env.SMTP_PORT || 465),
     secure: true,
+    connectionTimeout: 30_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 60_000,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     }
   });
 
-  await transporter.sendMail({
-    from: config.from,
-    to: config.to,
-    subject: `${config.subject} - ${payload.regionName}`,
-    html: `
-      <h2>ALERT DEFISITWATCH</h2>
-      <p>Daerah: <strong>${payload.regionName}</strong></p>
-      <p>IRF: <strong>${payload.irf}</strong> (${payload.level.toUpperCase()})</p>
-      <p>Alasan: ${payload.reasons.join(', ')}</p>
-      <p>Aksi: ${payload.action}</p>
-      <p>Link: ${config.template}</p>
-    `
-  });
-  
-  alertsSent.inc({ channel: 'email', level: payload.level });
+  try {
+    await transporter.sendMail({
+      from: config.from,
+      to: config.to,
+      subject: `${config.subject} - ${payload.regionName}`,
+      html: `
+        <h2>ALERT DEFISITWATCH</h2>
+        <p>Daerah: <strong>${payload.regionName}</strong></p>
+        <p>IRF: <strong>${payload.irf}</strong> (${payload.level.toUpperCase()})</p>
+        <p>Alasan: ${payload.reasons.join(', ')}</p>
+        <p>Aksi: ${payload.action}</p>
+        <p>Link: ${config.template}</p>
+      `
+    });
+
+    alertsSent.inc({ channel: 'email', level: payload.level });
+  } finally {
+    transporter.close();
+  }
 }
 
 async function sendWhatsAppAlert(payload: AlertPayload, config: NotificationConfig['whatsapp']): Promise<void> {

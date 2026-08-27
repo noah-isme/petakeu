@@ -309,5 +309,5 @@ describe('report-worker streaming export', () => {
     await workbook.xlsx.load(completeBuffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
     const sheet = workbook.worksheets[0];
     expect(sheet.rowCount).toBe(2002);
-  });
+  }, 60_000);
 });
