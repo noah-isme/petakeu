@@ -14,3 +14,4 @@ playwright-report
 test-results
 .r4-evidence/
 graphify-out/cache/
+graphify-out/.*

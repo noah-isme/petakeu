@@ -5,12 +5,12 @@
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5301 nodes · 6787 edges · 600 communities (372 shown, 228 thin omitted)
+- 5300 nodes · 6787 edges · 601 communities (374 shown, 227 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 126 edges (avg confidence: 0.58)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5fa8956c`
+- Built from commit: `47444dfb`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -21,7 +21,7 @@
 - cn
 - dependencies
 - compilerOptions
-- ioredis
+- devDependencies
 - devDependencies
 - scripts
 - MapDashboard.tsx
@@ -36,14 +36,14 @@
 - App.tsx
 - compilerOptions
 - scripts
-- AdminDashboard.tsx
+- web/src/types/report.ts
 - Review and Adversarial Assessment: Milestone 3 — Frontend Alignments & E2E Browser Verification
 - dependencies
 - scenarios.ts
-- upload-worker.ts
+- getPgPool
 - AnalyticsPage.tsx
 - scripts
-- devDependencies
+- pino-pretty
 - upload-service.ts
 - Analysis: Milestone M2 — Comprehensive Readiness Health Checks (`GET /healthz`)
 - seed-regions.ts
@@ -70,7 +70,7 @@
 - analytics-service.ts
 - Legend.tsx
 - Handoff Report: E2E Test Suite Audit — Redis Caching & Extended Reports
-- storage-service.ts
+- server.ts
 - express
 - helmet
 - jsonwebtoken
@@ -110,7 +110,7 @@
 - MSW to Backend Migration Guide
 - Error Handling & Observability Documentation
 - CI/CD Pipeline Documentation
-- report-controller.ts
+- audit-service.ts
 - upload-pipeline.integration.test.ts
 - Development dengan Mock Service Worker (MSW)
 - What You Must Do When Invoked
@@ -172,7 +172,7 @@
 - BRIEFING — 2026-08-27T06:31:00Z
 - Deployment Methods
 - CommandPalette.tsx
-- web/src/types/analytics.ts
+- 5. Functional Requirements
 - BRIEFING — 2026-08-11T00:56:33Z
 - graphify reference: GitHub clone and cross-repo merge
 - graphify reference: transcribe video and audio
@@ -183,7 +183,7 @@
 - data/fiscal.ts
 - report-email-service.ts
 - adr/README.md
-- web/src/types/region.ts
+- Scaling Guidelines
 - Monitoring & Observability
 - rules/graphify.md
 - .agents/skills/graphify/references/extraction-spec.md
@@ -192,7 +192,7 @@
 - handleGetChoropleth
 - xlsx
 - Handoff Report: Challenger M1 Verification (Streaming Export for Large Datasets)
-- geo-service.ts
+- AdminDashboard.tsx
 - BRIEFING — 2026-08-27T07:01:00Z
 - @types/express
 - @types/geojson
@@ -204,8 +204,8 @@
 - @types/swagger-ui-express
 - redis
 - typescript
-- uploads.ts
-- approval.ts
+- @typescript-eslint/eslint-plugin
+- vitest
 - Forensic Audit Report
 - BRIEFING — 2026-08-11T00:56:32Z
 - BRIEFING — 2026-08-27T07:37:30Z
@@ -227,7 +227,7 @@
 - enqueueEmailForCompletedReport
 - Survey Report: Requirement R1 (Streaming Export for Large Datasets)
 - alert-service.ts
-- Test Categories
+- Phase 2: Backend Core Implementation (Week 2-4)
 - BRIEFING — 2026-08-11T01:24:40Z
 - Forensic Integrity Audit Report: Petakeu M3 Final Release Hardening
 - accessibility-release.spec.ts
@@ -371,7 +371,8 @@
 - graphify_skill.md
 - worker_m1_2/progress.md
 - 1. Observation
-- getPgPool
+- redis.ts
+- Phase 3: Frontend Switchover (Week 4-5)
 - Milestone 2 Review Handoff Report — Benchmark Script Code Reviewer 1
 - 4. 5-Component Handoff Report
 - 1. Observation
@@ -512,10 +513,10 @@
 - BRIEFING — 2026-08-27T07:34:00Z
 - mocks/data/regions.ts
 - @opentelemetry/instrumentation-express
-- server.ts
+- health.ts
 - swagger-ui-express
 - BRIEFING — 2026-08-27T07:36:30Z
-- 10. Rollback and restore evidence
+- SSL/TLS Configuration
 - eslint-config-prettier
 - BRIEFING — 2026-08-27T07:36:10Z
 - BRIEFING — 2026-08-27T07:32:00Z
@@ -528,7 +529,7 @@
 - assert-vitest-no-skips.mjs
 - assert-playwright-no-skips.mjs
 - 009_report_templates.sql
-- Appendix: Production Checklist
+- Maintenance Windows
 - @radix-ui/react-dialog
 - msw
 - @types/leaflet
@@ -540,8 +541,8 @@
 - exceljs
 - @types/node
 - eslint-plugin-import
-- Security Checklist
-- cors
+- @types/jsonwebtoken
+- @types/puppeteer
 - Handoff Report: Milestone 3 Preview Remediation & E2E Verification
 - BRIEFING — 2026-08-27T07:03:30Z
 - BRIEFING — 2026-08-27T14:05:00+07:00
@@ -583,13 +584,13 @@
 - @aws-sdk/s3-request-presigner
 - multer
 - @opentelemetry/instrumentation-redis
-- ts-node-dev
-- @types/cors
-- @types/swagger-jsdoc
-- @types/xlsx
+- region-controller.ts
+- Migration Notes
+- 11. Phase 5 — Platform Scale & Operational Maturity
+- Migration Checklist
 - Progress Log — teamwork_preview_auditor_m3_final_1
 - Progress — teamwork_preview_challenger_m3_final_1
-- @typescript-eslint/parser
+- 3. Frontend Architecture
 - teamwork_preview_auditor_m3_final_1/DISPATCH.md
 - teamwork_preview_challenger_m3_final_1/DISPATCH.md
 - teamwork_preview_challenger_m3_final_2/DISPATCH.md
@@ -598,8 +599,9 @@
 - teamwork_preview_reviewer_m3_final_1/progress.md
 - teamwork_preview_reviewer_m3_final_2/DISPATCH.md
 - teamwork_preview_reviewer_m3_final_2/progress.md
-- @types/react
-- report_jobs
+- bullmq
+- eslint
+- eslint-config-prettier
 
 ## God Nodes (most connected - your core abstractions)
 1. `getPgPool()` - 70 edges
@@ -616,27 +618,27 @@
 ## Surprising Connections (you probably didn't know these)
 - `getAuditLogs()` --calls--> `getPgPool()`  [EXTRACTED]
   apps/server/src/services/audit-service.ts → apps/server/src/db/postgres.ts
-- `checkStorageHealth()` --calls--> `getS3Client()`  [EXTRACTED]
-  apps/server/src/services/storage-service.ts → apps/server/src/db/minio.ts
-- `probeIntegrationInfrastructure()` --calls--> `getS3Client()`  [EXTRACTED]
-  apps/server/src/test-utils/integration.ts → apps/server/src/db/minio.ts
-- `uploadFile()` --calls--> `uploadToS3()`  [EXTRACTED]
-  apps/server/src/services/storage-service.ts → apps/server/src/db/minio.ts
-- `uploadReport()` --calls--> `uploadToS3()`  [EXTRACTED]
-  apps/server/src/services/storage-service.ts → apps/server/src/db/minio.ts
+- `createApp()` --indirect_call--> `requestContextMiddleware()`  [INFERRED]
+  apps/server/src/server.ts → apps/server/src/middleware/request-context.ts
+- `createApp()` --indirect_call--> `errorHandler()`  [INFERRED]
+  apps/server/src/server.ts → apps/server/src/utils/error-handler.ts
+- `rankfin_challenges` --references--> `regions`  [EXTRACTED]
+  apps/server/migrations/003_gamification.sql → apps/server/migrations/001_init.sql
+- `rankfin_hall_of_fame` --references--> `regions`  [EXTRACTED]
+  apps/server/migrations/003_gamification.sql → apps/server/migrations/001_init.sql
 
 ## Import Cycles
 - None detected.
 
-## Communities (600 total, 228 thin omitted)
+## Communities (601 total, 227 thin omitted)
 
 ### Community 0 - "E2E Test Suite Handoff & Review Report: Petakeu R1 & R2"
 Cohesion: 0.12
 Nodes (16): 1. Observation, 2. Logic Chain, 3. Caveats, 4. Conclusion & Findings, 5. Verified Claims & Coverage Gaps, 6. Verification Method, A. Dummy Facade Implementation in `apps/web/e2e/upload-warning.spec.ts`, B. Vacuous Conditional Assertions in `apps/web/e2e/health-readiness.spec.ts` (+8 more)
 
 ### Community 1 - "report-worker.ts"
-Cohesion: 0.09
-Nodes (29): rankings, renderPdf(), rows, addMonths(), applyHeaderStyle(), decodeSafeLogo(), DEFAULT_REPORT_BRANDING, fetchTop10Rankings() (+21 more)
+Cohesion: 0.07
+Nodes (41): rankings, renderPdf(), rows, addMonths(), applyHeaderStyle(), decodeSafeLogo(), DEFAULT_REPORT_BRANDING, fetchReportData() (+33 more)
 
 ### Community 2 - "web/.eslintrc.json"
 Cohesion: 0.06
@@ -654,17 +656,21 @@ Nodes (39): dependencies, class-variance-authority, clsx, date-fns, framer-motio
 Cohesion: 0.13
 Nodes (14): compilerOptions, allowJs, composite, jsx, module, moduleResolution, noEmit, types (+6 more)
 
+### Community 6 - "devDependencies"
+Cohesion: 0.15
+Nodes (13): devDependencies, ioredis, ts-node-dev, @types/cors, @types/swagger-jsdoc, @types/xlsx, @typescript-eslint/parser, @typescript-eslint/parser (+5 more)
+
 ### Community 7 - "devDependencies"
 Cohesion: 0.06
-Nodes (35): devDependencies, autoprefixer, @axe-core/playwright, eslint, eslint-config-prettier, eslint-plugin-import, jsdom, prettier (+27 more)
+Nodes (35): devDependencies, autoprefixer, @axe-core/playwright, eslint, eslint-plugin-import, jsdom, prettier, @radix-ui/react-slot (+27 more)
 
 ### Community 8 - "scripts"
 Cohesion: 0.06
 Nodes (30): description, devDependencies, tsx, turbo, @types/node, engines, node, turbo (+22 more)
 
 ### Community 9 - "MapDashboard.tsx"
-Cohesion: 0.14
-Nodes (17): API_BASE_URL, buildUrl(), resolveBaseUrl(), appConfig, envScenario, useChoropleth(), useRegionSummary(), UseRegionSummaryParams (+9 more)
+Cohesion: 0.10
+Nodes (26): formatCurrency(), RegionDetailPanel(), RegionDetailPanelProps, TrendSparkline(), TrendSparklineProps, API_BASE_URL, buildUrl(), resolveBaseUrl() (+18 more)
 
 ### Community 10 - "pipeline"
 Cohesion: 0.10
@@ -679,16 +685,16 @@ Cohesion: 0.08
 Nodes (25): worker, computeFileHash(), handleGetRegions(), handleGetReportById(), handleGetReportingMatrix(), handleGetReports(), handleGetUploadById(), handleGetUploads() (+17 more)
 
 ### Community 13 - "upload-controller.ts"
-Cohesion: 0.17
-Nodes (16): actorId(), bodyObject(), cancelUpload, confirmUpload, createRegionAlias, deleteRegionAlias, getTemplate, getUpload (+8 more)
+Cohesion: 0.11
+Nodes (23): enqueueReport, getReportById, listReports, reportController, actorId(), bodyObject(), cancelUpload, confirmUpload (+15 more)
 
 ### Community 14 - "BRIEFING — 2026-08-11T01:03:30Z"
 Cohesion: 0.18
 Nodes (10): Artifact Index, Attack Surface, BRIEFING — 2026-08-11T01:03:30Z, Current Parent, 🔒 Key Constraints, Key Decisions Made, Mission, 🔒 My Identity (+2 more)
 
 ### Community 15 - "src/index.ts"
-Cohesion: 0.17
-Nodes (16): loadEnv(), getMigrationFiles(), MIGRATIONS_DIR, runMigrations(), env, main(), startReportWorker(), getRequestLogContext() (+8 more)
+Cohesion: 0.21
+Nodes (13): getMigrationFiles(), MIGRATIONS_DIR, runMigrations(), env, main(), startReportWorker(), startUploadWorker(), env (+5 more)
 
 ### Community 16 - "Milestone 2 Review Report: Backend Pipelines, Streaming & Security"
 Cohesion: 0.18
@@ -710,9 +716,9 @@ Nodes (17): apps/server/src/*, apps/web/src/*, node, compilerOptions, baseUrl, e
 Cohesion: 0.20
 Nodes (10): scripts, build, dev, format, lint, preview, test, test:e2e (+2 more)
 
-### Community 21 - "AdminDashboard.tsx"
-Cohesion: 0.11
-Nodes (23): apiClient, currencyFormatter, ReportJobsList(), ReportJobsListProps, statusLabels, UploadForm(), UploadFormProps, UploadsTable() (+15 more)
+### Community 21 - "web/src/types/report.ts"
+Cohesion: 0.17
+Nodes (13): currencyFormatter, ReportJobsList(), ReportJobsListProps, statusLabels, ReportAmountBasis, ReportJob, ReportMonthlySummaryItem, ReportRankingCriterion (+5 more)
 
 ### Community 22 - "Review and Adversarial Assessment: Milestone 3 — Frontend Alignments & E2E Browser Verification"
 Cohesion: 0.11
@@ -720,31 +726,27 @@ Nodes (17): 1.1 Web Unit Test Execution (`pnpm --filter @petakeu/web test`), 1.2
 
 ### Community 23 - "dependencies"
 Cohesion: 0.22
-Nodes (9): dependencies, @aws-sdk/client-s3, bullmq, pdfkit, prom-client, @aws-sdk/client-s3, bullmq, pdfkit (+1 more)
+Nodes (9): dependencies, @aws-sdk/client-s3, cors, pdfkit, prom-client, @aws-sdk/client-s3, cors, pdfkit (+1 more)
 
 ### Community 24 - "scenarios.ts"
 Cohesion: 0.19
 Nodes (11): allRegions, applySpike(), baseSeries, buildRecords(), createScenario(), getScenarioDataset(), PaymentRecord, PERIOD_START (+3 more)
 
-### Community 25 - "upload-worker.ts"
-Cohesion: 0.10
-Nodes (25): instrumentQuery(), EXPECTED_HEADERS, findingToError(), isFuturePeriod(), normalizeHeader(), parseRows(), processUpload(), requiresUploadConfirmation() (+17 more)
+### Community 25 - "getPgPool"
+Cohesion: 0.11
+Nodes (37): getPgPool(), instrumentQuery(), getCached(), invalidateCacheByPrefix(), startMvRefreshCron(), EXPECTED_HEADERS, findingToError(), isFuturePeriod() (+29 more)
 
 ### Community 26 - "AnalyticsPage.tsx"
-Cohesion: 0.15
-Nodes (16): formatUpdatedAt(), hasAnalyticsData(), normalizeAnalyticsPeriod(), AnalyticsEmptyState(), AnalyticsErrorState(), AnalyticsLoadingState(), AnalyticsStateProps, fetchAnalyticsOverview() (+8 more)
+Cohesion: 0.13
+Nodes (22): formatPeriod(), formatUpdatedAt(), hasAnalyticsData(), normalizeAnalyticsPeriod(), AnalyticsEmptyState(), AnalyticsErrorState(), AnalyticsLoadingState(), AnalyticsStateProps (+14 more)
 
 ### Community 27 - "scripts"
 Cohesion: 0.25
 Nodes (8): scripts, build, dev, lint, seed:regions, start, test, typecheck
 
-### Community 28 - "devDependencies"
-Cohesion: 0.15
-Nodes (13): devDependencies, eslint, pino-pretty, @types/jsonwebtoken, @types/puppeteer, @typescript-eslint/eslint-plugin, vitest, eslint (+5 more)
-
 ### Community 29 - "upload-service.ts"
-Cohesion: 0.10
-Nodes (39): UploadDetailsResponse, ACCEPTED_MIME_TYPES, aliasRow(), cancelUpload(), confirmUpload(), createRegionAlias(), currentRow(), dbPeriod() (+31 more)
+Cohesion: 0.09
+Nodes (40): UploadDetailsResponse, uploadQueue, ACCEPTED_MIME_TYPES, aliasRow(), cancelUpload(), createRegionAlias(), currentRow(), dbPeriod() (+32 more)
 
 ### Community 30 - "Analysis: Milestone M2 — Comprehensive Readiness Health Checks (`GET /healthz`)"
 Cohesion: 0.09
@@ -760,7 +762,7 @@ Nodes (7): activeClientIds, getResponse(), handleRequest(), resolveMainClient(),
 
 ### Community 33 - "upload-validation.ts"
 Cohesion: 0.14
-Nodes (26): addFinding(), canonicalHeader(), cell(), CURRENCY_TOLERANCE_RATIO, Db, findColumn(), HEADER_ALIASES, isFuturePeriod() (+18 more)
+Nodes (25): addFinding(), canonicalHeader(), cell(), CURRENCY_TOLERANCE_RATIO, Db, findColumn(), HEADER_ALIASES, isFuturePeriod() (+17 more)
 
 ### Community 34 - "Backend Integration Tests & Docker Services Investigation Report"
 Cohesion: 0.13
@@ -783,8 +785,8 @@ Cohesion: 0.18
 Nodes (10): Artifact Index, BRIEFING — 2026-08-11T01:03:30Z, Current Parent, 🔒 Key Constraints, Key Decisions Made, Loaded Skills, Mission, 🔒 My Identity (+2 more)
 
 ### Community 40 - "R4 Staging Release Verification Runbook"
-Cohesion: 0.10
-Nodes (20): 11. Go/no-go decision and evidence index, 1. Set release variables, 2. Capture backup and release evidence before deployment, 3. Deploy the candidate with confirmation disabled, 4. Verify migrations and schema from PostgreSQL, 5. Health, readiness, Redis, BullMQ, and MinIO, 6. Baseline live suites (`UPLOAD_REQUIRE_CONFIRMATION=false`), 7. Performance gate (+12 more)
+Cohesion: 0.08
+Nodes (25): 10. Rollback and restore evidence, 11. Go/no-go decision and evidence index, 1. Set release variables, 2. Capture backup and release evidence before deployment, 3. Deploy the candidate with confirmation disabled, 4. Verify migrations and schema from PostgreSQL, 5. Health, readiness, Redis, BullMQ, and MinIO, 6. Baseline live suites (`UPLOAD_REQUIRE_CONFIRMATION=false`) (+17 more)
 
 ### Community 41 - "verify-r4-staging.mjs"
 Cohesion: 0.23
@@ -804,7 +806,7 @@ Nodes (27): 1. Executive Summary, 2.1 Workspace Configuration, 2.2 Root Scripts 
 
 ### Community 45 - "validators/report.ts"
 Cohesion: 0.11
-Nodes (19): amountBasisSchema, boundedBrandingTextSchema, containsControlCharacters(), logoDataUriSchema, MAX_REPORT_BRANDING_TEXT_LENGTH, MAX_REPORT_LOGO_BYTES, MAX_REPORT_LOGO_DATA_URI_LENGTH, normalizeRankingCriterion() (+11 more)
+Nodes (18): amountBasisSchema, boundedBrandingTextSchema, containsControlCharacters(), logoDataUriSchema, MAX_REPORT_BRANDING_TEXT_LENGTH, MAX_REPORT_LOGO_BYTES, MAX_REPORT_LOGO_DATA_URI_LENGTH, normalizeRankingCriterion() (+10 more)
 
 ### Community 46 - "Technical Survey & Architectural Analysis: Extended PDF & Excel Report Generation"
 Cohesion: 0.08
@@ -828,7 +830,7 @@ Nodes (29): AmountBasis, RankingCriterion, addMonths(), amountBasisSchema, Analy
 
 ### Community 52 - "analytics-service.ts"
 Cohesion: 0.09
-Nodes (32): buildOverviewCacheKey(), getOverview(), MatrixDetailRow, MatrixRow, RankingRow, RegionalAggregateRow, TargetRow, TrendRow (+24 more)
+Nodes (34): buildOverviewCacheKey(), getOverview(), invalidateAnalyticsCache(), MatrixDetailRow, MatrixRow, RankingRow, RegionalAggregateRow, registerTarget() (+26 more)
 
 ### Community 53 - "Legend.tsx"
 Cohesion: 0.17
@@ -838,17 +840,17 @@ Nodes (15): colors, formatCurrency(), formatRange(), Legend(), LegendProps, colo
 Cohesion: 0.15
 Nodes (12): 1. Observation, 2. Logic Chain, 3. Review Summary Report, 4. Caveats, 5. Conclusion, 6. Verification Method, Coverage Gaps, Findings (+4 more)
 
-### Community 55 - "storage-service.ts"
-Cohesion: 0.15
-Nodes (20): ensureBucket(), getPresignedDownloadUrl(), getS3Client(), uploadStreamToS3(), uploadToS3(), fetchReportData(), generateReport(), MockPgPool (+12 more)
+### Community 55 - "server.ts"
+Cohesion: 0.08
+Nodes (30): options, setupSwagger(), swaggerSpec, boundedString(), deriveContext(), Express, firstString(), getRequestField() (+22 more)
 
 ### Community 60 - "analytics-utils.ts"
-Cohesion: 0.13
-Nodes (27): formatAmount(), formatNumber(), formatPercent(), formatPeriod(), idrFormatter, numberFormatter, percentWidth(), AnalyticsSection() (+19 more)
+Cohesion: 0.16
+Nodes (20): formatAmount(), formatNumber(), formatPercent(), idrFormatter, numberFormatter, percentWidth(), AnalyticsSection(), KpiCards() (+12 more)
 
 ### Community 66 - "approval-service.ts"
-Cohesion: 0.27
-Nodes (22): appendTransition(), ApprovalRow, approveWorkflow(), assertPeriodUnlockedWithClient(), assertWorkflowPeriodUnlocked(), fromDatabasePeriod(), getWorkflow(), isFiscalPeriodLocked() (+14 more)
+Cohesion: 0.14
+Nodes (31): Role, appendTransition(), ApprovalRow, approvalService, approveWorkflow(), assertPeriodUnlockedWithClient(), assertWorkflowPeriodUnlocked(), fromDatabasePeriod() (+23 more)
 
 ### Community 71 - "BRIEFING — 2026-08-27T07:20:00Z"
 Cohesion: 0.17
@@ -895,12 +897,12 @@ Cohesion: 0.15
 Nodes (12): 1. Manual Inspection of Code References, 1. Observation, 2. Logic Chain, 2. Unit Testing, 3. Caveats, 3. Metric Verification, 4. Conclusion, 5. Verification Method (+4 more)
 
 ### Community 91 - "Product Requirements Document (PRD) — Petakeu"
-Cohesion: 0.06
-Nodes (32): 1. Fiscal Analysts (BPKAD / Kemendagri), 1. Overview, 2. Problem Statement, 2. Provincial Government Operators, 3. Target Users, 4. Goals & Success Metrics, 5.1 Data Import Module, 5.2 Region Master Module (+24 more)
+Cohesion: 0.12
+Nodes (17): 1. Fiscal Analysts (BPKAD / Kemendagri), 1. Overview, 2. Problem Statement, 2. Provincial Government Operators, 3. Target Users, 4. Goals & Success Metrics, 6.1 Performance Requirements, 6.2 Security & Authentication (+9 more)
 
 ### Community 102 - "MSW to Backend Migration Guide"
-Cohesion: 0.05
-Nodes (37): 1.1 Provision Production Database, 1.2 Run Migrations, 1.3 Provision Redis, 1.4 Provision Object Storage, 1.5 Configure Infrastructure Secrets, 2.1 Replace In-Memory Stores with Database, 2.2 Implement Authentication Middleware, 2.3 Implement Background Workers (+29 more)
+Cohesion: 0.09
+Nodes (22): 1.1 Provision Production Database, 1.2 Run Migrations, 1.3 Provision Redis, 1.4 Provision Object Storage, 1.5 Configure Infrastructure Secrets, Database Rollback, Documentation Updates, Full Rollback (Both) (+14 more)
 
 ### Community 103 - "Error Handling & Observability Documentation"
 Cohesion: 0.05
@@ -910,13 +912,13 @@ Nodes (36): Alert Notification Channels, Alerting Rules, API Health Endpoints, A
 Cohesion: 0.07
 Nodes (27): Branch Protection Rules, Branch Strategy, CD Pipeline (Deployment), CI/CD Metrics to Track, CI/CD Pipeline Documentation, CI Pipeline (GitHub Actions), Common CI Failures, Debugging Failed Runs (+19 more)
 
-### Community 105 - "report-controller.ts"
-Cohesion: 0.12
-Nodes (16): auditController, listAuditLogs, enqueueReport, getReportById, listReports, reportController, auditMiddleware(), auditRouter (+8 more)
+### Community 105 - "audit-service.ts"
+Cohesion: 0.22
+Nodes (8): auditController, listAuditLogs, auditRouter, AuditEntryInput, AuditLogItem, AuditLogQueryParams, auditService, getAuditLogs()
 
 ### Community 106 - "upload-pipeline.integration.test.ts"
-Cohesion: 0.13
-Nodes (26): shutdownPg(), shutdownRedis(), EnqueueReportResponse, ReportDetailsResponse, EnqueueUploadResponse, AppServer, authHeader(), cleanupBullMqJobs() (+18 more)
+Cohesion: 0.11
+Nodes (36): ensureBucket(), getPresignedDownloadUrl(), getS3Client(), uploadStreamToS3(), uploadToS3(), shutdownPg(), shutdownRedis(), EnqueueReportResponse (+28 more)
 
 ### Community 107 - "Development dengan Mock Service Worker (MSW)"
 Cohesion: 0.08
@@ -932,15 +934,15 @@ Nodes (24): For /graphify add and --watch, For /graphify query, For the commit h
 
 ### Community 110 - "Petakeu System Architecture"
 Cohesion: 0.07
-Nodes (30): 10. Authentication & Authorization, 11. Deployment, 12. Key Data Flows, 1. System Overview, 2. Architecture Diagram, 3. Frontend Architecture, 4. Backend Architecture, 5. Database Layer (+22 more)
+Nodes (27): 10. Authentication & Authorization, 11. Deployment, 12. Key Data Flows, 1. System Overview, 2. Architecture Diagram, 4. Backend Architecture, 5. Database Layer, 6. Background Jobs & Worker Queue (+19 more)
 
 ### Community 111 - "Testing Strategy Documentation"
-Cohesion: 0.11
-Nodes (18): Adding New Tests, CI/CD Integration, Common Issues, Coverage Requirements, Current Verification Snapshot (2026-08-12), Database Seeding for Tests, Debug Commands, Debugging Tests (+10 more)
+Cohesion: 0.08
+Nodes (26): 1. Static Analysis (Continuous), 2. Unit Tests (Vitest), 3. Integration Tests (Vitest + Testcontainers), 4. End-to-End Tests (Playwright), 5. Performance Tests (k6), Adding New Tests, CI/CD Integration, Common Issues (+18 more)
 
 ### Community 112 - "Table Definitions"
-Cohesion: 0.07
-Nodes (30): 1. `regions` - Administrative Boundaries, 2. `payments` - Payment Records, 3. `uploads` - File Upload Tracking, 3a. `region_aliases` - Canonical Import Aliases, 4. `report_jobs` - Report Generation Jobs, 5. `audit_logs` - Immutable Request Audit Trail, 6. `revenue_targets` - Monthly Analytics Targets, 7. `approval_workflows` and `approval_workflow_events` (+22 more)
+Cohesion: 0.08
+Nodes (25): 1. `regions` - Administrative Boundaries, 2. `payments` - Payment Records, 3. `uploads` - File Upload Tracking, 3a. `region_aliases` - Canonical Import Aliases, 4. `report_jobs` - Report Generation Jobs, 5. `audit_logs` - Immutable Request Audit Trail, 6. `revenue_targets` - Monthly Analytics Targets, 7. `approval_workflows` and `approval_workflow_events` (+17 more)
 
 ### Community 113 - "new-feature.md"
 Cohesion: 0.08
@@ -1015,8 +1017,8 @@ Cohesion: 0.15
 Nodes (12): Development (Local), Development (with Docker), Docker Compose Development (`docker-compose.dev.yml`), Environment Variables Reference, Production, Production Checklist, Quick Setup, Server (`apps/server`) (+4 more)
 
 ### Community 131 - "Petakeu Product & Technical Roadmap"
-Cohesion: 0.08
-Nodes (24): 10. Phase 4 — Advanced GovTech & Analytics, 11. Phase 5 — Platform Scale & Operational Maturity, 1. Project Status Summary, 2. Phase 1 — MVP (Current Phase), 3. Phase 2 — Analytics & Insights, 4.1 — High-Fidelity Visual Reporting & Template Engine, 4.2 — Enterprise SSO & Region Delegation, 4.3 — Power-User Navigation & UX Polish (+16 more)
+Cohesion: 0.11
+Nodes (19): 10. Phase 4 — Advanced GovTech & Analytics, 1. Project Status Summary, 2. Phase 1 — MVP (Current Phase), 3. Phase 2 — Analytics & Insights, 4.1 — High-Fidelity Visual Reporting & Template Engine, 4.2 — Enterprise SSO & Region Delegation, 4.3 — Power-User Navigation & UX Polish, 4.4 — Dynamic Tax & Fiscal Rules Engine (+11 more)
 
 ### Community 132 - "ADR-001: Use MSW for Frontend Development"
 Cohesion: 0.12
@@ -1031,7 +1033,7 @@ Cohesion: 0.15
 Nodes (12): 1.1 Choropleth GeoJSON Endpoint (`GET /api/v1/geo/choropleth`), 1.2 Region Summary Endpoint (`GET /api/v1/regions/:id/summary`), 1. Route, Controller & Service Analysis, 2. Redis Connection & Cache Mechanics (`apps/server/src/db/redis.ts`), 3. Metrics & Prometheus Integration (`apps/server/src/utils/metrics.ts`), 4.1 Upload Worker (`apps/server/src/jobs/upload-worker.ts`), 4.2 Materialized View Refresh Cron (`apps/server/src/jobs/mv-refresh-cron.ts`), 4. Cache Invalidation & Trigger Jobs (+4 more)
 
 ### Community 135 - "Petakeu Implementation Checklist (Definition of Done)"
-Cohesion: 0.18
+Cohesion: 0.11
 Nodes (11): A. Fondasi & Infrastruktur, B. API & Data, C. Frontend (React + Leaflet), D. Keamanan & Akses, E. Kualitas Data & Validasi, F. Performa & Reliabilitas, G. Observabilitas, H. Testing (+3 more)
 
 ### Community 136 - "Conventions"
@@ -1099,8 +1101,8 @@ Cohesion: 0.17
 Nodes (11): Active Timers, Artifact Index, BRIEFING — 2026-08-11T00:54:17Z, Current Parent, 🔒 Key Constraints, Key Decisions Made, Mission, 🔒 My Identity (+3 more)
 
 ### Community 152 - "Production Deployment Guide"
-Cohesion: 0.07
-Nodes (28): Architecture Overview, Automated Backups, Backup & Disaster Recovery, Common Issues, Database Scaling, Debug Commands, Docker Compose, External Dependencies (+20 more)
+Cohesion: 0.08
+Nodes (26): Appendix: Production Checklist, Architecture Overview, Automated Backups, Backup & Disaster Recovery, Common Issues, Debug Commands, Docker Compose, External Dependencies (+18 more)
 
 ### Community 153 - "graphify reference: add a URL and watch a folder"
 Cohesion: 0.50
@@ -1158,9 +1160,9 @@ Nodes (4): Deployment Methods, Method 1: Docker Compose (Single VM), Method 2: K
 Cohesion: 0.22
 Nodes (9): RouteGateProps, CommandPalette(), CommandPaletteProps, QUICK_ACTIONS, ResultItem, AppRouteDefinition, BASE_REGIONS, BaseRegion (+1 more)
 
-### Community 167 - "web/src/types/analytics.ts"
-Cohesion: 0.14
-Nodes (14): AnalyticsQueryParams, AnalyticsAmountBasis, AnalyticsNumber, AnalyticsOutlier, AnalyticsOverviewMeta, AnalyticsOverviewResponse, AnalyticsProvinceMetric, AnalyticsRankingCriterion (+6 more)
+### Community 167 - "5. Functional Requirements"
+Cohesion: 0.13
+Nodes (15): 5.1 Data Import Module, 5.2 Region Master Module, 5.3 Dashboard & Visualization Module, 5.4 Ranking Engine Module, 5.5 Missing Data Analysis Module, 5.6 Reporting Matrix Module, 5.7 Export Engine, 5. Functional Requirements (+7 more)
 
 ### Community 168 - "BRIEFING — 2026-08-11T00:56:33Z"
 Cohesion: 0.17
@@ -1183,12 +1185,12 @@ Cohesion: 0.21
 Nodes (8): createReportEmailDispatcher(), createTransport(), escapeHtml(), ReportEmailLogger, ReportEmailTransport, config, report, ScheduledReportEmailConfig
 
 ### Community 177 - "adr/README.md"
-Cohesion: 0.28
+Cohesion: 0.21
 Nodes (5): ADR Index, ADR Template, Architecture Decision Records (ADRs), Creating a New ADR, Guidelines
 
-### Community 178 - "web/src/types/region.ts"
-Cohesion: 0.24
-Nodes (10): formatCurrency(), RegionDetailPanel(), RegionDetailPanelProps, TrendSparkline(), TrendSparklineProps, UseRegionsParams, Region, RegionLevel (+2 more)
+### Community 178 - "Scaling Guidelines"
+Cohesion: 0.50
+Nodes (4): Database Scaling, Horizontal Scaling (API), Redis Scaling, Scaling Guidelines
 
 ### Community 179 - "Monitoring & Observability"
 Cohesion: 0.50
@@ -1202,21 +1204,13 @@ Nodes (13): getPaymentsByPeriod(), getPaymentsByRegion(), buildSummary(), comput
 Cohesion: 0.17
 Nodes (11): 1.1 Source Code Inspection, 1.2 Empirical Verification & Test Suite Execution, 1. Observation, 2. Logic Chain, 3. Caveats, 4. Conclusion, 5.1 Commands, 5.2 Files Inspected (+3 more)
 
-### Community 187 - "geo-service.ts"
-Cohesion: 0.27
-Nodes (10): buildCacheKey(), buildChoropleth(), buildQuantileBins(), resolveQuantileIndex(), ChoroplethFeature, ChoroplethFeatureProperties, ChoroplethResponse, LegendDefinition (+2 more)
+### Community 187 - "AdminDashboard.tsx"
+Cohesion: 0.23
+Nodes (10): apiClient, UploadForm(), UploadFormProps, UploadsTable(), UploadsTableProps, useReportJobs(), useUploads(), AdminDashboard() (+2 more)
 
 ### Community 188 - "BRIEFING — 2026-08-27T07:01:00Z"
 Cohesion: 0.17
 Nodes (11): Artifact Index, BRIEFING — 2026-08-27T07:01:00Z, Change Tracker, Current Parent, 🔒 Key Constraints, Key Decisions Made, Loaded Skills, Mission (+3 more)
-
-### Community 199 - "uploads.ts"
-Cohesion: 0.21
-Nodes (9): ACCEPTED_MIME_TYPES, memoryUpload, canReadReports, rejectLockedReportPeriod, reportRouter, canManageUploads, rejectLockedUploadPeriod, uploadRouter (+1 more)
-
-### Community 200 - "approval.ts"
-Cohesion: 0.22
-Nodes (10): Role, APPROVAL_EVENT_TYPES, APPROVAL_STATUSES, ApprovalActor, ApprovalEventType, ApprovalReviewInput, ApprovalStatus, ApprovalTransition (+2 more)
 
 ### Community 201 - "Forensic Audit Report"
 Cohesion: 0.18
@@ -1290,9 +1284,9 @@ Nodes (12): 1.1 Report Generation in `apps/server/src/jobs/report-worker.ts`, 1.
 Cohesion: 0.23
 Nodes (13): AlertPayload, alertService, computeAdvancedIrf(), computeReasons(), evaluateIrfAndSendAlerts(), getCategory(), getWatchlistWithAdvancedRules(), loadNotificationConfig() (+5 more)
 
-### Community 222 - "Test Categories"
-Cohesion: 0.25
-Nodes (8): 1. Static Analysis (Continuous), 2. Unit Tests (Vitest), 3. Integration Tests (Vitest + Testcontainers), 4. End-to-End Tests (Playwright), 5. Performance Tests (k6), Server (`apps/server`), Test Categories, Web (`apps/web`)
+### Community 222 - "Phase 2: Backend Core Implementation (Week 2-4)"
+Cohesion: 0.33
+Nodes (6): 2.1 Replace In-Memory Stores with Database, 2.2 Implement Authentication Middleware, 2.3 Implement Background Workers, 2.4 Seed Reference Data, 2.5 Implement Materialized View Refresh, Phase 2: Backend Core Implementation (Week 2-4)
 
 ### Community 223 - "BRIEFING — 2026-08-11T01:24:40Z"
 Cohesion: 0.22
@@ -1527,8 +1521,8 @@ Cohesion: 0.50
 Nodes (3): Completed Steps, Progress — teamwork_preview_auditor_e2e_1, Remaining Steps
 
 ### Community 308 - "analytics-controller.ts"
-Cohesion: 0.28
-Nodes (11): analyticsController, getOverview, getRankings, getReportingMatrix, getReportingMatrixDetail, listTargets, registerTarget, validationError() (+3 more)
+Cohesion: 0.32
+Nodes (10): getOverview, getRankings, getReportingMatrix, getReportingMatrixDetail, listTargets, registerTarget, validationError(), bestEffort() (+2 more)
 
 ### Community 309 - "BRIEFING — 2026-08-10T18:28:12Z"
 Cohesion: 0.18
@@ -1630,9 +1624,13 @@ Nodes (6): 1. Observation, 2. Logic Chain, 3. Caveats, 4. Conclusion, 5. Verific
 Cohesion: 0.15
 Nodes (12): 1.1 Workspace Layout & Build Pipeline, 1.2 Configuration Files Audit, 1.3 Key Dependencies Inventory, 1.4 Test Infrastructure Mapping, 1.5 Graphify Knowledge Graph Status, 1.6 Execution Results (`pnpm lint`, `pnpm typecheck`, `pnpm test`), 1. Observation, 2. Logic Chain (+4 more)
 
-### Community 367 - "getPgPool"
-Cohesion: 0.08
-Nodes (48): mockQuery, mockRedisConnect, mockRedisDel, mockRedisGet, mockRedisKeys, mockRedisOn, mockRedisSetEx, getPgPool() (+40 more)
+### Community 367 - "redis.ts"
+Cohesion: 0.07
+Nodes (40): mockQuery, mockRedisConnect, mockRedisDel, mockRedisGet, mockRedisKeys, mockRedisOn, mockRedisSetEx, mockRedisGet (+32 more)
+
+### Community 368 - "Phase 3: Frontend Switchover (Week 4-5)"
+Cohesion: 0.40
+Nodes (5): 3.1 Update Environment Configuration, 3.2 Update API Client for Authentication, 3.3 Add Authentication Context, 3.4 Update Protected Routes, Phase 3: Frontend Switchover (Week 4-5)
 
 ### Community 369 - "Milestone 2 Review Handoff Report — Benchmark Script Code Reviewer 1"
 Cohesion: 0.14
@@ -1855,8 +1853,8 @@ Cohesion: 0.22
 Nodes (8): 1.1 Executed Files & Changes, 1.2 Command Outputs & Verifications, 1. Observation, 2. Logic Chain, 3. Caveats, 4. Conclusion, 5. Verification Method, Milestone 2: Performance Benchmarking Script — Implementation Handoff Report
 
 ### Community 470 - "client.ts"
-Cohesion: 0.11
-Nodes (35): ApiHttpError, ApiTimeoutError, asNumber(), asObject(), asString(), createApiHttpError(), DEFAULT_API_TIMEOUT_MS, errorMessage() (+27 more)
+Cohesion: 0.10
+Nodes (36): ApiHttpError, ApiTimeoutError, asNumber(), asObject(), asString(), createApiHttpError(), DEFAULT_API_TIMEOUT_MS, errorMessage() (+28 more)
 
 ### Community 471 - "buildOverview"
 Cohesion: 0.23
@@ -1871,12 +1869,12 @@ Cohesion: 0.29
 Nodes (6): 1. Executive Summary, 2. Milestone State & Gate Verification Summary, 3. Detailed Verification Results (Milestone 2), 4. Key Artifacts Index, 5. Conclusion & Project Sign-Off, Project Completion & Handoff Report — Petakeu Phase 1 MVP
 
 ### Community 474 - "useAnalytics.ts"
-Cohesion: 0.25
-Nodes (26): asArray(), asBoolean(), asNumber(), asString(), firstArray(), firstNumber(), firstRecord(), firstString() (+18 more)
+Cohesion: 0.14
+Nodes (40): AnalyticsQueryParams, asArray(), asBoolean(), asNumber(), asString(), firstArray(), firstNumber(), firstRecord() (+32 more)
 
 ### Community 489 - "buildRankingQuery"
-Cohesion: 0.21
-Nodes (15): amountExpression(), buildMatrixQuery(), buildProvinceFilter(), buildRankingQuery(), buildRegionalAggregateQuery(), buildTargetListCacheKey(), buildTrendQuery(), getRankings() (+7 more)
+Cohesion: 0.23
+Nodes (14): amountExpression(), buildMatrixQuery(), buildProvinceFilter(), buildRankingQuery(), buildRegionalAggregateQuery(), buildTargetListCacheKey(), buildTrendQuery(), getRankings() (+6 more)
 
 ### Community 490 - "ReportBuilderPage.tsx"
 Cohesion: 0.40
@@ -1887,15 +1885,15 @@ Cohesion: 0.25
 Nodes (4): liveSuiteScript, preflightScript, rootDir, secretValues
 
 ### Community 492 - "middleware/auth.ts"
-Cohesion: 0.14
-Nodes (22): approvalController, uploadController, allowRoles, assertUserRole(), AuthPayload, Express, hasMinimumRole(), isAuthPayload() (+14 more)
+Cohesion: 0.17
+Nodes (18): approvalController, allowRoles, assertUserRole(), AuthPayload, Express, hasMinimumRole(), isRole(), Request (+10 more)
 
 ### Community 493 - "lib/auth.ts"
 Cohesion: 0.29
 Nodes (10): ACCESS_TOKEN_KEYS, AuthState, decodeJwtPayload(), getAccessToken(), getUserRole(), isAdminUser(), readAuthState(), readStorage() (+2 more)
 
 ### Community 494 - "approval-controller.ts"
-Cohesion: 0.32
+Cohesion: 0.34
 Nodes (14): actorFromRequest(), approve, firstString(), get, lockPeriod, publish, requestBody(), review (+6 more)
 
 ### Community 495 - "BRIEFING — 2026-08-12T00:53:25Z"
@@ -1903,8 +1901,8 @@ Cohesion: 0.18
 Nodes (10): Artifact Index, Attack Surface, BRIEFING — 2026-08-12T00:53:25Z, Current Parent, 🔒 Key Constraints, Key Decisions Made, Loaded Skills, Mission (+2 more)
 
 ### Community 496 - "v1/index.ts"
-Cohesion: 0.11
-Nodes (20): mockRedisGet, mockRedisSetEx, geoController, getChoropleth, getRegionSummary, listRegions, regionController, defisitwatchRouter (+12 more)
+Cohesion: 0.09
+Nodes (27): analyticsController, geoController, getChoropleth, uploadController, isAuthPayload(), requireAuth(), ACCEPTED_MIME_TYPES, memoryUpload (+19 more)
 
 ### Community 497 - "run-choropleth-load.mjs"
 Cohesion: 0.21
@@ -1931,7 +1929,7 @@ Cohesion: 0.25
 Nodes (5): apiBaseUrl, asObject(), JsonObject, readJson(), unavailableStatuses
 
 ### Community 503 - "AGENTS.md"
-Cohesion: 0.21
+Cohesion: 0.24
 Nodes (4): Alur ETL, Contoh Data, Template Unggahan Petakeu, Validasi Otomatis
 
 ### Community 506 - "BRIEFING — 2026-08-27T07:34:00Z"
@@ -1939,20 +1937,20 @@ Cohesion: 0.18
 Nodes (10): Artifact Index, Attack Surface, BRIEFING — 2026-08-27T07:34:00Z, Current Parent, 🔒 Key Constraints, Key Decisions Made, Loaded Skills, Mission (+2 more)
 
 ### Community 508 - "mocks/data/regions.ts"
-Cohesion: 0.29
-Nodes (6): getRegionGeometry(), provinceRegions, regencyRegions, RegionGeoFeature, regionGeometries, regions
+Cohesion: 0.25
+Nodes (7): getRegionGeometry(), provinceRegions, regencyRegions, RegionGeoFeature, regionGeometries, regions, Region
 
-### Community 510 - "server.ts"
-Cohesion: 0.10
-Nodes (40): options, setupSwagger(), swaggerSpec, getRedisClient(), getReportQueue(), getUploadQueue(), boundedString(), deriveContext() (+32 more)
+### Community 510 - "health.ts"
+Cohesion: 0.22
+Nodes (21): getRedisClient(), getReportQueue(), getUploadQueue(), createApp(), checkStorageHealth(), checkDatabase(), checkQueue(), checkRedis() (+13 more)
 
 ### Community 512 - "BRIEFING — 2026-08-27T07:36:30Z"
 Cohesion: 0.18
 Nodes (10): Artifact Index, Attack Surface, BRIEFING — 2026-08-27T07:36:30Z, Current Parent, 🔒 Key Constraints, Key Decisions Made, Mission, 🔒 My Identity (+2 more)
 
-### Community 513 - "10. Rollback and restore evidence"
-Cohesion: 0.40
-Nodes (5): 10. Rollback and restore evidence, Application-only rollback, Database rollback decision, Evidence retention and cleanup, Isolated PostgreSQL restore drill
+### Community 513 - "SSL/TLS Configuration"
+Cohesion: 0.67
+Nodes (3): SSL/TLS Configuration, Using External Load Balancer (AWS ALB, GCP Load Balancer), Using Let's Encrypt with Nginx (Certbot)
 
 ### Community 515 - "BRIEFING — 2026-08-27T07:36:10Z"
 Cohesion: 0.18
@@ -1982,13 +1980,9 @@ Nodes (3): @tailwindcss/postcss, @tailwindcss/postcss, @tailwindcss/postcss
 Cohesion: 0.50
 Nodes (3): pending, todo, total
 
-### Community 528 - "Appendix: Production Checklist"
-Cohesion: 0.50
-Nodes (4): Appendix: Production Checklist, Post-Launch (Day 1), Post-Launch (Week 1), Pre-Launch
-
-### Community 540 - "Security Checklist"
-Cohesion: 0.50
-Nodes (4): Network Security, Ongoing, Pre-Deployment, Security Checklist
+### Community 528 - "Maintenance Windows"
+Cohesion: 0.67
+Nodes (3): Maintenance Windows, Scheduled Maintenance, Zero-Downtime Deployments
 
 ### Community 542 - "Handoff Report: Milestone 3 Preview Remediation & E2E Verification"
 Cohesion: 0.22
@@ -2058,25 +2052,45 @@ Nodes (3): Completed Steps:, Progress — Milestone 3 Forensic Audit, Status: Co
 Cohesion: 0.50
 Nodes (3): Current Status, Iteration Status, Progress Tracker — Petakeu Release Hardening
 
+### Community 583 - "region-controller.ts"
+Cohesion: 0.33
+Nodes (5): getRegionSummary, listRegions, regionController, regionRouter, regionService
+
+### Community 584 - "Migration Notes"
+Cohesion: 0.40
+Nodes (5): Applied Migrations, Future Migrations, Migration Notes, Version 1 (Initial - `001_init.sql`), Version 2 (`002_uploads_reports.sql`) ✅ Applied
+
+### Community 585 - "11. Phase 5 — Platform Scale & Operational Maturity"
+Cohesion: 0.40
+Nodes (5): 11. Phase 5 — Platform Scale & Operational Maturity, 5.1 — Vector Tiles & Spatial Optimization, 5.2 — Standalone Worker Container Scaling, 5.3 — Centralized Observability & Incident Response, 5.4 — Advanced Test Automation
+
+### Community 586 - "Migration Checklist"
+Cohesion: 0.50
+Nodes (4): Backend Implementation (Phase 2 Complete), Frontend Switchover (Phase 3 Complete), Migration Checklist, Pre-Migration (Phase 1 Complete)
+
+### Community 589 - "3. Frontend Architecture"
+Cohesion: 0.67
+Nodes (3): 3. Frontend Architecture, Key Libraries & Responsibilities, Module & Page Organization
+
 ## Knowledge Gaps
-- **2996 isolated node(s):** `report_templates`, `name`, `version`, `private`, `type` (+2991 more)
+- **2996 isolated node(s):** `mockQuery`, `mockRedisGet`, `mockRedisSetEx`, `mockRedisKeys`, `mockRedisDel` (+2991 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **228 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **227 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `vitest` connect `upload-pipeline.integration.test.ts` to `report-worker.ts`, `compilerOptions`, `scheduled-report-cron.test.ts`, `upload-worker.ts`, `upload-validation.ts`, `routes.ts`, `validators/report.ts`, `report-email-service.ts`, `validators/analytics.ts`, `Legend.tsx`, `storage-service.ts`, `geo-service.ts`, `analytics-utils.ts`, `client.ts`, `AuditLogInspector.tsx`, `middleware/auth.ts`, `getPgPool`, `v1/index.ts`, `UploadPage.tsx`, `server.ts`?**
-  _High betweenness centrality (0.027) - this node is a cross-community bridge._
-- **Why does `getPgPool()` connect `getPgPool` to `report-worker.ts`, `buildOverview`, `approval-service.ts`, `scheduled-report-service.ts`, `buildRankingQuery`, `upload-pipeline.integration.test.ts`, `report-controller.ts`, `src/index.ts`, `upload-service.ts`, `analytics-service.ts`, `storage-service.ts`, `upload-worker.ts`, `geo-service.ts`, `alert-service.ts`, `server.ts`?**
-  _High betweenness centrality (0.006) - this node is a cross-community bridge._
-- **Why does `react` connect `cn` to `web/.eslintrc.json`, `Topbar.tsx`, `CommandPalette.tsx`, `MapDashboard.tsx`, `ReportBuilderPage.tsx`, `LeftSidebar.tsx`, `lib/auth.ts`, `App.tsx`, `AdminDashboard.tsx`, `Legend.tsx`, `MapPage.tsx`, `AuditLogInspector.tsx`, `main.tsx`, `AnalyticsPage.tsx`, `UploadPage.tsx`?**
+- **Why does `vitest` connect `upload-pipeline.integration.test.ts` to `report-worker.ts`, `upload-validation.ts`, `routes.ts`, `compilerOptions`, `scheduled-report-cron.test.ts`, `middleware/auth.ts`, `validators/report.ts`, `redis.ts`, `report-email-service.ts`, `validators/analytics.ts`, `Legend.tsx`, `client.ts`, `UploadPage.tsx`, `AuditLogInspector.tsx`, `getPgPool`, `analytics-utils.ts`, `health.ts`?**
+  _High betweenness centrality (0.030) - this node is a cross-community bridge._
+- **Why does `getPgPool()` connect `getPgPool` to `report-worker.ts`, `approval-service.ts`, `scheduled-report-service.ts`, `buildRankingQuery`, `upload-pipeline.integration.test.ts`, `audit-service.ts`, `upload-controller.ts`, `src/index.ts`, `redis.ts`, `upload-service.ts`, `analytics-service.ts`, `buildOverview`, `alert-service.ts`, `health.ts`?**
+  _High betweenness centrality (0.008) - this node is a cross-community bridge._
+- **Why does `react` connect `cn` to `web/.eslintrc.json`, `Topbar.tsx`, `CommandPalette.tsx`, `MapDashboard.tsx`, `ReportBuilderPage.tsx`, `LeftSidebar.tsx`, `lib/auth.ts`, `App.tsx`, `Legend.tsx`, `UploadPage.tsx`, `MapPage.tsx`, `AuditLogInspector.tsx`, `main.tsx`, `AnalyticsPage.tsx`, `AdminDashboard.tsx`?**
   _High betweenness centrality (0.004) - this node is a cross-community bridge._
-- **What connects `report_templates`, `name`, `version` to the rest of the system?**
+- **What connects `mockQuery`, `mockRedisGet`, `mockRedisSetEx` to the rest of the system?**
   _2996 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `E2E Test Suite Handoff & Review Report: Petakeu R1 & R2` be split into smaller, more focused modules?**
   _Cohesion score 0.11764705882352941 - nodes in this community are weakly interconnected._
 - **Should `report-worker.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.0946969696969697 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06802721088435375 - nodes in this community are weakly interconnected._
 - **Should `web/.eslintrc.json` be split into smaller, more focused modules?**
   _Cohesion score 0.0625 - nodes in this community are weakly interconnected._
