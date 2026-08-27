@@ -32,12 +32,16 @@ flowchart LR
     P1["Phase 1: MVP Core (100% Complete)\n- GeoJSON Choropleth\n- Excel Parser & Storage\n- Base PDF/Excel Exports\n- Auth & Access Control"]
     P2["Phase 2: Analytics & Insights (100% Complete)\n- Executive Dashboard\n- Trend, Target & YoY Analysis\n- Multi-Province Compare\n- Reporting Grid"]
     P3["Phase 3: Enterprise Features (6/6 Complete)\n- RBAC, approvals & period locks\n- Searchable audit UI\n- Scheduled/email reports\n- Branded PDF exports"]
+    P4["Phase 4: Advanced GovTech & Analytics\n- Visual reports (Puppeteer)\n- Enterprise SSO (SAML/OIDC)\n- Command Palette & Dark Mode\n- Dynamic fiscal rules engine"]
+    P5["Phase 5: Platform Scale & Ops Maturity\n- Vector Tiles (MVT)\n- Worker container scaling\n- Centralized observability\n- Advanced test automation"]
     
-    P1 --> P2 --> P3
+    P1 --> P2 --> P3 --> P4 --> P5
     
     style P1 fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style P2 fill:#fff3cd,stroke:#ffc107,stroke-width:1px
-    style P3 fill:#e2e3e5,stroke:#6c757d,stroke-width:1px
+    style P2 fill:#d4edda,stroke:#28a745,stroke-width:2px
+    style P3 fill:#d4edda,stroke:#28a745,stroke-width:2px
+    style P4 fill:#fff3cd,stroke:#ffc107,stroke-width:2px
+    style P5 fill:#e2e3e5,stroke:#6c757d,stroke-width:1px
 ```
 
 ---
@@ -205,6 +209,110 @@ R5 acceptance requires all primary routes to support direct entry and browser
 history, all core-role journeys to complete at supported viewports, no serious
 or critical automated accessibility violations, and no regression in the R4
 integration/security/performance contracts.
+
+---
+
+## 10. Phase 4 — Advanced GovTech & Analytics
+
+Phase 4 addresses documented-but-unimplemented capabilities from the PRD, DESIGN.md,
+and ADR decisions. It begins after the R5 release is tagged and production deployment
+is stable.
+
+### 4.1 — High-Fidelity Visual Reporting & Template Engine
+
+Transition from `pdfkit` table-only exports to a Puppeteer-based visual rendering
+engine capable of snapshotting Leaflet maps, Recharts charts, and custom executive
+headers into PDF pages. See ADR-011 (*"Consider Puppeteer for V2 visual reports"*).
+
+- [ ] Puppeteer rendering engine alongside existing PDFKit (`visual-report-worker.ts`)
+- [ ] Snapshot Leaflet choropleth + Recharts charts into PDF pages (headless Chrome viewport capture)
+- [ ] WYSIWYG report template editor with drag-and-drop sections (`ReportBuilderPage.tsx`)
+- [ ] Official government headers, digital signature placeholders, configurable annexes
+- [ ] Migration: `009_report_templates.sql` — template storage table
+
+### 4.2 — Enterprise SSO & Region Delegation
+
+Formalize ADR-007 (Proposed) SAML 2.0 / OIDC SSO integration with Pemprov / Kemendagri
+single sign-on and add fine-grained regional scoping for operator accounts.
+
+- [ ] SAML 2.0 / OIDC SSO adapter for government IdP (`sso-adapter.ts`)
+- [ ] Token blocklist / revocation infrastructure (Redis-backed revocation set)
+- [ ] Region-scoped operator accounts (e.g. Province 35 only)
+- [ ] Federated user provisioning and attribute mapping
+
+### 4.3 — Power-User Navigation & UX Polish
+
+Implement the Command Palette (`⌘K`) specified in DESIGN.md Section 4.5/8.1, Dark Mode
+using the Tailwind token architecture documented in ADR-010, and interactive inline
+correction for staged upload validation.
+
+- [ ] Global Command Palette (`⌘K` / `Ctrl+K`) — fuzzy region search, recent searches, quick-action triggers
+- [ ] Full Dark Mode theme — Tailwind `dark:` variant tokens, map tile layer swap, chart palette
+- [ ] Interactive inline spreadsheet correction for staged uploads (replace modal re-upload with editable cells)
+- [ ] YTD radial gauge widget (circular progress for target tracking)
+
+### 4.4 — Dynamic Tax & Fiscal Rules Engine
+
+Generalize the hardcoded 15% cut (ADR-003) into an auditable, versioned rules engine
+supporting multiple regional revenue types and implement the Fiscal Responsiveness
+Index spatial layer.
+
+- [ ] Versioned, auditable deduction rules table (`010_fiscal_rules.sql`)
+- [ ] Multi-rate support across revenue types (PBB-P2, BPHTB, PKB, BBNKB)
+- [ ] Fiscal Responsiveness Index (IRF) composite scoring spatial layer
+- [ ] Jenks Natural Breaks classification option (alternative to quantile, ADR-002)
+- [ ] Admin UI for managing cut rules per region/period
+
+---
+
+## 11. Phase 5 — Platform Scale & Operational Maturity
+
+Phase 5 shifts focus from feature delivery to operational excellence, scaling, and
+production-grade observability. It begins after Phase 4 features are stable.
+
+### 5.1 — Vector Tiles & Spatial Optimization
+
+Replace full-resolution GeoJSON fetches with Mapbox Vector Tiles (MVT) via PostGIS
+`ST_AsMVT` for instantaneous pan/zoom on low-bandwidth networks (ADR-005).
+
+- [ ] PostGIS `ST_AsMVT` tile endpoint (`/api/tiles/{z}/{x}/{y}.pbf`)
+- [ ] Dynamic `ST_SimplifyPreserveTopology` by zoom level
+- [ ] Frontend Leaflet/MapLibre GL vector tile layer
+- [ ] Tippecanoe pre-generation pipeline for static boundaries
+
+### 5.2 — Standalone Worker Container Scaling
+
+Decouple BullMQ workers into dedicated horizontally-scalable containers (ADR-008,
+ADR-011) and implement remaining queues.
+
+- [ ] Separate Dockerfile for BullMQ workers (`Dockerfile.worker`)
+- [ ] Docker Compose profiles for independent scaling
+- [ ] Notification queue — email + WhatsApp dispatch (ADR-008)
+- [ ] Maintenance queue — MV refresh, cleanup jobs (ADR-008)
+- [ ] Cloud S3 / GCS migration path with CDN for static GeoJSON
+
+### 5.3 — Centralized Observability & Incident Response
+
+Stand up the centralized log aggregation pipeline documented in
+`error-handling-observability.md` and connect the OpenTelemetry tracing backend.
+
+- [ ] Fluent-Bit → Elasticsearch → Kibana log aggregation stack
+- [ ] OpenTelemetry Collector → Jaeger/Tempo distributed tracing backend
+- [ ] DLQ replay/re-drive admin endpoint and UI inspector
+- [ ] Write 7 incident runbooks (`/runbooks/*.md`)
+- [ ] Alert delivery: PagerDuty, Slack webhook, SMS dispatch
+
+### 5.4 — Advanced Test Automation
+
+Close the test debt documented in `testing-strategy.md` and harden CI.
+
+- [ ] Consumer-driven contract tests (Pact) — web ↔ server
+- [ ] Visual regression testing (Playwright screenshots + Percy/Argos)
+- [ ] Chaos engineering suite (Redis drop, PG lag, MinIO full)
+- [ ] Planned unit suites: `useChoropleth`, `useRegionSummary`, `useUploads` hooks
+- [ ] Planned unit suites: `region-service`, `upload-service`, `report-service`
+- [ ] MSW v1 → v2 migration (ADR-001 debt)
+- [ ] CI: test sharding + selective test runs + self-hosted runners
 
 ---
 
