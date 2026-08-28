@@ -2666,7 +2666,7 @@
   },
   ".codex/hooks.json": {
     "mtime": 1786381146.6091833,
-    "ast_hash": "4de1c6448c3cd0fdb16c21c8691b00ed",
+    "ast_hash": "",
     "semantic_hash": ""
   },
   ".agents/challenger_m2_3/BRIEFING.md": {
@@ -2926,7 +2926,7 @@
   },
   "monitoring/grafana-dashboard.json": {
     "mtime": 1786473874.7588797,
-    "ast_hash": "90686ba6f8460df9b273fc1e2f8043c0",
+    "ast_hash": "",
     "semantic_hash": ""
   },
   "apps/server/migrations/007_staged_ingestion.sql": {
@@ -2970,7 +2970,7 @@
     "semantic_hash": ""
   },
   "scripts/verify-r4-staging.mjs": {
-    "mtime": 1787900101.2871566,
+    "mtime": 1787889161.5521321,
     "ast_hash": "c994838c4666349e61cae87a9b0570b0",
     "semantic_hash": ""
   },
@@ -3380,8 +3380,8 @@
     "semantic_hash": ""
   },
   ".pnpmfile.cjs": {
-    "mtime": 1787900081.5299761,
-    "ast_hash": "50ed788274ed5a4e2ed732fff26a14db",
+    "mtime": 1787888841.623955,
+    "ast_hash": "dd09023b448849552535944459d35da8",
     "semantic_hash": ""
   },
   "apps/server/src/db/migrate-cli.ts": {
@@ -3390,8 +3390,8 @@
     "semantic_hash": ""
   },
   "scripts/run-isolated-integration.mjs": {
-    "mtime": 1787900081.4569755,
-    "ast_hash": "21e9a2c6482b3a84aaa42d47245dbe13",
+    "mtime": 1787889247.745923,
+    "ast_hash": "50c8db7c839fa3f16246211872fa4c03",
     "semantic_hash": ""
   },
   "docker-compose.integration.yml": {
