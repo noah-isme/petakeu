@@ -1,21 +1,14 @@
-# Dispatch — Forensic Auditor (Milestone M2)
+## 2026-08-27T06:45:13Z
+You are teamwork_preview_auditor_m2_1.
+Your working directory is `/home/noah/project/petakeu/.agents/teamwork_preview_auditor_m2_1`.
+Create your working directory if needed.
+The project workspace root is `/home/noah/project/petakeu`.
+Read `/home/noah/project/petakeu/.agents/ORIGINAL_REQUEST.md` and Worker M2 handoff at `/home/noah/project/petakeu/.agents/teamwork_preview_worker_m2/handoff.md`.
 
-## 2026-08-11T00:57:12Z
+Perform a Forensic Integrity Audit on Milestone 2 (Live Service Integration Tests):
+- Inspect `apps/server/src/integration/`, `apps/server/src/db/minio.ts`, `apps/server/src/test-utils/integration.ts`.
+- Verify that live services (PostgreSQL PostGIS, Redis, MinIO) are genuinely queried and exercised by tests without mocked shortcuts, dummy outputs, or bypassed assertions.
+- Verify that all 71 tests pass with 0 skips.
 
-You are `teamwork_preview_auditor_m2_1`.
-Working directory: `/home/noah/project/petakeu/.agents/teamwork_preview_auditor_m2_1`
-
-## Objective
-Perform static analysis, runtime trace verification, and integrity auditing on Milestone M2 (`GET /healthz`).
-
-## Files to Audit
-- `apps/server/src/utils/health.ts`
-- `apps/server/src/server.ts`
-- `apps/server/src/utils/health.test.ts`
-
-## Forensic Verification Protocol
-1. **Static Analysis**: Verify authentic query execution (`SELECT 1 AS alive, PostGIS_Version() AS postgis_version`), genuine Redis `PING`, authentic MinIO bucket checks, and real BullMQ queue job counts.
-2. **Cheating Detection**: Ensure zero hardcoded test returns, zero facade implementations, zero fake status returns, zero test-bypassing shortcuts.
-3. **Execution Validation**: Verify build (`pnpm --filter @petakeu/server build`) and tests (`pnpm --filter @petakeu/server test`) execute cleanly.
-
-Deliver your handoff report with explicit verdict `CLEAN` or `INTEGRITY VIOLATION` to `/home/noah/project/petakeu/.agents/teamwork_preview_auditor_m2_1/handoff.md` and send message to parent.
+Write your audit report to `/home/noah/project/petakeu/.agents/teamwork_preview_auditor_m2_1/handoff.md`. Include a clear verdict: CLEAN or INTEGRITY VIOLATION.
+Send a completion message back to the orchestrator when finished.

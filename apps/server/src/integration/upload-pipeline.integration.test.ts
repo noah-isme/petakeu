@@ -174,7 +174,7 @@ describe('POST /api/uploads -> upload worker pipeline', () => {
     expect(await getRedisClient().get(cacheKey)).not.toBeNull();
 
     const filename = `${source}.xlsx`;
-    const workbook = createExcelBuffer([[region!.code_bps, region!.name, period, String(amount), source]]);
+    const workbook = await createExcelBuffer([[region!.code_bps, region!.name, period, String(amount), source]]);
     queueCreated = true;
     const enqueue = await postExcelMultipart<EnqueueUploadResponse>(
       appServer!.baseUrl,

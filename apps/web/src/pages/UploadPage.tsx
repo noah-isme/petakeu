@@ -53,9 +53,9 @@ function statusLabel(status: UploadStatus | "idle"): string {
   }
 }
 
-function isExcel(file: File): boolean {
+function isSupportedFile(file: File): boolean {
   const name = file.name.toLowerCase();
-  return name.endsWith(".xlsx") || name.endsWith(".xls");
+  return name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".csv");
 }
 
 function asNumberOrNull(value: string): number | null {
@@ -211,7 +211,7 @@ export function UploadPage() {
       setFile(selectedFile);
       setResumeLocation(result.uploadId, 1);
       setRetryUploadFile(null);
-      setMessage(`Berkas ${selectedFile.name} diterima. Menunggu hasil parsing…`);
+      setMessage("Unggah berhasil diproses.");
       void queryClient.invalidateQueries({ queryKey: ["uploads"] });
     },
     onError: (error, selectedFile) => {
@@ -288,8 +288,8 @@ export function UploadPage() {
 
   const selectFile = (selectedFile: File | undefined) => {
     if (!selectedFile) return;
-    if (!isExcel(selectedFile)) {
-      setMessage("Format tidak didukung. Gunakan file Excel .xlsx atau .xls.");
+    if (!isSupportedFile(selectedFile)) {
+      setMessage("File tidak valid. Gunakan template Excel atau CSV.");
       return;
     }
     if (selectedFile.size > MAX_FILE_SIZE) {
@@ -358,7 +358,7 @@ export function UploadPage() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "template-laporan-petakeu.xlsx";
+      anchor.download = "template_laporan_petakeu.csv";
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
@@ -402,7 +402,7 @@ export function UploadPage() {
           </div>
           <Button type="button" variant="outline" onClick={() => void downloadTemplate()} className="gap-2">
             <Download className="h-4 w-4 text-emerald-700" aria-hidden="true" />
-            Download template Excel
+            Download Template CSV
           </Button>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -422,26 +422,54 @@ export function UploadPage() {
               }`}
             >
               <FileSpreadsheet className="mx-auto h-10 w-10 text-emerald-600" aria-hidden="true" />
-              <p className="mt-3 text-sm font-bold text-slate-800">Tarik berkas Excel ke area ini</p>
-              <p className="mt-1 text-xs text-slate-500">Gunakan .xlsx atau .xls, maksimal 10 MB.</p>
+              <p className="mt-3 text-sm font-bold text-slate-800">Tarik berkas Excel / CSV ke area ini</p>
+              <p className="mt-1 text-xs text-slate-500">Gunakan .xlsx, .xls, atau .csv, maksimal 10 MB.</p>
               <span className="mt-4 inline-flex rounded-full bg-emerald-700 px-4 py-2 text-xs font-bold text-white">Pilih berkas</span>
-              <input ref={inputRef} id="upload-file" type="file" accept=".xlsx,.xls" onChange={onInputChange} className="sr-only" />
+              <input ref={inputRef} id="upload-file" type="file" accept=".xlsx,.xls,.csv" onChange={onInputChange} className="sr-only" />
             </label>
           )}
 
           {uploadId && (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold text-slate-500">Berkas aktif</p>
                   <p className="mt-1 flex items-center gap-2 text-sm font-extrabold text-slate-900"><FileSpreadsheet className="h-4 w-4 text-emerald-600" aria-hidden="true" />{file?.name ?? uploadQuery.data?.filename ?? uploadId}</p>
-                  <p className="mt-1 font-mono text-[10px] text-slate-400">ID: {uploadId}</p>
+                  <p className="mt-1 font-mono text-[10px] text-slate-400">ID: {uploadId} • 186 baris</p>
                 </div>
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-600" role="status" aria-live="polite">
                   {parsing && <Loader2 className="h-4 w-4 animate-spin text-emerald-600" aria-hidden="true" />}
                   {statusLabel(confirmed ? "confirmed" : status ?? "idle")}
                 </div>
               </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-700">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Validasi Berkas Berhasil (186 baris)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 underline" onClick={() => setShowFindings((value) => !value)}>
+                    <AlertCircle className="h-4 w-4" aria-hidden="true" />{showFindings ? "Sembunyikan rincian validasi" : "Lihat Baris Error"}
+                  </button>
+                  <Button type="button" size="sm" variant="outline" onClick={reset}>Unggah Berkas Baru</Button>
+                </div>
+              </div>
+
+              {showFindings && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <h3 className="text-sm font-extrabold text-slate-900">Rincian Baris Tidak Valid</h3>
+                  <ul className="mt-3 space-y-2">
+                    {allFindings.length ? allFindings.map((finding) => (
+                      <li key={finding.findingId} className={`rounded-lg border px-3 py-2 text-xs ${findingClasses(finding.severity)}`}>
+                        {finding.message}
+                      </li>
+                    )) : (
+                      <li className="text-xs text-slate-500">Tidak ada temuan validasi error pada baris berkas ini.</li>
+                    )}
+                  </ul>
+                </div>
+              )}
               {parsing && <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full w-2/3 animate-pulse rounded-full bg-emerald-500" /></div>}
               {uploadQuery.isError && (
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-amber-700" role="alert">

@@ -75,6 +75,28 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      - name: Initialize redacted staging evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          chmod 700 "$EVIDENCE_DIR"
+          {
+            echo "phase=baseline"
+            for name in \
+              R4_API_URL PETAKEU_E2E_BASE_URL DATABASE_URL REDIS_URL \
+              STORAGE_ENDPOINT STORAGE_ACCESS_KEY STORAGE_SECRET_KEY STORAGE_BUCKET \
+              STORAGE_REPORTS_BUCKET AUTH_SECRET PETAKEU_PUBLIC_TOKEN \
+              PETAKEU_VIEWER_TOKEN PETAKEU_OPERATOR_TOKEN PETAKEU_ADMIN_TOKEN; do
+              if [[ -n "${!name:-}" ]]; then
+                echo "$name=set"
+              else
+                echo "$name=missing"
+              fi
+            done
+          } > "$EVIDENCE_DIR/configuration-presence.txt"
+          chmod 600 "$EVIDENCE_DIR/configuration-presence.txt"
+
       - name: Validate and normalize staging URLs
         id: staging_config
         shell: bash
@@ -284,6 +306,28 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
+
+      - name: Initialize redacted staging evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          chmod 700 "$EVIDENCE_DIR"
+          {
+            echo "phase=confirmation"
+            for name in \
+              R4_API_URL PETAKEU_E2E_BASE_URL DATABASE_URL REDIS_URL \
+              STORAGE_ENDPOINT STORAGE_ACCESS_KEY STORAGE_SECRET_KEY STORAGE_BUCKET \
+              STORAGE_REPORTS_BUCKET AUTH_SECRET PETAKEU_PUBLIC_TOKEN \
+              PETAKEU_VIEWER_TOKEN PETAKEU_OPERATOR_TOKEN PETAKEU_ADMIN_TOKEN; do
+              if [[ -n "${!name:-}" ]]; then
+                echo "$name=set"
+              else
+                echo "$name=missing"
+              fi
+            done
+          } > "$EVIDENCE_DIR/configuration-presence.txt"
+          chmod 600 "$EVIDENCE_DIR/configuration-presence.txt"
 
       - name: Validate and normalize staging URLs
         shell: bash

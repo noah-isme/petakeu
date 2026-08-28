@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
+import { CommandPalette } from "./components/CommandPalette";
+import { useTheme } from "./hooks/useTheme";
 import { AppLayout } from "./layouts/AppLayout";
 import { Sidebar, type SidebarItem } from "./components/dashboard/Sidebar";
 import { Topbar } from "./components/dashboard/Topbar";
@@ -11,6 +13,7 @@ import { UploadPage } from "./pages/UploadPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { AboutPage } from "./pages/AboutPage";
+import { ReportBuilderPage } from "./pages/ReportBuilderPage";
 import { AuditLogInspector } from "./components/admin/AuditLogInspector";
 import { BASE_REGIONS } from "./data/regions";
 import { formatCurrency } from "./lib/format";
@@ -164,6 +167,8 @@ function RootRedirect() {
 
 export default function App() {
   const { role } = useAdminAccess();
+  const { theme, toggleTheme } = useTheme();
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -171,6 +176,7 @@ export default function App() {
     const period = searchParams.get("period");
     return period && PERIOD_DATA[period] ? period : PERIOD_OPTIONS[0];
   }, [searchParams]);
+  const selectedRegionName = searchParams.get("region");
   const [mapStatus, setMapStatus] = useState<MapStatus>("loading");
   const [featureCollection, setFeatureCollection] = useState<FeatureCollection | null>(null);
   const [legendItems, setLegendItems] = useState<LegendItem[]>([]);
@@ -205,6 +211,13 @@ export default function App() {
       setSearchParams(nextParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!selectedRegionName || BASE_REGIONS.some((region) => region.name === selectedRegionName)) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("region");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, selectedRegionName, setSearchParams]);
 
   const updatePeriod = useCallback(
     (period: string) => {
@@ -265,6 +278,33 @@ export default function App() {
     }, 4200);
     toastTimers.current.set(id, timeoutId);
   }, []);
+
+  // Global ⌘K / Ctrl+K shortcut for Command Palette
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleCommandPaletteNavigate = useCallback(
+    (path: string) => {
+      setCommandPaletteOpen(false);
+      const target = new URL(path, window.location.origin);
+      const targetParams = new URLSearchParams(target.search);
+      const currentPeriod = new URLSearchParams(location.search).get("period");
+      if (currentPeriod && !targetParams.has("period")) {
+        targetParams.set("period", currentPeriod);
+      }
+      const search = targetParams.toString();
+      navigate({ pathname: target.pathname, search: search ? `?${search}` : "" });
+    },
+    [location.search, navigate]
+  );
 
   useEffect(() => {
     setMapStatus("loading");
@@ -359,7 +399,7 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-dvh bg-slate-950 text-slate-100 transition-colors selection:bg-emerald-500/30 selection:text-emerald-300">
+    <div className="min-h-dvh bg-slate-50 text-slate-900 transition-colors selection:bg-emerald-500/30 dark:bg-slate-950 dark:text-slate-100 dark:selection:text-emerald-300">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-emerald-700 focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-white"
@@ -392,6 +432,9 @@ export default function App() {
               setMobileSidebarOpen((prev) => !prev);
             }}
             isMobileSidebarOpen={mobileSidebarOpen}
+            onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+            theme={theme}
+            onToggleTheme={toggleTheme}
           />
         }
       >
@@ -425,6 +468,7 @@ export default function App() {
                     legend={legendItems}
                     legendHighlight={legendHighlight}
                     activeRegion={activeRegion}
+                    selectedRegionName={selectedRegionName}
                     onRegionFocus={handleRegionFocus}
                     onHoverLegend={setLegendHighlight}
                     onRetry={() => updatePeriod("2024-Q3")}
@@ -472,11 +516,24 @@ export default function App() {
                 </RouteGate>
               }
             />
+            <Route
+              path="/admin/report-builder"
+              element={
+                <RouteGate route={getRouteByKey("report-builder")} role={role}>
+                  <ReportBuilderPage />
+                </RouteGate>
+              }
+            />
             <Route path="*" element={<Navigate replace to={{ pathname: "/map", search: location.search }} />} />
           </Routes>
         </div>
       </AppLayout>
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      <CommandPalette
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onNavigate={handleCommandPaletteNavigate}
+      />
     </div>
   );
 }

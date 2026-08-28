@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
+    "outDir": ".vite-config",
     "module": "ESNext",
     "moduleResolution": "Node"
   },

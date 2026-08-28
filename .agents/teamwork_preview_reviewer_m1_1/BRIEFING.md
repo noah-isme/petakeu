@@ -1,52 +1,64 @@
-# BRIEFING — 2026-08-11T01:44:15Z
+# BRIEFING — 2026-08-27T13:34:30+07:00
 
 ## Mission
-Review code quality, TypeScript typing, interface compliance, and conventions for Milestone 1 backend work.
+Review and stress-test Worker M1's security (CSP) and resilience (timeout/AbortController) implementation in Petakeu monorepo.
 
 ## 🔒 My Identity
-- Archetype: reviewer, critic
+- Archetype: reviewer / critic
 - Roles: reviewer, critic
 - Working directory: /home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_1
-- Original parent: 1e7e7b75-720d-4f33-ba82-d56f812c5213
-- Milestone: Milestone 1 (Server Core & Services)
+- Original parent: a6110b4e-1e73-4377-a3cd-d5df07b846d3
+- Milestone: M1 (Security & API Resilience Hardening)
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Evidence-based review; verify claims independently
-- Check for integrity violations actively (hardcoded test outputs, facades, shortcuts, self-certifying)
+- Check for integrity violations, dummy logic, hardcoding, or bypasses
+- Independent verification via test, lint, typecheck commands
+- Issue clear verdict: APPROVE or REQUEST_CHANGES
 
 ## Current Parent
-- Conversation ID: 1e7e7b75-720d-4f33-ba82-d56f812c5213
-- Updated: 2026-08-11T01:44:15Z
+- Conversation ID: a6110b4e-1e73-4377-a3cd-d5df07b846d3
+- Updated: 2026-08-27T13:34:30+07:00
 
 ## Review Scope
 - **Files to review**:
-  - `apps/server/src/config/env.ts`
-  - `apps/server/src/controllers/geo-controller.ts`
-  - `apps/server/src/services/geo-service.ts`
-  - `apps/server/src/services/region-service.ts`
-  - `apps/server/src/db/redis.ts`
-  - `apps/server/src/jobs/upload-worker.ts`
-  - `apps/server/src/jobs/mv-refresh-cron.ts`
-- **Interface contracts**: `/home/noah/project/petakeu/PROJECT.md`, `/home/noah/project/petakeu/.agents/teamwork_preview_suborch_m1/SCOPE.md`
-- **Review criteria**: correctness, TypeScript strict typing, interface compliance, standard conventions, integrity violations
+  - `apps/web/index.html` (CSP meta tag)
+  - `apps/server/src/server.ts` (Helmet CSP configuration)
+  - `apps/web/src/api/client.ts` (timeout, AbortController, ApiTimeoutError, apiClient methods)
+  - `apps/web/src/api/__tests__/client.test.ts`
+- **Interface contracts**:
+  - `apps/web/src/api/client.ts` exported types and functions
+  - PRD / Architecture requirements for CSP and resilience
+- **Review criteria**: correctness, completeness, robustness, backward compatibility, edge cases, security
 
 ## Review Checklist
-- **Items reviewed**: all 7 target files + test suites (`redis.test.ts`, `geo-service.test.ts`, `region-service.test.ts`, `upload-worker.test.ts`, `health.test.ts`)
+- **Items reviewed**:
+  - Worker M1 handoff report (`.agents/teamwork_preview_worker_m1/handoff.md`) [Verified]
+  - `apps/web/index.html` [Verified — CSP meta tag complete and compliant]
+  - `apps/server/src/server.ts` [Verified — Express Helmet CSP + frameAncestors: none]
+  - `apps/web/src/api/client.ts` [Verified — fetchWithTimeout, ApiTimeoutError, AbortController, cleanup]
+  - `apps/web/src/api/__tests__/client.test.ts` [Verified — 10 unit tests covering error hierarchies, abort, timeout, token attachment, blobs]
 - **Verdict**: APPROVE
-- **Unverified claims**: none; verified typecheck (0 errors) and tests (40/40 passed) directly
+- **Unverified claims**: None
 
 ## Attack Surface
-- **Hypotheses tested**: Redis fallback on failure, corrupt JSON handling, invalid level/parent params, empty query params, key prefix collisions, invalidation pattern matching
-- **Vulnerabilities found**: none
-- **Untested angles**: none within M1 scope
+- **Hypotheses tested**:
+  - Pre-aborted caller signal handling in `fetchWithTimeout` → Passes (immediate abort, no timer leak)
+  - In-flight caller abort vs timeout race condition → Passes (caller abort rethrows original AbortError; timeout throws ApiTimeoutError)
+  - Memory leak via dangling timer or event listener → Passes (`finally` cleans up `timeoutId` and removes listener)
+  - CSP blockage of map tiles, fonts, or MinIO storage → Passes (all origins allowed in `img-src`, `connect-src`, `font-src`, `style-src`)
+  - Backward compatibility of 17 `apiClient` methods → Passes (all maintain original signatures with optional trailing `options?: RequestOptions`)
+- **Vulnerabilities found**: None
+- **Untested angles**: Live browser rendering under restricted production proxy (handled in E2E stage)
 
 ## Key Decisions Made
-- Confirmed full compliance with M1 requirements and contracts
-- Issued verdict: APPROVE
+- Confirmed full compliance with requirements R3 and acceptance criteria.
+- Verified zero integrity violations, no dummy implementations, and complete error handling.
+- Verdict: APPROVE.
 
 ## Artifact Index
-- `/home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_1/DISPATCH.md` — Dispatch log
-- `/home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_1/BRIEFING.md` — Persistent working memory
-- `/home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_1/handoff.md` — Final review report and handoff
+- `.agents/teamwork_preview_reviewer_m1_1/DISPATCH.md` — User dispatch records
+- `.agents/teamwork_preview_reviewer_m1_1/BRIEFING.md` — Persistent state and working memory
+- `.agents/teamwork_preview_reviewer_m1_1/progress.md` — Liveness and progress tracker
+- `.agents/teamwork_preview_reviewer_m1_1/handoff.md` — Final review and challenge report

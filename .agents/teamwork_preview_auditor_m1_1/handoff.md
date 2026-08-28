@@ -1,129 +1,98 @@
-# Forensic Audit Report — Milestone M1: Redis Caching & Invalidation
+# Forensic Audit Report: Milestone 1 Security & API Resilience
 
-**Work Product**: `@petakeu/server` (Milestone M1)  
-**Profile**: General Project  
-**Integrity Mode**: Benchmark (Maximum Strictness)  
-**Verdict**: CLEAN  
-
----
-
-## Phase Results
-
-- **Hardcoded output detection**: PASS — No hardcoded test results, expected response literals, or constant returns found in source files.
-- **Facade implementation check**: PASS — All functions (`buildChoropleth`, `getRegionSummary`, `getCached`, `invalidateRegionCache`, `invalidateChoroplethCache`) execute real database queries, Redis interactions, or Prometheus metrics calls.
-- **Pre-populated artifact detection**: PASS — No pre-existing result files or mock logs were present in the workspace prior to audit test execution.
-- **Typecheck verification**: PASS — Executed `pnpm --filter @petakeu/server typecheck` with exit status 0 (0 errors).
-- **Behavioral unit test execution**: PASS — Executed `pnpm --filter @petakeu/server test` with exit status 0. Passed 5 test suites (`redis.test.ts`, `geo-service.test.ts`, `region-service.test.ts`, `upload-worker.test.ts`, `health.test.ts`), 40/40 tests passed.
-- **Dependency & delegation audit**: PASS — No forbidden external dependencies or third-party execution delegation used for core deliverables. Standard project dependencies (`ioredis`, `pg`, `prom-client`) used appropriately.
+**Work Product**: Milestone 1 Implementation (`apps/web/index.html`, `apps/server/src/server.ts`, `apps/web/src/api/client.ts`, `apps/web/src/api/__tests__/client.test.ts`)  
+**Profile**: General Project (Development Mode per `ORIGINAL_REQUEST.md`)  
+**Auditor**: `teamwork_preview_auditor_m1_1`  
+**Verdict**: **CLEAN**
 
 ---
 
 ## 1. Observation
 
-1. **TTL Environment Variable Implementation (`apps/server/src/config/env.ts`, `geo-service.ts`, `region-service.ts`)**:
-   - `env.ts` lines 27–33:
-     ```ts
-     choroplethCacheTtl: Number(process.env.CHOROPLETH_CACHE_TTL ?? 300),
-     regionSummaryCacheTtl: Number(process.env.REGION_SUMMARY_CACHE_TTL ?? 180),
-     ```
-   - `geo-service.ts` line 179:
-     ```ts
-     { ttl: loadEnv().choroplethCacheTtl, keyPrefix: 'petakeu:geo' }
-     ```
-   - `region-service.ts` line 182:
-     ```ts
-     { ttl: loadEnv().regionSummaryCacheTtl, keyPrefix: 'petakeu:regions' }
-     ```
+Direct inspection of modified files in Milestone 1 reveals:
 
-2. **Query Parameter Forwarding (`apps/server/src/controllers/geo-controller.ts`)**:
-   - Lines 9–11:
-     ```ts
-     const level = req.query.level ? Number(req.query.level) : undefined;
-     const parent = req.query.parent ? String(req.query.parent) : undefined;
-     const payload = await geoService.buildChoropleth(period, { publicMode, level, parent });
-     ```
+### 1.1 `apps/web/index.html` (Lines 9–12)
+Contains a valid W3C Content Security Policy `<meta>` header:
+```html
+<meta
+  http-equiv="Content-Security-Policy"
+  content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://unpkg.com https://*.openstreetmap.org http://localhost:9000 https://storage.petakeu.local; connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https://api.petakeu.go.id https://*.petakeu.go.id http://localhost:9000 https://storage.petakeu.local https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self';"
+/>
+```
+- Restricts untrusted sources (`default-src 'self'`, `object-src 'none'`, `base-uri 'self'`).
+- Whitelists required third-party services: Leaflet stylesheet (`unpkg.com`), OpenStreetMap / CartoDB tiles (`*.tile.openstreetmap.org`, `*.basemaps.cartocdn.com`), Google Fonts (`fonts.googleapis.com`, `fonts.gstatic.com`), and MinIO local/cloud storage endpoints (`localhost:9000`, `storage.petakeu.local`).
 
-3. **Key Prefix Formatting (`apps/server/src/services/geo-service.ts`, `apps/server/src/services/region-service.ts`)**:
-   - `geo-service.ts` lines 48–54:
-     ```ts
-     function buildCacheKey(period: string, options: { publicMode?: boolean; level?: number; parent?: string } = {}): string {
-       const parts = ['choropleth', period];
-       if (options.level !== undefined) parts.push(String(options.level));
-       if (options.parent !== undefined) parts.push(String(options.parent));
-       if (options.publicMode) parts.push('public');
-       return parts.join(':');
-     }
-     ```
-     With `keyPrefix: 'petakeu:geo'`, evaluates to Redis key `petakeu:geo:choropleth:{period}:{level}:{parent}`.
-   - `region-service.ts` lines 32–37:
-     ```ts
-     function buildRegionSummaryCacheKey(regionId: string, range?: { from?: string; to?: string }): string {
-       const parts = ['summary', regionId];
-       if (range?.from) parts.push(`from:${range.from}`);
-       if (range?.to) parts.push(`to:${range.to}`);
-       return parts.join(':');
-     }
-     ```
-     Fixed duplicate prefixing (`regions:regions:summary...`). With `keyPrefix: 'petakeu:regions'`, evaluates to `petakeu:regions:summary:{regionId}:{from}:{to}`.
+### 1.2 `apps/server/src/server.ts` (Lines 60–100)
+Configures Express `helmet` middleware matching the frontend CSP policy with server-side HTTP security additions:
+- Includes identical content security policy directives for all resource types.
+- Adds `frameAncestors: ["'none'"]` for anti-clickjacking protection (correctly applied via HTTP response headers).
 
-4. **Metric Increment Reordering (`apps/server/src/db/redis.ts`)**:
-   - Lines 48–53:
-     ```ts
-     const cached = await client.get(fullKey);
-     if (cached !== null) {
-       const data = JSON.parse(cached) as T;
-       cacheHits.inc({ cache_type: 'redis' });
-       return data;
-     }
-     ```
-     `JSON.parse(cached)` executes BEFORE `cacheHits.inc(...)`, preventing false metric increments on corrupt JSON cache data.
+### 1.3 `apps/web/src/api/client.ts` (Lines 23–152, 301–446)
+Implements robust timeout and abort handling:
+- Defines `DEFAULT_API_TIMEOUT_MS = 30_000`.
+- Defines custom `ApiTimeoutError` (HTTP status `408`, custom `timeoutMs`, prototype chain preserved).
+- `fetchWithTimeout`:
+  - Instantiates `new AbortController()`.
+  - Attaches `Authorization` header if `getAccessToken()` exists and header is absent.
+  - Handles external `callerSignal`: immediate abort if pre-aborted, or dynamic event listener `addEventListener("abort", onCallerAbort, { once: true })`.
+  - Sets timer via `setTimeout` to trigger abort with `isTimedOut = true`.
+  - Traps timeout in `catch` block and raises `ApiTimeoutError(timeout, ...)`.
+  - Cleans up `clearTimeout(timeoutId)` and `removeEventListener("abort", onCallerAbort)` in `finally` block.
+- Integrates `fetchWithTimeout` across `fetchJson`, `uploadFile`, `downloadUploadTemplate`, and all 17 methods on `apiClient`.
+- Preserves 100% backward compatibility by accepting `options?: RequestOptions` as optional trailing arguments.
 
-5. **Explicit Invalidation Hooks (`apps/server/src/jobs/upload-worker.ts`, `apps/server/src/jobs/mv-refresh-cron.ts`)**:
-   - `upload-worker.ts` lines 179–185:
-     ```ts
-     await invalidateChoroplethCache();
-     await invalidateRegionCache();
-     await invalidateFiscalCache();
-     await invalidateDefisitwatchCache();
-     await invalidateRankfinCache();
-     ```
-   - `mv-refresh-cron.ts` lines 27–33:
-     ```ts
-     await invalidateChoroplethCache();
-     await invalidateRegionCache();
-     await invalidateFiscalCache();
-     await invalidateDefisitwatchCache();
-     await invalidateRankfinCache();
-     ```
-
-6. **Empirical Execution Output**:
-   - `pnpm --filter @petakeu/server typecheck`: Exited with code 0 (0 errors).
-   - `pnpm --filter @petakeu/server test`: Exited with code 0.
-     Passed 5 test files (`redis.test.ts`, `geo-service.test.ts`, `region-service.test.ts`, `upload-worker.test.ts`, `health.test.ts`), 40/40 tests passed.
+### 1.4 `apps/web/src/api/__tests__/client.test.ts` (Lines 1–213)
+Contains 13 comprehensive unit tests verifying:
+- Error structure, HTTP status preservation, and server error details.
+- Token attachment via `localStorage`.
+- Timeout triggers `ApiTimeoutError` with status `408` and timeout duration.
+- Caller-initiated abort triggers standard `AbortError` and does NOT raise `ApiTimeoutError`.
+- Pre-aborted caller signals.
+- In-flight caller aborts.
+- Custom options across `downloadUploadTemplate` and JSON mutation endpoints.
+- Value of `DEFAULT_API_TIMEOUT_MS`.
 
 ---
 
 ## 2. Logic Chain
 
-1. **From Observation 1**: `loadEnv().choroplethCacheTtl` (default 300) and `loadEnv().regionSummaryCacheTtl` (default 180) read directly from environment variables `CHOROPLETH_CACHE_TTL` and `REGION_SUMMARY_CACHE_TTL`, ensuring TTLs are configurable at runtime rather than hardcoded.
-2. **From Observation 2**: Extracting `level` and `parent` query parameters in `geo-controller.ts` and passing them to `buildChoropleth` ensures level and parent filters are forwarded to the PostgreSQL spatial query and incorporated into the Redis cache key.
-3. **From Observation 3**: Setting `keyPrefix: 'petakeu:geo'` and `keyPrefix: 'petakeu:regions'` in combination with `buildCacheKey` and `buildRegionSummaryCacheKey` produces normalized, non-duplicated Redis keys (`petakeu:geo:choropleth...` and `petakeu:regions:summary...`). Invalidation calls (`invalidateCacheByPrefix('geo:choropleth')` and `invalidateCacheByPrefix('regions')`) compute patterns `petakeu:geo:choropleth*` and `petakeu:regions*`, matching cached keys correctly.
-4. **From Observation 4**: Reordering `JSON.parse` before `cacheHits.inc` in `getCached` guarantees that Prometheus `petakeu_cache_hits_total` increments only when cached data is successfully deserialized.
-5. **From Observation 5**: Calling `invalidateRegionCache()` alongside `invalidateChoroplethCache()` in `upload-worker.ts` and `mv-refresh-cron.ts` ensures that region summary caches are purged immediately whenever new payment data is uploaded or materialized views refresh.
-6. **From Observation 6**: All 5 Vitest test suites passed without errors, verifying that functions handle cache hits, misses, JSON parse failures, and invalidation calls correctly.
+### 2.1 Forensic Check Evaluation
+1. **Hardcoded Test Results (Pass)**:
+   - No hardcoded string matching or test bypasses in `client.ts` or `server.ts`.
+   - `fetchWithTimeout` issues authentic `fetch` requests with active abort controllers.
+   - `ApiTimeoutError` and `createApiHttpError` dynamically compute and parse inputs.
+
+2. **Facade Implementations (Pass)**:
+   - Neither `client.ts` nor `server.ts` use dummy functions, empty stubs, or placeholder returns.
+   - Timers, signal event listeners, header merging, and abort logic are complete and functional.
+
+3. **Fabricated Verification Outputs (Pass)**:
+   - Workspace search for pre-populated `.log`, `*result*`, or `*attestation*` artifacts yielded zero pre-generated artifacts.
+
+4. **Self-Certifying Tests (Pass)**:
+   - Vitest tests in `client.test.ts` mock native `fetch` or verify real JavaScript timer/promise mechanics rather than asserting against tautological constants from the test file itself.
+
+5. **Execution Delegation (Pass)**:
+   - Implementation uses standard Web APIs (`AbortController`, `fetch`, `setTimeout`, `clearTimeout`) and standard Express `helmet` configuration without external wrapper bypasses.
+
+### 2.2 Genuine Implementation & Resilience
+- **Abort vs. Timeout Disambiguation**: By setting `isTimedOut = true` specifically inside the `setTimeout` callback, intentional aborts from callers (such as React Query component unmounts) are cleanly preserved as `AbortError` and are not miscategorized as network timeouts.
+- **Resource Cleanup**: The `finally` block guarantees that both active timer IDs and event listeners on external signals are cleared, preventing timer leaks and detached listener leaks.
 
 ---
 
 ## 3. Caveats
 
-- **No caveats**: All implementation aspects were audited empirically, source code was inspected line-by-line, and tests executed cleanly. No bypassing, facades, or hardcoded results were identified.
+- In Vite development mode, inline style and script tags are injected for Hot Module Replacement (HMR), requiring `'unsafe-inline'` in `style-src` and `script-src`. Production builds bundle scripts as separate chunks.
+- `frame-ancestors` directive is valid only in HTTP response headers (via Helmet) and is intentionally omitted from the HTML `<meta>` tag.
 
 ---
 
 ## 4. Conclusion
 
-The Milestone M1 implementation in `@petakeu/server` is authentic, genuine, non-hardcoded, and compliant with Benchmark Mode integrity standards.
-Final Verdict: **CLEAN**.
+The Milestone 1 work product fulfills all security and resilience requirements specified in `ORIGINAL_REQUEST.md`. No hardcoding, facades, cheats, or shortcuts were found.
+
+**Verdict: CLEAN**
 
 ---
 
@@ -131,22 +100,19 @@ Final Verdict: **CLEAN**.
 
 To independently verify this audit:
 
-1. **TypeScript Typecheck**:
-   ```bash
-   pnpm --filter @petakeu/server typecheck
-   ```
-   *Expected*: Status 0, 0 TypeScript errors.
+1. **Inspect Target Files**:
+   - `apps/web/index.html` (lines 9–12)
+   - `apps/server/src/server.ts` (lines 60–100)
+   - `apps/web/src/api/client.ts` (lines 23–145)
+   - `apps/web/src/api/__tests__/client.test.ts`
 
-2. **Unit Test Suite Execution**:
+2. **Run Unit Tests**:
    ```bash
-   pnpm --filter @petakeu/server test
+   pnpm --filter @petakeu/web test
    ```
-   *Expected*: Status 0, 5 test suites passed (40 tests passed total).
 
-3. **Source Code Inspection**:
-   - Inspect `apps/server/src/config/env.ts`: Confirm `CHOROPLETH_CACHE_TTL` (default 300) and `REGION_SUMMARY_CACHE_TTL` (default 180).
-   - Inspect `apps/server/src/controllers/geo-controller.ts`: Confirm `level` and `parent` query parameter parsing.
-   - Inspect `apps/server/src/services/geo-service.ts`: Confirm `buildCacheKey` format `choropleth:{period}:{level}:{parent}` and `keyPrefix: 'petakeu:geo'`.
-   - Inspect `apps/server/src/services/region-service.ts`: Confirm `buildRegionSummaryCacheKey` format `summary:{regionId}:{from}:{to}` and `keyPrefix: 'petakeu:regions'`.
-   - Inspect `apps/server/src/db/redis.ts`: Confirm `JSON.parse` precedes `cacheHits.inc`.
-   - Inspect `apps/server/src/jobs/upload-worker.ts` & `mv-refresh-cron.ts`: Confirm `invalidateRegionCache()` called alongside `invalidateChoroplethCache()`.
+3. **Run Typecheck & Lint**:
+   ```bash
+   pnpm typecheck
+   pnpm lint
+   ```

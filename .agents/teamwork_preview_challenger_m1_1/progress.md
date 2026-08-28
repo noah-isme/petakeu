@@ -1,13 +1,16 @@
-# Progress Log — teamwork_preview_challenger_m1_1
+# Progress — teamwork_preview_challenger_m1_1
 
-Last visited: 2026-08-11T01:45:00+07:00
+Last visited: 2026-08-27T06:33:00Z
 
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Reviewed SCOPE.md, PROJECT.md, and worker handoff.md
-- [x] Inspected source code in `apps/server`: `env.ts`, `geo-controller.ts`, `geo-service.ts`, `region-service.ts`, `redis.ts`, `upload-worker.ts`, `mv-refresh-cron.ts`
-- [x] Created and executed empirical unit test suite `m1_empirical_verifier.test.ts` (21 tests passed)
-- [x] Created and executed controller integration & high-concurrency stress test suite `m1_stress_and_controller.test.ts` (5 tests passed)
-- [x] Verified project typechecking (`pnpm --filter @petakeu/server typecheck` passed with 0 errors)
-- [x] Verified full backend test suite (`pnpm --filter @petakeu/server test` passed with 40/40 tests)
-- [x] Formulated evaluation report and verdict: `APPROVE`
-- [x] Writing handoff report (`handoff.md`)
+- [x] Initialize challenger agent workspace and briefing
+- [x] Read ORIGINAL_REQUEST.md, Worker M1 handoff, and apps/web/src/api/client.ts
+- [x] Design and conduct adversarial stress test analysis covering:
+  - Rapid concurrent requests (500–10,000 calls isolation & reentrancy)
+  - Zero / negative / NaN / Infinity timeouts behavior
+  - Already-aborted AbortSignal handling and listener prevention
+  - Caller abort vs timeout differentiation (ApiTimeoutError vs AbortError)
+  - Memory cleanup (guaranteed finally block clearing timers and event listeners)
+  - All 17 apiClient methods options propagation
+- [x] Analyze empirical results & edge cases
+- [x] Produce final handoff report with APPROVE / REJECT verdict
+- [ ] Send completion message to parent

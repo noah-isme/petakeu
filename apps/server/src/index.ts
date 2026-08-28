@@ -6,6 +6,7 @@ import { runMigrations } from './db/migrate';
 import { initStorage } from './services/storage-service';
 import { startUploadWorker } from './jobs/upload-worker';
 import { startReportWorker } from './jobs/report-worker';
+import { startVisualReportWorker } from './jobs/visual-report-worker';
 import { startMvRefreshCron } from './jobs/mv-refresh-cron';
 import { startScheduledReportJobs } from './jobs/scheduled-report-cron';
 import { loadEnv } from './config/env';
@@ -42,6 +43,7 @@ async function main() {
   // 3. Start background workers
   const uploadWorker = startUploadWorker();
   const reportWorker = startReportWorker();
+  const visualReportWorker = startVisualReportWorker();
   const scheduledReportJobs = startScheduledReportJobs(env.scheduledReports);
   logger.info('[petakeu] Background workers started');
 
@@ -61,6 +63,7 @@ async function main() {
     server.close(async () => {
       await uploadWorker.close();
       await reportWorker.close();
+      await visualReportWorker.close();
       await scheduledReportJobs.close();
       await shutdownPg();
       await shutdownRedis();

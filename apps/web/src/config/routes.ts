@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  FileEdit,
   FileText,
   Info,
   Map as MapIcon,
@@ -11,7 +12,7 @@ import {
 import type { UserRole } from "../lib/auth";
 
 /** Stable page identifiers used by the sidebar, route guards, and page titles. */
-export type AppRouteKey = "map" | "analytics" | "reports" | "upload" | "about" | "audit";
+export type AppRouteKey = "map" | "analytics" | "reports" | "upload" | "about" | "audit" | "report-builder";
 
 export interface AppRouteDefinition {
   key: AppRouteKey;
@@ -80,6 +81,15 @@ export const APP_ROUTES: readonly AppRouteDefinition[] = [
     label: "Audit Trail",
     title: "Audit Trail — Kepatuhan & Governance",
     icon: ShieldCheck,
+    section: "tools",
+    minimumRole: "admin"
+  },
+  {
+    key: "report-builder",
+    path: "/admin/report-builder",
+    label: "Report Builder",
+    title: "Report Template Builder",
+    icon: FileEdit,
     section: "tools",
     minimumRole: "admin"
   }

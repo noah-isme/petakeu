@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Queue } from 'bullmq';
 import jwt from 'jsonwebtoken';
+import ExcelJS from 'exceljs';
 import { ListBucketsCommand } from '@aws-sdk/client-s3';
 
 
@@ -90,6 +91,7 @@ export async function probeIntegrationInfrastructure(): Promise<IntegrationGate>
           to_regclass('public.payments') AS payments_table,
           to_regclass('public.uploads') AS uploads_table,
           to_regclass('public.report_jobs') AS report_jobs_table,
+          to_regclass('public.report_templates') AS report_templates_table,
           to_regclass('public.mv_payments_with_cut') AS payments_view
       `),
       2_000,
@@ -102,6 +104,7 @@ export async function probeIntegrationInfrastructure(): Promise<IntegrationGate>
       'payments_table',
       'uploads_table',
       'report_jobs_table',
+      'report_templates_table',
       'payments_view',
     ].filter((name) => !schema?.[name]);
     if (missingTables.length > 0) {
@@ -260,16 +263,14 @@ export async function findUnlockedPeriod(pool: Pool): Promise<string> {
   return period;
 }
 
-export function createExcelBuffer(rows: string[][]): Buffer {
-  // Require here so suites that are skipped before setup do not initialize the
-  // spreadsheet parser or add any external-service side effects.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { utils, write } = require('xlsx') as typeof import('xlsx');
+export async function createExcelBuffer(rows: string[][]): Promise<Buffer> {
+  // Keep spreadsheet construction lazy so suites skipped before setup do not
+  // initialize any external-service clients.
   const headers = ['kode_bps', 'nama_wilayah', 'periode', 'nominal', 'sumber'];
-  const worksheet = utils.aoa_to_sheet([headers, ...rows]);
-  const workbook = utils.book_new();
-  utils.book_append_sheet(workbook, worksheet, 'Data');
-  return write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Data');
+  worksheet.addRows([headers, ...rows]);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
 export async function waitFor<T>(

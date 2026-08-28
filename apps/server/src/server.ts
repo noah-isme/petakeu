@@ -57,7 +57,47 @@ export async function createApp(): Promise<Express> {
     next();
   });
 
-  app.use(helmet({ crossOriginResourcePolicy: false }));
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: false,
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
+          fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+          imgSrc: [
+            "'self'",
+            "data:",
+            "blob:",
+            "https://*.tile.openstreetmap.org",
+            "https://*.basemaps.cartocdn.com",
+            "https://unpkg.com",
+            "https://*.openstreetmap.org",
+            "http://localhost:9000",
+            "https://storage.petakeu.local"
+          ],
+          connectSrc: [
+            "'self'",
+            "http://localhost:*",
+            "ws://localhost:*",
+            "http://127.0.0.1:*",
+            "ws://127.0.0.1:*",
+            "https://api.petakeu.go.id",
+            "https://*.petakeu.go.id",
+            "http://localhost:9000",
+            "https://storage.petakeu.local",
+            "https://*.tile.openstreetmap.org",
+            "https://*.basemaps.cartocdn.com"
+          ],
+          workerSrc: ["'self'", "blob:"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          frameAncestors: ["'none'"]
+        }
+      }
+    })
+  );
   app.use(cors());
   app.use(express.json({ limit: "5mb" }));
   app.use(express.urlencoded({ extended: true }));

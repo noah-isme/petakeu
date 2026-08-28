@@ -1,56 +1,45 @@
-# BRIEFING — 2026-08-11T01:00:00+07:00
+# BRIEFING — 2026-08-27T13:51:00+07:00
 
 ## Mission
-Independently review the code changes and test suite for Milestone M2 (Comprehensive Readiness Health Checks `GET /healthz`).
+Review and stress-test Worker M2's implementation of live service integration tests, MinIO streaming upload, and connection teardowns.
 
 ## 🔒 My Identity
-- Archetype: reviewer AND adversarial critic
+- Archetype: reviewer_critic
 - Roles: reviewer, critic
 - Working directory: /home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m2_1
-- Original parent: b5498e98-dd96-4165-ad51-b7c590614691
-- Milestone: M2
+- Original parent: a6110b4e-1e73-4377-a3cd-d5df07b846d3
+- Milestone: M2 Preview Review
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Run build and test commands to verify work product
-- Check for integrity violations, dummy implementations, hardcoded test results, or bypasses
-- Issue verdict APPROVE or REQUEST_CHANGES
+- Run integration tests with live services and verify 0 skipped tests
+- Check for integrity violations (hardcoded test data, dummy facades, shortcuts)
 
 ## Current Parent
-- Conversation ID: b5498e98-dd96-4165-ad51-b7c590614691
-- Updated: 2026-08-11T01:00:00+07:00
+- Conversation ID: a6110b4e-1e73-4377-a3cd-d5df07b846d3
+- Updated: 2026-08-27T13:51:00+07:00
 
 ## Review Scope
-- **Files to review**: `apps/server/src/utils/health.ts`, `apps/server/src/server.ts`, `apps/server/src/utils/health.test.ts`
-- **Interface contracts**: PROJECT.md / DISPATCH.md requirements for M2 readiness health check GET /healthz
-- **Review criteria**: DB, Redis, Storage, Queue probe logic; HTTP status codes rules; integrity; correctness; edge cases; tests.
+- **Files to review**: `apps/server/src/integration/*`, `apps/server/src/db/minio.ts`, `apps/server/src/test-utils/integration.ts`, `apps/server/src/jobs/report-worker.ts`, `apps/server/src/jobs/upload-worker.ts`, `apps/server/package.json`
+- **Interface contracts**: `apps/server/package.json`, `docs/PRD.md`, `docs/ARCHITECTURE.md`
+- **Review criteria**: correctness, integrity, teardowns, streaming upload, 0 skipped tests, lint & typecheck
 
 ## Review Checklist
-- **Items reviewed**:
-  - `apps/server/src/utils/health.ts` — verified DB probe (`SELECT 1 AS alive, PostGIS_Version() AS postgis_version`), Redis probe (`PING`), Storage probe (`checkStorageHealth`), Queue probe (`BullMQ uploadQueue & reportQueue job counts`).
-  - `apps/server/src/server.ts` — verified `/healthz`, `/health`, `/ready`, `/live` routes and HTTP 200/503 status code logic.
-  - `apps/server/src/utils/health.test.ts` — verified unit and integration suite with 22 test cases.
+- **Items reviewed**: `apps/server/src/db/minio.ts`, `apps/server/src/integration/report-generation.integration.test.ts`, `apps/server/src/integration/upload-pipeline.integration.test.ts`, `apps/server/src/test-utils/integration.ts`, `apps/server/src/jobs/report-worker.ts`, `apps/server/src/jobs/upload-worker.ts`
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All code and test outputs verified independently.
+- **Unverified claims**: None
 
 ## Attack Surface
-- **Hypotheses tested**:
-  - DB failure causes unhealthy status (503): PASS
-  - Redis failure causes unhealthy status (503): PASS
-  - Storage degradation causes degraded status (200): PASS
-  - Queue failure causes degraded status (200): PASS
-  - PostGIS version missing/null fallback handling: PASS
-  - Integrity violation / hardcoded fake outputs: NONE FOUND
-- **Vulnerabilities found**: None
-- **Untested angles**: None within scope of M2 health check endpoints.
+- **Hypotheses tested**: S3 dynamic length streaming failure, memory exhaustion during report generation, test teardown leaks, authentication bypassing, integrity violations.
+- **Vulnerabilities found**: None in reviewed M2 scope. `@aws-sdk/lib-storage` effectively resolves S3 HTTP 411 / Content-Length streaming issues.
+- **Untested angles**: Extreme network latency between MinIO and server (mitigated by streaming timeouts).
 
 ## Key Decisions Made
-- Confirmed full build clean pass (`pnpm --filter @petakeu/server build`)
-- Confirmed 22/22 tests passing in `apps/server/src/utils/health.test.ts`
-- Issued verdict: APPROVE
+- Independent test execution verified 15/15 test files and 71/71 tests passing with 0 skipped tests.
+- Typecheck (`tsc --noEmit`) completed with 0 errors.
+- Verified no integrity violations or fake facades.
+- Verdict: APPROVE.
 
 ## Artifact Index
-- /home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m2_1/BRIEFING.md — Working briefing index
-- /home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m2_1/progress.md — Progress heartbeat
-- /home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m2_1/handoff.md — Handoff report
+- `/home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m2_1/handoff.md` — final review and challenge report

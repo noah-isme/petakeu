@@ -7,6 +7,7 @@ import {
   HeadBucketCommand,
   GetObjectCommand
 } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 let s3Client: S3Client | undefined;
@@ -42,17 +43,21 @@ export async function uploadToS3(
   body: Buffer | Readable,
   contentType: string
 ): Promise<string> {
-  const client = getS3Client();
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: body,
-      ContentType: contentType,
-    })
-  );
-  const endpoint = process.env.STORAGE_ENDPOINT ?? 'http://localhost:9000';
-  return `${endpoint}/${bucket}/${key}`;
+  if (Buffer.isBuffer(body)) {
+    const client = getS3Client();
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      })
+    );
+    const endpoint = process.env.STORAGE_ENDPOINT ?? 'http://localhost:9000';
+    return `${endpoint}/${bucket}/${key}`;
+  }
+
+  return uploadStreamToS3(bucket, key, body, contentType);
 }
 
 export async function uploadStreamToS3(
@@ -61,7 +66,19 @@ export async function uploadStreamToS3(
   stream: Readable,
   contentType: string
 ): Promise<string> {
-  return uploadToS3(bucket, key, stream, contentType);
+  const client = getS3Client();
+  const parallelUpload = new Upload({
+    client,
+    params: {
+      Bucket: bucket,
+      Key: key,
+      Body: stream,
+      ContentType: contentType,
+    },
+  });
+  await parallelUpload.done();
+  const endpoint = process.env.STORAGE_ENDPOINT ?? 'http://localhost:9000';
+  return `${endpoint}/${bucket}/${key}`;
 }
 
 export async function getPresignedDownloadUrl(

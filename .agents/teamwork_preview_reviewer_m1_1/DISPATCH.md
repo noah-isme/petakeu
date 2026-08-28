@@ -1,23 +1,22 @@
-## 2026-08-10T18:43:04Z
-<USER_REQUEST>
+## 2026-08-27T06:31:10Z
+
 You are teamwork_preview_reviewer_m1_1.
-Your working directory is: /home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_1
+Your working directory is `/home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_1`.
+Create your working directory if needed.
+The project workspace root is `/home/noah/project/petakeu`.
+Read `/home/noah/project/petakeu/.agents/ORIGINAL_REQUEST.md` and Worker M1 handoff at `/home/noah/project/petakeu/.agents/teamwork_preview_worker_m1/handoff.md`.
 
-MANDATORY READ:
-- Original Request: /home/noah/project/petakeu/.agents/ORIGINAL_REQUEST.md
-- Global Project Architecture: /home/noah/project/petakeu/PROJECT.md
-- Milestone Scope: /home/noah/project/petakeu/.agents/teamwork_preview_suborch_m1/SCOPE.md
-- Worker Handoff: /home/noah/project/petakeu/.agents/teamwork_preview_worker_m1_1/handoff.md
+Examine:
+- `apps/web/index.html` (CSP meta tag)
+- `apps/server/src/server.ts` (Helmet CSP configuration)
+- `apps/web/src/api/client.ts` (timeout, AbortController, ApiTimeoutError, apiClient methods)
+- `apps/web/src/api/__tests__/client.test.ts`
 
-Task: Review code quality, TypeScript strict typing, interface compliance, and standard conventions across modified files:
-- `apps/server/src/config/env.ts`
-- `apps/server/src/controllers/geo-controller.ts`
-- `apps/server/src/services/geo-service.ts`
-- `apps/server/src/services/region-service.ts`
-- `apps/server/src/db/redis.ts`
-- `apps/server/src/jobs/upload-worker.ts`
-- `apps/server/src/jobs/mv-refresh-cron.ts`
+Run:
+- `pnpm --filter @petakeu/web test`
+- `pnpm typecheck`
+- `pnpm lint`
 
-Run `pnpm --filter @petakeu/server test` and `pnpm --filter @petakeu/server typecheck`.
-Write your full review report and verdict (`APPROVE` or `REQUEST_CHANGES`) to `/home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_1/handoff.md`. Send a message when complete.
-</USER_REQUEST>
+Evaluate correctness, completeness, robustness, and interface conformance.
+Write your review report to `/home/noah/project/petakeu/.agents/teamwork_preview_reviewer_m1_1/handoff.md`. Include a clear verdict: APPROVE or REQUEST_CHANGES.
+Send a completion message back to the orchestrator when finished.

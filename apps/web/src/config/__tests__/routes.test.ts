@@ -10,7 +10,8 @@ describe("application route registry", () => {
       "/reports",
       "/uploads",
       "/about",
-      "/admin/audit"
+      "/admin/audit",
+      "/admin/report-builder"
     ]);
   });
 

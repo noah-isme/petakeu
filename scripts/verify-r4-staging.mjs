@@ -338,6 +338,12 @@ async function main() {
     'report_jobs_ranking_criterion_008',
     'report_type',
   ]);
+  await checkMigration('009_report_templates.sql', [
+    'CREATE TABLE IF NOT EXISTS report_templates',
+    'report_templates_default_idx',
+    'report_templates_created_at_idx',
+    'ADD COLUMN IF NOT EXISTS template_id',
+  ]);
 
   await probeHttp();
 

@@ -38,6 +38,7 @@ interface MapPageProps {
   legend: LegendItem[];
   legendHighlight: LegendItem | null;
   activeRegion: RegionStat | null;
+  selectedRegionName: string | null;
   onRegionFocus: (region: RegionStat | null) => void;
   onHoverLegend: (item: LegendItem | null) => void;
   onRetry: () => void;
@@ -68,6 +69,7 @@ export function MapPage({
   legend,
   legendHighlight,
   activeRegion,
+  selectedRegionName,
   onRegionFocus,
   onHoverLegend,
   onRetry
@@ -93,6 +95,12 @@ export function MapPage({
       ])
     );
   }, [featureCollection]);
+
+  useEffect(() => {
+    setSelectedQuickRegion(
+      selectedRegionName && regionLookup.has(selectedRegionName) ? selectedRegionName : null,
+    );
+  }, [regionLookup, selectedRegionName]);
 
   const getColor = useCallback(
     (value: number) => {
@@ -197,6 +205,17 @@ export function MapPage({
   };
 
   const regionNames = Array.from(regionLookup.keys());
+
+  const updateRegionQuery = (name: string | null) => {
+    const nextParams = new URLSearchParams(location.search);
+    if (name) {
+      nextParams.set("region", name);
+    } else {
+      nextParams.delete("region");
+    }
+    const nextSearch = nextParams.toString();
+    navigate({ pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : "" });
+  };
 
   return (
     <div className="space-y-6">
@@ -358,19 +377,20 @@ export function MapPage({
                 <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/90 p-6 text-center">
                   <MapPin className="h-8 w-8 text-amber-500 mb-2" />
                   <p className="text-sm font-bold text-slate-800">Belum Ada Data Peta</p>
+                  <p className="mt-1 text-xs text-slate-500">Tidak ditemukan catatan realisasi pendapatan untuk periode ini.</p>
                 </div>
               )}
 
               {status === "error" && (
                 <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/90 p-6 text-center">
                   <RefreshCcw className="h-8 w-8 text-rose-500 mb-2" />
-                  <p className="text-sm font-bold text-rose-600">Gagal Memuat Layer Map</p>
+                  <p className="text-sm font-bold text-rose-600">Terjadi Kendala Memuat Layer Map</p>
                   <button
                     type="button"
                     onClick={onRetry}
                     className="mt-2 rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-rose-500"
                   >
-                    Muat Ulang
+                    Muat Ulang Data Peta
                   </button>
                 </div>
               )}
@@ -433,6 +453,7 @@ export function MapPage({
                 onClick={() => {
                   setSelectedQuickRegion(null);
                   onRegionFocus(null);
+                  updateRegionQuery(null);
                 }}
                 className={`rounded-full px-3 py-1 text-xs font-bold transition shrink-0 ${
                   selectedQuickRegion === null
@@ -450,6 +471,7 @@ export function MapPage({
                     setSelectedQuickRegion(name);
                     const reg = regionLookup.get(name);
                     if (reg) onRegionFocus(reg);
+                    updateRegionQuery(name);
                   }}
                   className={`rounded-full px-3 py-1 text-xs font-bold transition shrink-0 ${
                     selectedQuickRegion === name
