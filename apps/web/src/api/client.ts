@@ -416,7 +416,12 @@ export const apiClient = {
     if (!response.ok) {
       throw await responseError(response);
     }
-    return response.blob();
+    // Re-wrap the bytes with the current realm's Blob constructor. Node 18/20
+    // fetch implementations can return an undici Blob that fails
+    // `instanceof Blob` in the jsdom/browser test realm.
+    return new Blob([await response.arrayBuffer()], {
+      type: response.headers.get("content-type") ?? "application/octet-stream"
+    });
   },
   createReport(payload: ReportRequest, options?: RequestOptions) {
     const url = buildUrl("/reports/export");
