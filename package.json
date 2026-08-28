@@ -19,6 +19,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:e2e": "pnpm --filter @petakeu/web test:e2e",
+    "test:integration": "node scripts/run-isolated-integration.mjs",
     "benchmark": "tsx scripts/benchmark-perf.ts",
     "loadtest:choropleth": "node scripts/run-choropleth-load.mjs"
   },

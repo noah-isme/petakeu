@@ -30,6 +30,11 @@ COPY . .
 
 RUN pnpm build --filter @petakeu/server
 
+# Produce a standalone production dependency tree. Copying the workspace
+# symlinks from a pnpm install into a different image layout leaves modules
+# unreachable at runtime; deploy materializes the server package correctly.
+RUN pnpm deploy --filter @petakeu/server --prod /app/server-runtime
+
 # Production image
 FROM base AS runner
 WORKDIR /app
@@ -49,13 +54,16 @@ RUN apk add --no-cache \
       ca-certificates \
       ttf-freefont
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Copy built application
+# Copy the standalone production package, built application, and migrations.
+COPY --from=builder --chown=nodejs:nodejs /app/server-runtime/package.json ./package.json
+COPY --from=builder --chown=nodejs:nodejs /app/server-runtime/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/apps/server/dist ./dist
-COPY --from=builder --chown=nodejs:nodejs /app/apps/server/package.json ./package.json
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nodejs:nodejs /app/apps/server/migrations ./migrations
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+  CMD node -e "fetch('http://127.0.0.1:4000/healthz').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 USER nodejs
 

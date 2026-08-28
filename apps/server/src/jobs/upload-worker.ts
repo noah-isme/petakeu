@@ -1,5 +1,5 @@
 import { Queue, Worker, Job } from 'bullmq';
-import { read, utils } from 'xlsx';
+import ExcelJS from 'exceljs';
 
 import { getPgPool } from '../db/postgres';
 import { invalidateChoroplethCache } from '../services/geo-service';
@@ -72,17 +72,37 @@ class UploadParseError extends Error {
   }
 }
 
-function parseRows(buffer: Buffer) {
-  let workbook;
+function cellText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'object') return String(value);
+
+  const cell = value as Record<string, unknown>;
+  if ('result' in cell) return cellText(cell.result);
+  if (typeof cell.text === 'string') return cell.text;
+  if (Array.isArray(cell.richText)) {
+    return cell.richText
+      .map((part) => (part && typeof part === 'object' && 'text' in part ? String(part.text) : ''))
+      .join('');
+  }
+  return String(value);
+}
+
+async function parseRows(buffer: Buffer): Promise<string[][]> {
+  const workbook = new ExcelJS.Workbook();
   try {
-    workbook = read(buffer, { type: 'buffer' });
+    await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
   } catch (error) {
     throw new UploadParseError(error instanceof Error ? error.message : 'File tidak dapat dibaca');
   }
-  const [firstSheet] = workbook.SheetNames;
-  if (!firstSheet) throw new UploadParseError('File tidak memiliki sheet');
-  const sheet = workbook.Sheets[firstSheet];
-  return utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' }) as string[][];
+  const sheet = workbook.worksheets[0];
+  if (!sheet) throw new UploadParseError('File tidak memiliki sheet');
+
+  const rows: string[][] = [];
+  sheet.eachRow({ includeEmpty: true }, (row) => {
+    const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+    rows.push(values.map(cellText));
+  });
+  return rows;
 }
 
 function findingToError(rowNumber: number, finding: ValidatedUploadRow['findings'][number]) {
@@ -240,7 +260,7 @@ export async function processUpload(job: Job): Promise<void> {
 
   try {
     const buffer = Buffer.from(bufferB64, 'base64');
-    const rows = parseRows(buffer);
+    const rows = await parseRows(buffer);
 
     if (requiresUploadConfirmation()) {
       try {

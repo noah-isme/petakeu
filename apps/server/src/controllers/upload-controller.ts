@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { utils, write } from "xlsx";
+import ExcelJS from "exceljs";
 
 import { uploadService } from "../services/upload-service";
 import { logAudit } from "../services/audit-service";
@@ -83,13 +83,13 @@ const getUpload = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const getTemplate = asyncHandler(async (_req: Request, res: Response) => {
-  const worksheet = utils.aoa_to_sheet([
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Data');
+  worksheet.addRows([
     ['kode_bps', 'provinsi', 'nama_wilayah', 'periode', 'gross_setoran', 'provincial_share', 'net_revenue', 'target', 'sumber'],
     ['3301', 'Jawa Tengah', 'Kabupaten Cilacap', '2026-01', 0, 0, 0, 0, 'PAD'],
   ]);
-  const workbook = utils.book_new();
-  utils.book_append_sheet(workbook, worksheet, 'Data');
-  const buffer = write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   res
     .status(200)
     .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

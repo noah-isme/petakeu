@@ -29,6 +29,7 @@ body {
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 3px solid #0f766e !important;
   outline-offset: 3px;
+  transition: none !important;
 }
 
 /* A user preference must also win over decorative dashboard motion. */

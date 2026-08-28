@@ -176,6 +176,7 @@ export default function App() {
     const period = searchParams.get("period");
     return period && PERIOD_DATA[period] ? period : PERIOD_OPTIONS[0];
   }, [searchParams]);
+  const selectedRegionName = searchParams.get("region");
   const [mapStatus, setMapStatus] = useState<MapStatus>("loading");
   const [featureCollection, setFeatureCollection] = useState<FeatureCollection | null>(null);
   const [legendItems, setLegendItems] = useState<LegendItem[]>([]);
@@ -210,6 +211,13 @@ export default function App() {
       setSearchParams(nextParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!selectedRegionName || BASE_REGIONS.some((region) => region.name === selectedRegionName)) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("region");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, selectedRegionName, setSearchParams]);
 
   const updatePeriod = useCallback(
     (period: string) => {
@@ -286,7 +294,14 @@ export default function App() {
   const handleCommandPaletteNavigate = useCallback(
     (path: string) => {
       setCommandPaletteOpen(false);
-      navigate({ pathname: path, search: location.search });
+      const target = new URL(path, window.location.origin);
+      const targetParams = new URLSearchParams(target.search);
+      const currentPeriod = new URLSearchParams(location.search).get("period");
+      if (currentPeriod && !targetParams.has("period")) {
+        targetParams.set("period", currentPeriod);
+      }
+      const search = targetParams.toString();
+      navigate({ pathname: target.pathname, search: search ? `?${search}` : "" });
     },
     [location.search, navigate]
   );
@@ -453,6 +468,7 @@ export default function App() {
                     legend={legendItems}
                     legendHighlight={legendHighlight}
                     activeRegion={activeRegion}
+                    selectedRegionName={selectedRegionName}
                     onRegionFocus={handleRegionFocus}
                     onHoverLegend={setLegendHighlight}
                     onRetry={() => updatePeriod("2024-Q3")}

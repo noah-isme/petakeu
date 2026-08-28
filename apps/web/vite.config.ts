@@ -19,6 +19,8 @@ function readBody(req: Connect.IncomingMessage): Promise<string> {
 }
 
 function devMockServerPlugin(): Plugin {
+  const regionSummaryCache = new Map<string, { lastUpdated: string; reportUrl: string }>();
+
   return {
     name: "dev-mock-server",
     configureServer(server: ViteDevServer) {
@@ -74,6 +76,7 @@ function devMockServerPlugin(): Plugin {
 
         // Direct Node requests from playwright request fixture to /api/uploads
         if (req.method === "POST" && (url === "/api/uploads" || url === "/api/v1/uploads")) {
+          regionSummaryCache.clear();
           res.setHeader("Content-Type", "application/json");
           res.statusCode = 202;
           res.end(JSON.stringify({ upload_id: "mock-upload-id-node", uploadId: "mock-upload-id-node", status: "queued" }));
@@ -132,6 +135,69 @@ function devMockServerPlugin(): Plugin {
               status: "queued"
             })
           );
+          return;
+        }
+
+        // Keep the region-summary contract available even during the brief
+        // service-worker activation window at the start of a fresh browser
+        // context.  Once MSW controls the page it serves the same shape; this
+        // fallback prevents an unhandled request from becoming a misleading
+        // dev-server 404.
+        const regionSummaryMatch = url.match(/^\/api(?:\/v1)?\/regions\/([^/]+)\/summary$/);
+        if (req.method === "GET" && regionSummaryMatch) {
+          const regionId = decodeURIComponent(regionSummaryMatch[1] ?? "");
+          const requestUrl = new URL(req.url ?? "/", "http://localhost");
+          const knownRegions: Record<string, { name: string; level: string }> = {
+            "3301": { name: "Cilacap", level: "regency" },
+            "3302": { name: "Banyumas", level: "regency" }
+          };
+          const region = knownRegions[regionId];
+
+          res.setHeader("Content-Type", "application/json");
+          if (!region) {
+            res.statusCode = 404;
+            res.end(JSON.stringify({ error: "Region not found" }));
+            return;
+          }
+
+          const from = requestUrl.searchParams.get("from");
+          const to = requestUrl.searchParams.get("to");
+          const validPeriod = (value: string | null) => !value || /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+          if (!validPeriod(from) || !validPeriod(to) || (from && to && from > to)) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: "Invalid period range" }));
+            return;
+          }
+
+          const periods = [
+            "2024-01", "2024-02", "2024-03", "2024-04", "2024-05", "2024-06",
+            "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12",
+            "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
+            "2025-07", "2025-08"
+          ].filter((period) => (!from || period >= from) && (!to || period <= to));
+          const monthlyBreakdown = periods.map((period) => ({ period, amount: 1_500_000_000 }));
+          const totalAmount = monthlyBreakdown.reduce((total, entry) => total + entry.amount, 0);
+          const cacheKey = `${regionId}:${from ?? ""}:${to ?? ""}`;
+          let cacheEntry = regionSummaryCache.get(cacheKey);
+          if (!cacheEntry) {
+            cacheEntry = {
+              lastUpdated: new Date().toISOString(),
+              reportUrl: `https://storage.petakeu.local/reports/${regionId}.pdf`
+            };
+            regionSummaryCache.set(cacheKey, cacheEntry);
+          }
+
+          res.statusCode = 200;
+          res.end(JSON.stringify({
+            region: { id: regionId, code: regionId, name: region.name, level: region.level },
+            totalAmount,
+            cut15Amount: totalAmount * 0.15,
+            netAmount: totalAmount * 0.85,
+            trend: monthlyBreakdown,
+            monthlyBreakdown,
+            lastUpdated: cacheEntry.lastUpdated,
+            reportUrl: cacheEntry.reportUrl
+          }));
           return;
         }
 

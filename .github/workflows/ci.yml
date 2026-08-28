@@ -69,6 +69,57 @@ jobs:
           name: server-dist
           path: apps/server/dist
 
+  security-audit:
+    name: Production dependency security audit
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8.15.4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Require zero high or critical production advisories
+        run: pnpm audit --prod --audit-level high
+
+  integration-services:
+    name: Isolated migration and service integration gate
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8.15.4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run migrations twice and all service-backed integration contracts
+        run: pnpm test:integration
+      - name: Upload integration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-integration-${{ github.run_id }}
+          path: .r4-evidence
+          if-no-files-found: warn
+          retention-days: 14
+
   browser-contracts:
     name: Browser route, responsive, and accessibility contracts
     runs-on: ubuntu-latest
@@ -101,18 +152,28 @@ jobs:
       - name: Install Chromium and system dependencies
         run: pnpm --filter @petakeu/web exec playwright install --with-deps chromium
 
-      - name: Run deterministic route, responsive, and accessibility gates
+      - name: Run the browser-capable Playwright suite
         id: playwright
         run: |
           mkdir -p "$PLAYWRIGHT_OUTPUT_DIR" "$PLAYWRIGHT_REPORT_DIR"
           set -o pipefail
           pnpm --filter @petakeu/web exec playwright test \
             e2e/accessibility-release.spec.ts \
+            e2e/choropleth-caching.spec.ts \
+            e2e/health-readiness.spec.ts \
+            e2e/map-dashboard.spec.ts \
+            e2e/navigation-and-pages.spec.ts \
+            e2e/real-world-flow.spec.ts \
+            e2e/region-summary-caching.spec.ts \
+            e2e/report-generation.spec.ts \
+            e2e/reports-and-about.spec.ts \
             e2e/release-hardening.spec.ts \
+            e2e/upload-feature.spec.ts \
+            e2e/upload-warning.spec.ts \
             --project=chromium-desktop \
             --project=chromium-tablet \
             --project=chromium-mobile \
-            --grep-invert 'admin audit route remains|mobile navigation drawer' \
+            --grep-invert 'admin audit route remains|mobile navigation drawer|standalone dashboard|role-aware URLs' \
             2>&1 | tee "$PLAYWRIGHT_OUTPUT_DIR/ci-playwright.log"
 
       - name: Fail when browser contracts are skipped

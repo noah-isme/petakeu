@@ -20,6 +20,11 @@ RUN pnpm install --frozen-lockfile --prod=false
 FROM base AS builder
 WORKDIR /app
 
+ARG VITE_API_BASE_URL=/api
+ARG VITE_PUBLIC_MODE=false
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
+    VITE_PUBLIC_MODE=$VITE_PUBLIC_MODE
+
 RUN corepack enable pnpm
 
 COPY --from=deps /app/node_modules ./node_modules

@@ -38,6 +38,7 @@ interface MapPageProps {
   legend: LegendItem[];
   legendHighlight: LegendItem | null;
   activeRegion: RegionStat | null;
+  selectedRegionName: string | null;
   onRegionFocus: (region: RegionStat | null) => void;
   onHoverLegend: (item: LegendItem | null) => void;
   onRetry: () => void;
@@ -68,6 +69,7 @@ export function MapPage({
   legend,
   legendHighlight,
   activeRegion,
+  selectedRegionName,
   onRegionFocus,
   onHoverLegend,
   onRetry
@@ -93,6 +95,12 @@ export function MapPage({
       ])
     );
   }, [featureCollection]);
+
+  useEffect(() => {
+    setSelectedQuickRegion(
+      selectedRegionName && regionLookup.has(selectedRegionName) ? selectedRegionName : null,
+    );
+  }, [regionLookup, selectedRegionName]);
 
   const getColor = useCallback(
     (value: number) => {
@@ -197,6 +205,17 @@ export function MapPage({
   };
 
   const regionNames = Array.from(regionLookup.keys());
+
+  const updateRegionQuery = (name: string | null) => {
+    const nextParams = new URLSearchParams(location.search);
+    if (name) {
+      nextParams.set("region", name);
+    } else {
+      nextParams.delete("region");
+    }
+    const nextSearch = nextParams.toString();
+    navigate({ pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : "" });
+  };
 
   return (
     <div className="space-y-6">
@@ -434,6 +453,7 @@ export function MapPage({
                 onClick={() => {
                   setSelectedQuickRegion(null);
                   onRegionFocus(null);
+                  updateRegionQuery(null);
                 }}
                 className={`rounded-full px-3 py-1 text-xs font-bold transition shrink-0 ${
                   selectedQuickRegion === null
@@ -451,6 +471,7 @@ export function MapPage({
                     setSelectedQuickRegion(name);
                     const reg = regionLookup.get(name);
                     if (reg) onRegionFocus(reg);
+                    updateRegionQuery(name);
                   }}
                   className={`rounded-full px-3 py-1 text-xs font-bold transition shrink-0 ${
                     selectedQuickRegion === name

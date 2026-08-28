@@ -55,6 +55,21 @@ test.describe("release-hardening browser contracts", () => {
     await expect(page.getByText("Total Realisasi Anggaran", { exact: true })).toBeVisible();
   });
 
+  test("command-palette region URLs stay on the map and preserve the selected period", async ({ page }) => {
+    await page.goto("/map?period=2024-Q2");
+    await page.getByRole("button", { name: /Cari Wilayah \/ Provinsi/i }).click();
+
+    const input = page.getByPlaceholder("Ketik perintah atau cari...");
+    await input.fill("DI Yogyakarta");
+    await page.getByRole("dialog").getByRole("button", { name: "DI Yogyakarta", exact: true }).click();
+
+    await expect.poll(() => new URL(page.url()).pathname).toBe("/map");
+    const url = new URL(page.url());
+    expect(url.searchParams.get("region")).toBe("DI Yogyakarta");
+    expect(url.searchParams.get("period")).toBe("2024-Q2");
+    await expect(page.getByRole("heading", { name: "DI Yogyakarta", exact: true })).toBeVisible();
+  });
+
   test("downloads the existing CSV template through the browser download contract", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Unggah Data Excel", exact: true }).click();

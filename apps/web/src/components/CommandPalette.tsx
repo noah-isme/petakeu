@@ -108,7 +108,7 @@ export function CommandPalette({ open, onClose, onNavigate, onAction }: CommandP
       label: region.name,
       description: `Lihat data provinsi ${region.name}`,
       icon: MapPin,
-      path: `/regions/${region.name.toLowerCase().replace(/\\s+/g, '-')}`,
+      path: `/map?region=${encodeURIComponent(region.name)}`,
       category: 'region' as const
     }));
 
@@ -265,6 +265,8 @@ export function CommandPalette({ open, onClose, onNavigate, onAction }: CommandP
                       </div>
                     )}
                     <button
+                      type="button"
+                      aria-label={item.label}
                       className={`w-full flex items-center px-3 py-3 rounded-xl transition-colors text-left group ${
                         selectedIndex === index 
                           ? 'bg-emerald-50 dark:bg-emerald-900/20' 

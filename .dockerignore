@@ -1,0 +1,11 @@
+.git
+.r4-evidence
+node_modules
+**/node_modules
+dist
+**/dist
+coverage
+**/coverage
+apps/web/test-results
+apps/web/playwright-report
+*.log

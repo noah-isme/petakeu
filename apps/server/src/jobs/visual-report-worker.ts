@@ -1,7 +1,7 @@
 import { PassThrough } from 'stream';
 
 import { Queue, Worker, Job } from 'bullmq';
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright-core';
 
 import { getPgPool } from '../db/postgres';
 import { uploadReportStream, getReportDownloadUrl } from '../services/storage-service';
@@ -38,7 +38,7 @@ async function generateVisualReport(job: Job) {
 
   try {
     // Launch headless Chrome
-    const browser = await puppeteer.launch({
+    const browser = await chromium.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH, // Set in Dockerfile
@@ -48,7 +48,7 @@ async function generateVisualReport(job: Job) {
     
     // In a real scenario, this would be an internal network URL to the frontend with an auth token
     const targetUrl = urlToRender || 'http://localhost:5173/';
-    await page.goto(targetUrl, { waitUntil: 'networkidle0' });
+    await page.goto(targetUrl, { waitUntil: 'networkidle' });
 
     // Generate PDF buffer
     const pdfBuffer = await page.pdf({

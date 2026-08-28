@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { utils, write } from 'xlsx';
+import ExcelJS from 'exceljs';
 
 import { getPgPool } from '../db/postgres';
 
@@ -43,12 +43,12 @@ vi.mock('../utils/metrics', () => ({
   uploadsTotal: { inc: vi.fn() },
 }));
 
-function createExcelBufferB64(rows: string[][]): string {
+async function createExcelBufferB64(rows: string[][]): Promise<string> {
   const headers = ['kode_bps', 'nama_wilayah', 'periode', 'nominal', 'sumber'];
-  const ws = utils.aoa_to_sheet([headers, ...rows]);
-  const wb = utils.book_new();
-  utils.book_append_sheet(wb, ws, 'Data');
-  const buf = write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Data');
+  ws.addRows([headers, ...rows]);
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
   return buf.toString('base64');
 }
 
@@ -111,7 +111,7 @@ describe('upload-worker', () => {
     });
 
     it('tags future period payment rows with meta: { forecast: false } and valid past/current with meta: {} during bulk UPSERT', async () => {
-      const bufferB64 = createExcelBufferB64([
+      const bufferB64 = await createExcelBufferB64([
         ['3171', 'Jakarta Selatan', '2099-01', '1000000', 'PAD'],
         ['3172', 'Jakarta Timur', '2020-05', '500000', 'DAU'],
       ]);
