@@ -13,6 +13,9 @@ function formatCurrency(value: number) {
 }
 
 function formatRange(range: LegendRange, index: number, ranges: LegendRange[]) {
+  if (range.min === undefined || range.max === undefined) {
+    return range.label;
+  }
   if (index === 0) {
     return `≤ ${formatCurrency(range.max)}`;
   }

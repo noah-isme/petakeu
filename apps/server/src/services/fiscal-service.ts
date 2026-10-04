@@ -121,8 +121,34 @@ export async function getSurplusDeficit(period: string): Promise<SurplusDeficitI
   });
 }
 
+/** Ranking item as served to the public role: rupiah fields removed. */
+export type PublicRankingItem = Omit<RankingItem, 'target' | 'realization'>;
+
+/** Surplus/deficit item as served to the public role: rupiah fields removed. */
+export type PublicSurplusDeficitItem = Omit<SurplusDeficitItem, 'surplus' | 'deficit' | 'ytd'>;
+
+export function redactRankingForPublic(items: RankingItem[]): PublicRankingItem[] {
+  return items.map(({ regionId, regionName, percentage, yoy, rank }) => ({
+    regionId,
+    regionName,
+    percentage,
+    yoy,
+    rank,
+  }));
+}
+
+export function redactSurplusDeficitForPublic(items: SurplusDeficitItem[]): PublicSurplusDeficitItem[] {
+  return items.map(({ regionId, regionName }) => ({ regionId, regionName }));
+}
+
 export async function invalidateFiscalCache(): Promise<void> {
   await invalidateCacheByPrefix('fiscal');
 }
 
-export const fiscalService = { getRanking, getSurplusDeficit, invalidateFiscalCache };
+export const fiscalService = {
+  getRanking,
+  getSurplusDeficit,
+  invalidateFiscalCache,
+  redactRankingForPublic,
+  redactSurplusDeficitForPublic,
+};

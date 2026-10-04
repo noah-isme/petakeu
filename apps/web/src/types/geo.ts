@@ -6,8 +6,9 @@ export interface QuantileBin {
 }
 
 export interface LegendRange {
-  min: number;
-  max: number;
+  /** Omitted by the server for public (non-viewer) requests: ranges carry no rupiah. */
+  min?: number;
+  max?: number;
   label: string;
 }
 

@@ -150,18 +150,28 @@ export async function buildChoropleth(
         } as ChoroplethFeature;
       });
 
-      const ranges: LegendRange[] = bins.map((bin) => ({
-        min: bin.min,
-        max: bin.max,
-        label: bin.label,
-      }));
+      const labels = bins.map((b) => b.label);
 
-      const legend: LegendDefinition = {
-        method: 'quantile',
-        bins: bins.map((b) => b.max),
-        labels: bins.map((b) => b.label),
-        ranges,
-      };
+      // Public mode must not expose rupiah class boundaries: keep labels only.
+      const legend: LegendDefinition = options.publicMode
+        ? {
+            method: 'quantile',
+            bins: [],
+            labels,
+            ranges: bins.map((bin) => ({ label: bin.label })),
+          }
+        : {
+            method: 'quantile',
+            bins: bins.map((b) => b.max),
+            labels,
+            ranges: bins.map(
+              (bin): LegendRange => ({
+                min: bin.min,
+                max: bin.max,
+                label: bin.label,
+              })
+            ),
+          };
 
       const response = {
         type: 'FeatureCollection',

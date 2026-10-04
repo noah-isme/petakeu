@@ -67,6 +67,14 @@ function assertUserRole(req: Request): Role {
   return req.user.role;
 }
 
+/**
+ * True when the request must be served without rupiah amounts. Fails closed:
+ * a missing user, missing role or unknown role is treated as public.
+ */
+export function isPublicRole(req: Request): boolean {
+  return !hasMinimumRole(req.user?.role, 'viewer');
+}
+
 export function requireAuth(
   req: Request,
   _res: Response,

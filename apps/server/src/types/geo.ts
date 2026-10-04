@@ -26,8 +26,10 @@ export interface QuantileBin {
 }
 
 export interface LegendRange {
-  min: number;
-  max: number;
+  /** Omitted in public mode (rupiah boundaries are redacted). */
+  min?: number;
+  /** Omitted in public mode (rupiah boundaries are redacted). */
+  max?: number;
   label: string;
 }
 

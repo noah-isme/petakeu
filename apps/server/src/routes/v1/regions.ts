@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { requireAuth } from "../../middleware/auth";
+import { requireAuth, requireRole } from "../../middleware/auth";
 import { regionController } from "../../controllers/region-controller";
 
 /**
@@ -109,4 +109,4 @@ import { regionController } from "../../controllers/region-controller";
 export const regionRouter = Router();
 
 regionRouter.get("/", requireAuth, regionController.listRegions);
-regionRouter.get("/:id/summary", requireAuth, regionController.getRegionSummary);
+regionRouter.get("/:id/summary", requireAuth, requireRole("viewer"), regionController.getRegionSummary);
