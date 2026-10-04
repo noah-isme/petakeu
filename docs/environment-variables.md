@@ -16,6 +16,7 @@ Complete reference for all environment variables in the Petakeu monorepo.
 | `STORAGE_BUCKET` | **Yes** (prod) | `uploads` | MinIO/S3 bucket name for file uploads |
 | `STORAGE_REPORTS_BUCKET` | No | `reports` | MinIO/S3 bucket name for generated reports (PDF/Excel) |
 | `STORAGE_ENDPOINT` | **Yes** (prod) | `http://localhost:9000` | MinIO/S3 endpoint URL |
+| `STORAGE_PUBLIC_ENDPOINT` | No | `STORAGE_ENDPOINT` | Browser-reachable storage URL used to sign download links, when it differs from the internal `STORAGE_ENDPOINT` |
 | `STORAGE_ACCESS_KEY` | **Yes** (prod) | `admin` | MinIO/S3 access key |
 | `STORAGE_SECRET_KEY` | **Yes** (prod) | `password123` | MinIO/S3 secret key |
 | `STORAGE_REGION` | No | `us-east-1` | S3 region (required for AWS S3) |
