@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { fetchWithTimeout } from "../api/client";
 import { buildUrl } from "../config/api";
 import {
   createEmptyAnalyticsOverview,
@@ -410,7 +411,7 @@ export async function fetchAnalyticsOverview(params: AnalyticsQueryParams = {}):
     ranking: params.ranking,
     amountBasis: params.amountBasis
   });
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
 
   if (!response.ok) {
     const message = await response.text();

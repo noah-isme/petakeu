@@ -9,14 +9,14 @@ import { MapModeToggle } from "../components/filters/MapModeToggle";
 import { LeftSidebar } from "../components/LeftSidebar";
 import { useChoropleth } from "../hooks/useChoropleth";
 import { useRegionSummary } from "../hooks/useRegionSummary";
-import { apiClient } from "../api/client";
+import { apiClient, fetchWithTimeout } from "../api/client";
 import { appConfig } from "../config/app";
 import { buildUrl } from "../config/api";
 import { ChoroplethResponse } from "../types/geo";
 import { RegionSummary } from "../types/region";
 
 async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, init);
+  const response = await fetchWithTimeout(input, init);
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || `Request failed with status ${response.status}`);
