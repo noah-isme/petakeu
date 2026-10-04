@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { getPgPool } from '../db/postgres';
 import { uploadQueue } from '../jobs/upload-worker';
 import { AppError } from '../utils/app-error';
+import { dbPeriod } from '../utils/db-period';
 import { uploadsTotal } from '../utils/metrics';
 
 import {
@@ -82,12 +83,6 @@ function rowToRecord(row: Record<string, unknown>): UploadRecord {
   };
 }
 
-function dbPeriod(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const raw = String(value);
-  return raw.length >= 7 ? raw.slice(0, 7) : raw;
-}
-
 function rowToStaged(row: Record<string, unknown>, findings: UploadErrorDetail[] = []): StagedUploadRow {
   const acknowledged = Array.isArray(row.acknowledged_warning_ids)
     ? row.acknowledged_warning_ids.map(String)
@@ -111,7 +106,7 @@ function rowToStaged(row: Record<string, unknown>, findings: UploadErrorDetail[]
     regionCode: (row.region_code as string | null) ?? null,
     regionName: (row.region_name as string | null) ?? null,
     provinceRegionId: (row.province_region_id as string | null) ?? null,
-    period: dbPeriod(row.period as string | null),
+    period: dbPeriod(row.period),
     grossAmount: row.gross_amount === null ? null : Number(row.gross_amount),
     shareAmount: row.share_amount === null ? null : Number(row.share_amount),
     netAmount: row.net_amount === null ? null : Number(row.net_amount),
@@ -262,7 +257,7 @@ function rowToValidationInput(row: Record<string, unknown>, patch: StagedRowPatc
   const regionRaw = patch.region === undefined ? String(row.region_raw ?? '') : String(patch.region ?? '');
   const codeBpsRaw = patch.codeBps === undefined ? String(row.code_bps_raw ?? '') : String(patch.codeBps ?? '');
   const sourceRaw = patch.source === undefined ? String(row.source_raw ?? '') : String(patch.source ?? '');
-  const periodRaw = patch.period === undefined ? dbPeriod(String(row.period ?? '')) ?? '' : String(patch.period ?? '');
+  const periodRaw = patch.period === undefined ? dbPeriod(row.period) ?? '' : String(patch.period ?? '');
   const grossRaw = patch.grossAmount === undefined ? row.gross_amount : patch.grossAmount;
   const shareRaw = patch.shareAmount === undefined ? row.share_amount : patch.shareAmount;
   const netRaw = patch.netAmount === undefined ? row.net_amount : patch.netAmount;
